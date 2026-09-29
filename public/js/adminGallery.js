@@ -1,0 +1,311 @@
+/**
+ * 济宁米多信息科技有限公司 版权所有
+ * 如需获取软件授权请联系：888@miduo100.com / 15660440944
+ */
+/**
+ * 画廊管理脚本 - 后台画廊管理页面功能
+ * 从 admin_gallery.html 中提取，解决 innerHTML 注入不执行 script 的问题
+ */
+
+// ==================== i18n 翻译辅助（仅翻译取值，缺失时回退原中文，不影响功能） ====================
+
+function glT(key, fallback) {
+  try {
+    if (window.i18n && typeof window.i18n.t === 'function') {
+      const v = window.i18n.t(key);
+      if (typeof v === 'string' && v !== key) return v;
+    }
+  } catch (e) { /* 忽略 i18n 异常，回退原文 */ }
+  return fallback !== undefined ? fallback : key;
+}
+
+function glTp(key, params, fallback) {
+  try {
+    if (window.i18n && typeof window.i18n.tp === 'function') {
+      const v = window.i18n.tp(key, params);
+      if (typeof v === 'string' && v !== key) return v;
+    }
+  } catch (e) { /* 忽略 i18n 异常，回退原文 */ }
+  return fallback !== undefined ? fallback : key;
+}
+
+function galleryLog(msg) {
+  const logEl = document.getElementById('gallery-log');
+  const card = document.getElementById('gallery-log-card');
+  if (!logEl || !card) return;
+  card.style.display = 'block';
+  const time = new Date().toLocaleTimeString(window.i18n?.currentLocale || 'zh-CN');
+  const line = document.createElement('div');
+  line.textContent = `[${time}] ${msg}`;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+// 扫描文件夹
+async function galleryScan() {
+  const btn = document.getElementById('btn-scan');
+  btn.disabled = true;
+  btn.textContent = glT('adminGallery.glScanning', '扫描中...');
+  galleryLog(glT('adminGallery.glLogScanStart'));
+
+  try {
+    const res = await fetch('/api/gallery/scan', { method: 'POST' });
+    const data = await res.json();
+
+    if (data.success) {
+      document.getElementById('stat-folders').textContent = data.folders.length;
+      document.getElementById('stat-photos').textContent = data.totalPhotos;
+      document.getElementById('stat-videos').textContent = data.totalVideos;
+      document.getElementById('gallery-stats').style.display = 'grid';
+
+      let html = '';
+      for (const folder of data.folders) {
+        const counts = glTp('adminGallery.glFolderCounts', { photos: folder.photoCount, videos: folder.videoCount }, folder.photoCount + '张照片, ' + folder.videoCount + '个视频');
+        html += `<div style="margin:4px 0;padding:6px;background:#f5f5f5;border-radius:4px;">
+          📁 <b>${folder.name}</b>: ${counts}
+        </div>`;
+      }
+      if (!data.folders.length) {
+        html = '<p style="color:#999;">' + glT('adminGallery.glEmptyFolder', 'gallery_content 文件夹为空，请在 public/gallery_content/ 下创建子文件夹并放入照片') + '</p>';
+      }
+      document.getElementById('scan-result-body').innerHTML = html;
+      document.getElementById('scan-result').style.display = 'block';
+
+      galleryLog(glTp('adminGallery.glLogScanDone', { folders: data.folders.length, photos: data.totalPhotos, videos: data.totalVideos }));
+    } else {
+      const errMsg = data.error || glT('adminGallery.glUnknownError', '未知错误');
+      galleryLog(glTp('adminGallery.glLogScanFailed', { message: errMsg }));
+      alert(glTp('adminGallery.glScanFail', { message: errMsg }, '扫描失败: ' + errMsg));
+    }
+  } catch (err) {
+    galleryLog(glTp('adminGallery.glLogScanError', { message: err.message }));
+    alert(glTp('adminGallery.glScanError', { message: err.message }, '扫描出错: ' + err.message));
+  }
+  btn.disabled = false;
+  btn.textContent = glT('adminGallery.glBtnScan', '🔍 扫描文件夹');
+}
+
+// 保存配置的当前ID
+let currentConfigId = null;
+
+// 保存配置
+async function gallerySave() {
+  const config = {
+    name: document.getElementById('cfg-name').value,
+    start_x: 193,   // 固定坐标：1931年9月18日 - 勿忘国耻
+    start_y: 1,
+    start_z: 918,
+    matrix_width: parseFloat(document.getElementById('cfg-matrixWidth').value),
+    buffer_rate: parseFloat(document.getElementById('cfg-bufferRate').value),
+    row_spacing: parseFloat(document.getElementById('cfg-rowSpacing').value),
+    col_spacing: parseFloat(document.getElementById('cfg-colSpacing').value),
+    max_photo_width: parseFloat(document.getElementById('cfg-maxWidth').value),
+    max_photo_height: parseFloat(document.getElementById('cfg-maxHeight').value),
+    jitter: parseFloat(document.getElementById('cfg-jitter').value),
+    folder_gap: parseFloat(document.getElementById('cfg-folderGap').value),
+    is_active: false
+  };
+
+  galleryLog(glT('adminGallery.glLogSaving'));
+
+  try {
+    const url = currentConfigId
+      ? `/api/gallery/configs/${currentConfigId}`
+      : '/api/gallery/configs';
+    const method = currentConfigId ? 'PUT' : 'POST';
+
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) });
+    const data = await res.json();
+
+    if (data.success) {
+      currentConfigId = data.config.id;
+      galleryLog(glTp('adminGallery.glLogSaved', { id: data.config.id }));
+      galleryLoadConfigs();
+    } else {
+      galleryLog(glTp('adminGallery.glLogSaveFailed', { message: data.error || glT('adminGallery.glUnknownError') }));
+    }
+  } catch (err) {
+    galleryLog(glTp('adminGallery.glLogSaveError', { message: err.message }));
+  }
+}
+
+// 生成坐标
+async function galleryGenerate() {
+  if (!currentConfigId) {
+    alert(glT('adminGallery.glSaveFirst', '请先保存配置！'));
+    return;
+  }
+
+  const btn = document.getElementById('btn-generate');
+  btn.disabled = true;
+  btn.textContent = glT('adminGallery.glCalculating', '计算中...');
+  galleryLog(glT('adminGallery.glLogCalculateStart'));
+
+  try {
+    const res = await fetch('/api/gallery/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config_id: currentConfigId })
+    });
+    const data = await res.json();
+
+    if (data.success && data.generated > 0) {
+      document.getElementById('stat-photos').textContent = data.photos;
+      document.getElementById('stat-videos').textContent = data.videos;
+      document.getElementById('stat-status').textContent = glT('adminGallery.glGenerated', '已生成');
+      document.getElementById('stat-status').style.color = '#4caf50';
+      galleryLog(glTp('adminGallery.glLogCalculateDone', { items: data.generated, photos: data.photos, videos: data.videos }));
+    } else if (data.generated === 0) {
+      galleryLog(glTp('adminGallery.glLogWarning', { message: data.message }));
+      alert(data.message);
+    } else {
+      galleryLog(glTp('adminGallery.glLogGenerateFailed', { message: data.error || glT('adminGallery.glUnknownError') }));
+    }
+  } catch (err) {
+    galleryLog(glTp('adminGallery.glLogCalculateError', { message: err.message }));
+    alert(glTp('adminGallery.glCalcError', { message: err.message }, '计算出错: ' + err.message));
+  }
+  btn.disabled = false;
+  btn.textContent = glT('adminGallery.glBtnGenerate', '🧮 计算坐标');
+}
+
+// 设为当前激活
+async function galleryActivate() {
+  if (!currentConfigId) {
+    alert(glT('adminGallery.glSaveFirst', '请先保存配置！'));
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/gallery/configs/${currentConfigId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: true })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      document.getElementById('stat-status').textContent = glT('adminGallery.glActivated', '已激活 ✅');
+      document.getElementById('stat-status').style.color = '#4caf50';
+      galleryLog(glT('adminGallery.glLogActivated'));
+    } else {
+      galleryLog(glT('adminGallery.glLogActivateFailed'));
+    }
+  } catch (err) {
+    galleryLog(glTp('adminGallery.glLogActivateError', { message: err.message }));
+  }
+}
+
+// 加载配置列表
+async function galleryLoadConfigs() {
+  try {
+    const res = await fetch('/api/gallery/configs');
+    const data = await res.json();
+    const select = document.getElementById('cfg-select');
+    if (!select) return;
+    select.innerHTML = '<option value="">' + glT('adminGallery.glNewConfig', '-- 新建配置 --') + '</option>';
+
+    if (data.success && data.configs) {
+      for (const cfg of data.configs) {
+        const active = cfg.is_active ? glT('adminGallery.glActiveSuffix', ' [已激活]') : '';
+        const photosText = glTp('adminGallery.glPhotosCount', { count: cfg.total_photos || 0 }, (cfg.total_photos || 0) + '张');
+        select.innerHTML += `<option value="${cfg.id}">${cfg.name}${active} (${photosText})</option>`;
+      }
+    }
+  } catch (err) {
+    galleryLog(glT('adminGallery.glLogListError'));
+  }
+}
+
+// 加载指定配置
+async function galleryLoadConfig(id) {
+  if (!id) {
+    currentConfigId = null;
+    document.getElementById('cfg-name').value = glT('adminGallery.glDefaultConfigName', 'Default configuration');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/gallery/configs');
+    const data = await res.json();
+    const cfg = (data.configs || []).find(c => c.id == id);
+    if (!cfg) return;
+
+    currentConfigId = cfg.id;
+    document.getElementById('cfg-name').value = cfg.name;
+    document.getElementById('cfg-matrixWidth').value = cfg.matrix_width;
+    document.getElementById('cfg-matrixWidth-val').textContent = cfg.matrix_width;
+    document.getElementById('cfg-bufferRate').value = cfg.buffer_rate;
+    document.getElementById('cfg-bufferRate-val').textContent = (cfg.buffer_rate * 100).toFixed(0) + '%';
+    document.getElementById('cfg-rowSpacing').value = cfg.row_spacing;
+    document.getElementById('cfg-rowSpacing-val').textContent = cfg.row_spacing;
+    document.getElementById('cfg-colSpacing').value = cfg.col_spacing;
+    document.getElementById('cfg-colSpacing-val').textContent = cfg.col_spacing;
+    document.getElementById('cfg-maxWidth').value = cfg.max_photo_width;
+    document.getElementById('cfg-maxWidth-val').textContent = cfg.max_photo_width;
+    document.getElementById('cfg-maxHeight').value = cfg.max_photo_height;
+    document.getElementById('cfg-maxHeight-val').textContent = cfg.max_photo_height;
+    document.getElementById('cfg-jitter').value = cfg.jitter;
+    document.getElementById('cfg-jitter-val').textContent = cfg.jitter;
+    document.getElementById('cfg-folderGap').value = cfg.folder_gap;
+    document.getElementById('cfg-folderGap-val').textContent = cfg.folder_gap;
+
+    document.getElementById('stat-photos').textContent = cfg.total_photos;
+    document.getElementById('stat-videos').textContent = cfg.total_videos;
+    document.getElementById('stat-status').textContent = cfg.is_active ? glT('adminGallery.glActivated', '已激活 ✅') : glT('adminGallery.glInactive', '未激活');
+    document.getElementById('stat-status').style.color = cfg.is_active ? '#4caf50' : '#999';
+    document.getElementById('gallery-stats').style.display = 'grid';
+
+      galleryLog(glTp('adminGallery.glLogConfigLoaded', { name: cfg.name }));
+  } catch (err) {
+      galleryLog(glT('adminGallery.glLogConfigLoadError'));
+  }
+}
+
+// 清理全部数据（换图片时使用）
+async function galleryClearAll() {
+  if (!confirm(glT('adminGallery.glClearConfirm', '确定要清理全部数据吗？\n\n将清空：\n- 所有照片/视频的坐标数据\n- 统计数据（照片数、视频数）\n- 激活状态\n\n配置参数会保留。'))) {
+    return;
+  }
+
+  const btn = event.target.closest('button');
+  btn.disabled = true;
+  btn.textContent = glT('adminGallery.glClearing', '清理中...');
+  galleryLog(glT('adminGallery.glLogClearStart'));
+
+  try {
+    const res = await fetch('/api/gallery/clear-all', { method: 'POST' });
+    const data = await res.json();
+
+    if (data.success) {
+      galleryLog(glT('adminGallery.glLogClearDone'));
+      galleryLog(glTp('adminGallery.glLogDeletedItems', { count: data.deletedItems }));
+      galleryLog(glTp('adminGallery.glLogResetConfigs', { count: data.resetConfigs }));
+
+      // 刷新页面显示
+      document.getElementById('stat-folders').textContent = '-';
+      document.getElementById('stat-photos').textContent = '-';
+      document.getElementById('stat-videos').textContent = '-';
+      document.getElementById('stat-status').textContent = glT('adminGallery.glInactive', '未激活');
+      document.getElementById('stat-status').style.color = '#999';
+
+      alert(glT('adminGallery.glClearDone', '清理完成！现在可以重新扫描文件夹。'));
+    } else {
+      const errMsg = data.error || glT('adminGallery.glUnknownError', '未知错误');
+      galleryLog(glTp('adminGallery.glLogClearFailed', { message: errMsg }));
+      alert(glTp('adminGallery.glClearFail', { message: errMsg }, '清理失败: ' + errMsg));
+    }
+  } catch (err) {
+    galleryLog(glTp('adminGallery.glLogClearError', { message: err.message }));
+    alert(glTp('adminGallery.glClearError', { message: err.message }, '清理出错: ' + err.message));
+  }
+
+  btn.disabled = false;
+  btn.textContent = glT('adminGallery.glClearBtn', '🗑️ 清理全部数据（换图片时使用）');
+}
+
+// 画廊页面初始化（由 loadGalleryPage 调用）
+window.galleryInit = function() {
+  galleryLoadConfigs();
+  galleryLog(glT('adminGallery.glLogReady'));
+};

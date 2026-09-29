@@ -1,0 +1,175 @@
+{
+  "missingReferences": [],
+  "parameterIssues": [],
+  "candidates": [
+    {
+      "file": "public/admin_login.html",
+      "line": 253,
+      "origin": "html",
+      "connection": "page",
+      "text": "中文"
+    },
+    {
+      "file": "public/admin.html",
+      "line": 11313,
+      "origin": "inline-js",
+      "connection": "html-referenced",
+      "text": "中文"
+    },
+    {
+      "file": "public/animation_puppeteer.html",
+      "line": 1042,
+      "origin": "inline-js",
+      "connection": "html-referenced",
+      "text": "👤 头顶"
+    },
+    {
+      "file": "public/animation_puppeteer.html",
+      "line": 1044,
+      "origin": "inline-js",
+      "connection": "html-referenced",
+      "text": "✋ 左手腕 (A点)"
+    },
+    {
+      "file": "public/animation_puppeteer.html",
+      "line": 1045,
+      "origin": "inline-js",
+      "connection": "html-referenced",
+      "text": "💪 左肘 (B点)"
+    },
+    {
+      "file": "public/animation_puppeteer.html",
+      "line": 1046,
+      "origin": "inline-js",
+      "connection": "html-referenced",
+      "text": "💪 左肩 (C点)"
+    },
+    {
+      "file": "public/animation_puppeteer.html",
+      "line": 1048,
+      "origin": "inline-js",
+      "connection": "html-referenced",
+      "text": "⚔️ 剑尖 (A点)"
+    },
+    {
+      "file": "public/animation_puppeteer.html",
+      "line": 1049,
+      "origin": "inline-js",
+      "connection": "html-referenced",
+      "text": "✋ 右手腕 (B点)"
+    },
+    {
+      "file": "public/animation_puppeteer.html",
+      "line": 1050,
+      "origin": "inline-js",
+      "connection": "html-referenced",
+      "text": "💪 右肘 (C点)"
+    },
+    {
+      "file": "public/animation_puppeteer.html",
+      "line": 1051,
+      "origin": "inline-js",
+      "connection": "html-referenced",
+      "text": "💪 右肩 (D点)"
+    },
+    {
+      "file": "public/animation_puppeteer.html",
+      "line": 1053,
+      "origin": "inline-js",
+      "connection": "html-referenced",
+      "text": "👣 左脚尖 (A点)"
+    },
+    {
+      "file": "public/animation_puppeteer.html",
+      "line": 1054,
+      "origin": "inline-js",
+      "connection": "html-referenced",
+      "text": "👟 左脚踝 (B点)"
+    },
+    {
+      "file": "public/animation_puppeteer.html",
+      "line": 1055,
+      "origin": "inline-js",
+      "connection": "html-referenced",
+      "text": "🦿 左膝 (C点)"
+    },
+    {
+      "file": "public/animation_puppeteer.html",
+      "line": 1056,
+      "origin": "inline-js",
+      "connection": "html-referenced",
+      "text": "🦴 左髋 (D点)"
+    },
+    {
+      "file": "public/animation_puppeteer.html",
+      "line": 1058,
+      "origin": "inline-js",
+      "connection": "html-referenced",
+      "text": "👣 右脚尖 (A点)"
+    },
+    {
+      "file": "public/animation_puppeteer.html",
+      "line": 1059,
+      "origin": "inline-js",
+      "connection": "html-referenced",
+      "text": "👟 右脚踝 (B点)"
+    },
+    {
+      "file": "public/animation_puppeteer.html",
+      "line": 1060,
+      "origin": "inline-js",
+      "connection": "html-referenced",
+      "text": "🦿 右膝 (C点)"
+    },
+    {
+      "file": "public/animation_puppeteer.html",
+      "line": 1061,
+      "origin": "inline-js",
+      "connection": "html-referenced",
+      "text": "🦴 右髋 (D点)"
+    },
+    {
+      "file": "public/js/nearbyChat.js",
+      "line": 20,
+      "origin": "external-js",
+      "connection": "html-referenced",
+      "text": "#nearby-chat-wrap {\n        position: fixed;\n        bottom: 20px;\n        left: 50%;\n        transform: translateX(-50%);\n        z-index: 1300;\n        display: flex;\n        align-items: center;\n        gap: 8px;\n        padding: 6px 10p"
+    },
+    {
+      "file": "public/js/skillHUD.js",
+      "line": 60,
+      "origin": "external-js",
+      "connection": "html-referenced",
+      "text": "#skill-hud {\n        position: fixed;\n        bottom: 24px;\n        right: 24px;\n        display: flex;\n        flex-direction: row;\n        gap: 8px;\n        align-items: flex-end;\n        z-index: 1500;\n        pointer-events: auto;\n     "
+    },
+    {
+      "file": "public/partials/admin_gallery.html",
+      "line": 176,
+      "origin": "html",
+      "connection": "page",
+      "text": "2025-08-08-普者黑"
+    },
+    {
+      "file": "public/subscription.html",
+      "line": 402,
+      "origin": "html",
+      "connection": "page",
+      "text": "中文"
+    }
+  ],
+  "parseWarnings": [],
+  "dynamicReferences": 214,
+  "limitations": [
+    "Candidate detection is heuristic; template comments and translation fallbacks are filtered.",
+    "Only known translation helpers and literal keys are checked; computed keys require review.",
+    "No direct HTML reference does not prove a script is unused; imports and dynamic loading may exist."
+  ],
+  "summary": {
+    "missingReferences": 0,
+    "parameterIssues": 0,
+    "candidates": 22,
+    "directlyReferencedCandidates": 22,
+    "parseWarnings": 0,
+    "dynamicReferences": 214
+  }
+}

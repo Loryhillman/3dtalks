@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<!--
+  济宁米多信息科技有限公司 版权所有
+  如需获取软件授权请联系：888@miduo100.com / 15660440944
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Subscription Management — Jining Miduo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --green: #00ff00; --green-dim: rgba(0,255,0,0.12); --green-dark: #00cc00;
+      --bg: #0d1117; --card-bg: rgba(22,27,34,0.95); --border: rgba(0,255,0,0.2);
+      --text: #e6edf3; --muted: #8b949e; --red: #ff4444; --blue: #58a6ff;
+      --purple: #bc8cff; --orange: #ff8c00; --yellow: #ffd700;
+    }
+    body {
+      background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh; padding: 20px;
+    }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { font-size: 22px; margin-bottom: 8px; color: var(--green); }
+    .company { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+
+    /* 作者前言 */
+    .author-preface {
+      background: var(--card-bg); border: 1px solid rgba(255,140,0,0.25); border-radius: 10px;
+      padding: 16px 20px; margin-bottom: 20px; position: relative;
+    }
+    .author-preface::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--orange), var(--green), var(--blue)); border-radius: 10px 10px 0 0;
+    }
+    .preface-title {
+      font-size: 15px; font-weight: 700; color: var(--orange); margin-bottom: 10px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .preface-item {
+      font-size: 12.5px; color: var(--text); margin-bottom: 8px; padding-left: 16px;
+      position: relative; line-height: 1.65;
+    }
+    .preface-item::before {
+      content: ''; position: absolute; left: 0; top: 7px; width: 8px; height: 8px;
+      border-radius: 50%; background: var(--green);
+    }
+    .preface-item:nth-child(2)::before { background: var(--blue); }
+    .preface-item:nth-child(3)::before { background: var(--orange); }
+    .preface-item:nth-child(4)::before { background: var(--purple); }
+    .preface-item:nth-child(5)::before { background: var(--yellow); }
+    .preface-donate {
+      margin-top: 10px; padding: 10px 12px; background: rgba(0,255,0,0.08);
+      border: 1px dashed var(--green); border-radius: 6px; font-size: 12.5px;
+      color: var(--green); line-height: 1.65;
+    }
+    .preface-footer {
+      margin-top: 8px; font-size: 12px; color: var(--muted); line-height: 1.6;
+    }
+    .preface-footer strong { color: var(--text); }
+
+    /* 订阅状态卡片 */
+    .status-card {
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
+      padding: 16px 20px; margin-bottom: 20px; display: flex; align-items: center;
+      justify-content: space-between; gap: 16px;
+    }
+    .status-left { flex: 1; }
+    .status-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .status-value { font-size: 18px; font-weight: 700; }
+    .status-value.active { color: var(--green); }
+    .status-value.expired { color: var(--red); }
+    .status-value.nosub { color: var(--muted); }
+    .status-detail { font-size: 13px; color: var(--muted); margin-top: 2px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+    .detail-label { color: var(--muted); margin-right: 4px; }
+    .detail-val { color: var(--green); font-weight: 600; }
+    .detail-sep { color: rgba(0,255,0,0.15); }
+    .status-right { display: flex; gap: 8px; }
+    .btn {
+      padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border);
+      background: rgba(0,255,0,0.08); color: var(--green); cursor: pointer;
+      font-size: 13px; font-weight: 600; transition: all 0.2s; white-space: nowrap;
+    }
+    .btn:hover { background: var(--green-dim); border-color: var(--green); }
+    .btn-primary { background: var(--green); color: #000; border-color: var(--green); }
+    .btn-primary:hover { background: var(--green-dark); }
+    .btn-close { background: transparent; color: var(--muted); border-color: var(--border); padding: 6px 10px; font-size: 20px; line-height: 1; }
+    .btn-close:hover { color: var(--red); border-color: rgba(255,68,68,0.35); }
+
+    /* 订阅说明卡片 */
+    .company-info-card {
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
+      padding: 16px 20px; margin-bottom: 20px;
+    }
+    .company-info-card h3 { font-size: 16px; color: var(--green); margin-bottom: 12px; }
+    .company-info-card .info-table { width: 100%; border-collapse: collapse; }
+    .company-info-card .info-table td {
+      padding: 5px 8px; font-size: 13px; border-bottom: 1px solid rgba(0,255,0,0.06);
+    }
+    .company-info-card .info-table td:first-child { color: var(--muted); white-space: nowrap; width: 80px; }
+    .company-info-card .info-table td:last-child { color: var(--text); word-break: break-all; }
+    .company-info-card .info-table tr:last-child td { border-bottom: none; }
+    .license-terms {
+      margin: 0;
+      padding-left: 20px;
+      line-height: 1.7;
+      color: var(--text);
+      font-size: 14px;
+    }
+    .license-terms li {
+      margin-bottom: 12px;
+      text-align: justify;
+    }
+
+    /* 购买区域 */
+    .buy-card {
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
+      padding: 16px 20px; margin-bottom: 20px;
+    }
+    .form-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .form-label { font-size: 13px; color: var(--muted); min-width: 70px; }
+    .months-input {
+      width: 80px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border);
+      background: rgba(0,0,0,0.3); color: var(--text); font-size: 14px; text-align: center;
+    }
+    .months-input:focus { border-color: var(--green); outline: none; }
+    .amount-display { font-size: 16px; font-weight: 700; color: var(--green); }
+    .payment-tiles {
+      display: flex; gap: 8px; flex-wrap: wrap; flex: 1;
+    }
+    .payment-tile {
+      padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border);
+      background: rgba(0,0,0,0.3); color: var(--muted); font-size: 13px;
+      cursor: pointer; transition: all 0.2s; white-space: nowrap; user-select: none;
+    }
+    .payment-tile:hover { border-color: var(--green); color: var(--green); background: var(--green-dim); }
+    .payment-tile.active {
+      border-color: var(--green); color: #000; background: var(--green);
+      font-weight: 700; box-shadow: 0 0 8px rgba(0,255,0,0.25);
+    }
+    .proof-upload { margin-bottom: 12px; }
+    .proof-upload label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px; }
+    .proof-upload input[type=file] {
+      padding: 6px; border-radius: 6px; border: 1px solid var(--border);
+      background: rgba(0,0,0,0.3); color: var(--text); font-size: 13px; width: 100%;
+    }
+    .file-input-wrapper { display: flex; align-items: center; gap: 8px; }
+    .file-choose-btn {
+      padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border);
+      background: rgba(0,0,0,0.3); color: var(--green); font-size: 13px;
+      cursor: pointer; white-space: nowrap; transition: all 0.2s;
+    }
+    .file-choose-btn:hover { border-color: var(--green); background: var(--green-dim); }
+    .file-name-display {
+      flex: 1; font-size: 13px; color: var(--muted);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .note-input {
+      width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border);
+      background: rgba(0,0,0,0.3); color: var(--text); font-size: 13px; resize: vertical;
+      min-height: 40px; margin-bottom: 12px;
+    }
+    .note-input:focus { border-color: var(--green); outline: none; }
+    .btn-submit { width: 100%; padding: 10px; font-size: 15px; }
+
+    /* 支付记录弹窗 */
+    .history-modal {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.75); z-index: 1000; justify-content: center; align-items: flex-start;
+      padding-top: 60px; overflow-y: auto;
+    }
+    .history-modal.show { display: flex; }
+    .history-box {
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px;
+      padding: 24px; max-width: 640px; width: 92%; max-height: 80vh;
+      overflow-y: auto;
+    }
+    .history-box h3 { font-size: 18px; color: var(--green); margin-bottom: 16px; text-align: center; }
+    .history-item {
+      padding: 10px 0; border-bottom: 1px solid rgba(0,255,0,0.08); font-size: 13px;
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+    }
+    .history-item:last-child { border-bottom: none; }
+    .hi-info { flex: 1; min-width: 0; }
+    .hi-date { color: var(--muted); font-size: 12px; margin-bottom: 2px; }
+    .hi-desc { color: var(--text); }
+    .hi-amount { color: var(--green); font-weight: 700; white-space: nowrap; }
+    .hi-proof-wrap { margin-top: 4px; }
+    .hi-proof-img { max-width: 120px; max-height: 80px; border-radius: 4px; cursor: pointer; border: 1px solid var(--border); transition: transform 0.2s; }
+    .hi-proof-img:hover { transform: scale(1.05); }
+    .hi-detail { font-size: 11px; color: var(--blue); margin-top: 3px; word-break: break-all; }
+    .hi-note { font-size: 11px; color: var(--muted); margin-top: 3px; word-break: break-all; padding: 3px 6px; background: rgba(0,255,0,0.04); border-radius: 4px; }
+    .hi-label { color: var(--muted); font-weight: 500; }
+    .history-empty { color: var(--muted); font-size: 14px; text-align: center; padding: 30px 0; }
+    .history-pagination {
+      display: flex; justify-content: center; align-items: center; gap: 12px;
+      margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border);
+    }
+    .history-pagination .page-info { font-size: 13px; color: var(--muted); }
+    .history-pagination .btn-page {
+      padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border);
+      background: rgba(0,255,0,0.06); color: var(--green); cursor: pointer;
+      font-size: 13px; transition: all 0.2s;
+    }
+    .history-pagination .btn-page:hover { background: var(--green-dim); border-color: var(--green); }
+    .history-pagination .btn-page:disabled { opacity: 0.35; cursor: not-allowed; }
+    .history-modal .btn-close-modal {
+      display: block; margin: 16px auto 0; padding: 8px 32px; border-radius: 6px;
+      border: 1px solid var(--border); background: rgba(0,255,0,0.08); color: var(--green);
+      cursor: pointer; font-size: 14px; transition: all 0.2s;
+    }
+    .history-modal .btn-close-modal:hover { background: var(--green-dim); border-color: var(--green); }
+    .btn-export {
+      padding: 6px 12px; border-radius: 6px; border: 1px solid var(--blue);
+      background: rgba(88,166,255,0.1); color: var(--blue); cursor: pointer;
+      font-size: 12px; transition: all 0.2s; white-space: nowrap;
+    }
+    .btn-export:hover { background: rgba(88,166,255,0.2); border-color: var(--blue); }
+    .history-top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+
+    /* 二维码弹窗 */
+    .qr-modal {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center;
+    }
+    .qr-modal.show { display: flex; }
+    .qr-box {
+      background: #fff; border-radius: 12px; padding: 24px; text-align: center;
+      max-width: 680px; width: 92%;
+    }
+    .qr-box h3 { color: #000; font-size: 18px; margin-bottom: 12px; }
+    .qr-box p { color: #333; font-size: 13px; margin-bottom: 8px; }
+    .qr-columns { display: flex; gap: 16px; margin-bottom: 8px; }
+    .qr-col { flex: 1; min-width: 0; }
+    .qr-col-left { text-align: center; }
+    .qr-col-right { text-align: left; }
+    .qr-demo-label { font-size: 14px; font-weight: 700; color: var(--blue); margin-bottom: 8px; text-align: center; }
+    .qr-demo-img { width: 100%; max-height: 240px; object-fit: contain; border-radius: 6px; border: 1px solid #ddd; }
+    .qr-demo-placeholder {
+      width: 100%; height: 180px; background: #f5f5f5; border: 2px dashed #ccc;
+      border-radius: 8px; align-items: center; justify-content: center;
+      font-size: 12px; color: #999; text-align: center;
+    }
+    .qr-demo-list { list-style: none; font-size: 12px; color: #555; margin-top: 8px; padding: 0; }
+    .qr-demo-list li { padding: 1px 0; }
+    .pay-account {
+      font-size: 13px; color: #555; margin-top: 10px; padding: 10px;
+      background: #f9f9f9; border-radius: 6px; text-align: left; line-height: 1.7;
+      word-break: break-all; display: none;
+    }
+    .pay-account.show { display: block; }
+    .pay-amount { font-size: 18px; font-weight: 700; color: #000; }
+    .qr-box .btn { background: #eee; color: #333; border-color: #ccc; margin-top: 12px; }
+    .qr-placeholder {
+      width: 200px; height: 200px; background: #f5f5f5; border: 2px dashed #ccc;
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 12px; font-size: 14px; color: #999;
+    }
+
+    /* 截图演示 */
+    .screenshot-demo {
+      background: var(--card-bg); border: 1px solid rgba(88,166,255,0.25); border-radius: 10px;
+      padding: 16px 20px; margin-bottom: 20px;
+    }
+    .screenshot-demo h3 { font-size: 16px; color: var(--blue); margin-bottom: 8px; }
+    .demo-desc { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+    .demo-list { list-style: none; font-size: 13px; color: var(--text); margin-bottom: 12px; }
+    .demo-list li { padding: 2px 0; }
+    .demo-img-wrap { text-align: center; }
+    .demo-img { max-width: 100%; max-height: 300px; border-radius: 8px; border: 1px solid var(--border); }
+
+    /* Toast通知 */
+    .toast {
+      position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 8px;
+      background: rgba(0,255,0,0.15); border: 1px solid var(--green); color: var(--green);
+      font-size: 14px; z-index: 2000; opacity: 0; transition: opacity 0.3s;
+    }
+    .toast.show { opacity: 1; }
+    .toast.error { background: rgba(255,68,68,0.15); border-color: var(--red); color: var(--red); }
+
+    /* 中英文切换 */
+    .lang-switch {
+      position: absolute; top: 20px; right: 20px;
+    }
+    .lang-btn {
+      padding: 4px 12px; border-radius: 4px; border: 1px solid var(--border);
+      background: transparent; color: var(--muted); cursor: pointer; font-size: 12px;
+    }
+    .lang-btn.active { color: var(--green); border-color: var(--green); background: var(--green-dim); }
+
+    /* 图片灯箱 */
+    .img-lightbox {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.9); z-index: 9999; justify-content: center; align-items: center; cursor: zoom-out;
+    }
+    .img-lightbox.show { display: flex; }
+    .img-lightbox img {
+      max-width: 95vw; max-height: 95vh; object-fit: contain; border-radius: 8px;
+      box-shadow: 0 0 40px rgba(0,255,0,0.15); cursor: default;
+    }
+    .demo-img, .qr-demo-img { cursor: zoom-in; transition: opacity 0.2s; }
+    .demo-img:hover, .qr-demo-img:hover { opacity: 0.85; }
+
+    /* 条款弹窗 */
+    .terms-modal {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8); z-index: 1500; justify-content: center; align-items: center;
+    }
+    .terms-modal.show { display: flex; }
+    .terms-box {
+      background: var(--card-bg); border: 1px solid var(--green); border-radius: 12px;
+      padding: 28px; max-width: 620px; width: 92%; max-height: 85vh;
+      display: flex; flex-direction: column; box-shadow: 0 0 30px rgba(0,255,0,0.12);
+    }
+    .terms-box h3 {
+      font-size: 18px; color: var(--green); margin-bottom: 6px; text-align: center;
+    }
+    .terms-subtitle {
+      font-size: 12px; color: var(--muted); text-align: center; margin-bottom: 16px;
+    }
+    .terms-body {
+      flex: 1; overflow-y: auto; margin-bottom: 16px; padding-right: 8px;
+      font-size: 13px; color: var(--text); line-height: 1.8;
+      max-height: 40vh; border: 1px solid var(--border); border-radius: 8px;
+      padding: 14px 16px; background: rgba(0,0,0,0.2);
+    }
+    .terms-body h4 {
+      font-size: 14px; color: var(--green); margin: 14px 0 6px;
+    }
+    .terms-body h4:first-child { margin-top: 0; }
+    .terms-body p { margin-bottom: 8px; }
+    .terms-footer {
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .terms-check-row {
+      display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+      background: rgba(0,255,0,0.05); border-radius: 8px; border: 1px solid var(--border);
+      cursor: pointer; user-select: none; transition: all 0.2s;
+    }
+    .terms-check-row:hover { border-color: var(--green); background: var(--green-dim); }
+    .terms-check-row.checked { border-color: var(--green); background: rgba(0,255,0,0.1); }
+    .terms-check-row input[type=checkbox] {
+      width: 18px; height: 18px; accent-color: var(--green); cursor: pointer; flex-shrink: 0;
+    }
+    .terms-check-label {
+      font-size: 13px; color: var(--text); cursor: pointer; flex: 1;
+    }
+    .terms-actions {
+      display: flex; gap: 10px;
+    }
+    .terms-actions .btn { flex: 1; text-align: center; padding: 10px; }
+    .btn-terms-agree {
+      background: var(--green); color: #000; border-color: var(--green); font-weight: 700;
+    }
+    .btn-terms-agree:hover { background: var(--green-dark); }
+    .btn-terms-agree:disabled {
+      background: rgba(0,255,0,0.15); color: rgba(0,255,0,0.3); border-color: var(--border);
+      cursor: not-allowed; opacity: 0.5;
+    }
+    .btn-terms-cancel {
+      background: transparent; color: var(--muted); border-color: var(--border);
+    }
+    .btn-terms-cancel:hover { color: var(--red); border-color: rgba(255,68,68,0.35); }
+    .terms-highlight { color: var(--green); font-weight: 600; }
+    .terms-warning { color: var(--orange); font-weight: 600; }
+
+    /* 支付成功确认弹窗 */
+    .success-modal {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.75); z-index: 2000; justify-content: center; align-items: center;
+    }
+    .success-modal.show { display: flex; }
+    .success-box {
+      background: var(--card-bg); border: 1px solid var(--green); border-radius: 12px;
+      padding: 32px 28px; text-align: center; max-width: 400px; width: 90%;
+      animation: successPopIn 0.3s ease;
+    }
+    @keyframes successPopIn {
+      from { transform: scale(0.85); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .success-icon { font-size: 48px; margin-bottom: 12px; }
+    .success-box h3 {
+      font-size: 18px; color: var(--green); margin-bottom: 10px;
+    }
+    .success-msg {
+      font-size: 14px; color: var(--muted); margin-bottom: 20px; line-height: 1.6;
+    }
+    .btn-success-confirm {
+      background: var(--green); color: #000; border-color: var(--green);
+      font-weight: 700; padding: 10px 40px; font-size: 15px;
+    }
+    .btn-success-confirm:hover { background: var(--green-dark); }
+  </style>
+</head>
+<body>
+  <div class="container" id="subscription-content" style="display:none">
+    <div style="position:relative">
+      <h1 id="pageTitle">Subscription Management</h1>
+      <div class="company" id="companyLine">© Jinan Miduo Information Technology Co., Ltd.</div>
+      <div class="lang-switch">
+        <button class="lang-btn active" id="langZh" onclick="switchLang('zh')">中文</button>
+        <button class="lang-btn" id="langEn" onclick="switchLang('en')">EN</button>
+        <button class="lang-btn" id="langRu" onclick="switchLang('ru')">RU</button>
+      </div>
+    </div>
+
+    <!-- 作者前言 -->
+    <div class="author-preface" id="authorPreface">
+      <div class="preface-title" id="prefaceTitle">✨ Author's Preface</div>
+      <div class="preface-item" id="preface1">Author's Preface: I am considering licensing this product so that friends who love it can help carry it forward. If you love it too, welcome to subscribe and connect with me. I want to keep improving it and creating more futures, but my pockets are empty and life demands its toll. If this license causes financial hardship, please do not continue. You may use the program freely. If you open your world to others via IP/domain, or establish federation connections with other worlds, it is already delivering networked value; I hope you will subscribe to support continued development. If you carry out secondary development and sell it externally, please contact me for authorization and give back to the author.</div>
+      <div class="preface-item" id="preface2">The fee is $8.85 for the first payment, then $0.44 per month. Yes, you read that right — renewal is $0.44/month, $5.31/year, $53.10/decade, $531.00/century.</div>
+      <div class="preface-item" id="preface3">I will continuously update this system. More subscribers means faster updates. My earliest users are my greatest motivation. Even with few fans, I will keep updating — I will spend my lifetime perfecting this software, perfecting what I love. If you share the same vision, contact me — but I cannot afford to hire or pay you.</div>
+      <div class="preface-item" id="preface4">This code is only a basic outline; what it can be carved into depends on your creativity.</div>
+      <div class="preface-item" id="preface5">Monthly license fees gain user support for continuous development. I refuse investors — that would make things too commercial and rushed, which is not what this virtual world needs. User support covering daily expenses is enough. More means faster progress; less means slower. Living and dreaming side by side!</div>
+      <div class="preface-item" id="preface6">If you don't want to subscribe but have resources to spare, contact me to discuss collaboration.</div>
+      <div class="preface-item" id="preface7">Salute to all dream-builders! The software is unencrypted — I hope it helps forge your dreams. If you use it online, remember the author's life is still quite humble.</div>
+      <div class="preface-donate" id="prefaceDonate">💝 <strong>Voluntary Sponsorship</strong><br>If you believe in our project and wish to further fuel this dream, you can support us more by purchasing additional license time. Every act of kindness is treasured and deeply appreciated. All support will be used entirely for project R&D and continuous iteration.<br><span style="color:var(--orange);font-weight:600">License is valid only for the current purchased version. After a version upgrade (new version released), you will need to repurchase a license (3 CNY/month). The original license time can still be used with the old version.</span></div>
+      <div class="preface-footer" id="prefaceFooter">Subscribers receive software updates during the authorized version period. A new license purchase is required after version upgrades.<br><strong>Secondary development based on this program still requires a subscription — supporting the author's ongoing improvements. Understanding and forgiveness appreciated!</strong></div>
+    </div>
+
+    <!-- 订阅状态 -->
+    <div class="status-card" id="statusCard">
+      <div class="status-left">
+        <div class="status-label" id="statusLabel">Subscription Status</div>
+        <div class="status-value nosub" id="statusValue">Not Subscribed</div>
+        <div class="status-detail">
+          <span class="detail-item"><span class="detail-label" id="sdWorldLabel">World ID</span><span class="detail-val" id="sdWorldId">-</span></span>
+          <span class="detail-sep">|</span>
+          <span class="detail-item"><span class="detail-label" id="sdStartLabel">Start</span><span class="detail-val" id="sdStartTime">-</span></span>
+          <span class="detail-sep">|</span>
+          <span class="detail-item"><span class="detail-label" id="sdExpireLabel">Expires</span><span class="detail-val" id="sdExpireTime">-</span></span>
+        </div>
+        <div class="status-detail" style="margin-top:4px">
+          <span class="detail-item"><span class="detail-label" id="sdSysVerLabel">System Ver</span><span class="detail-val" id="sdSysVer">-</span></span>
+          <span class="detail-sep">|</span>
+          <span class="detail-item"><span class="detail-label" id="sdAuthVerLabel">Auth Ver</span><span class="detail-val" id="sdAuthVer">-</span></span>
+          <span class="detail-sep">|</span>
+          <span class="detail-item" id="sdVerStatusItem" style="display:none"><span class="detail-label" id="sdVerStatusLabel">Ver Status</span><span class="detail-val" id="sdVerStatus">-</span></span>
+        </div>
+      </div>
+      <div class="status-right">
+        <button class="btn" onclick="showHistory()" id="btnHistory">Payment History</button>
+        <button class="btn btn-close" onclick="window.close()" title="关闭">×</button>
+      </div>
+    </div>
+
+    <!-- 购买续费 -->
+    <div class="buy-card" id="buyCard">
+      <h3 style="font-size:16px;color:var(--green);margin-bottom:12px" id="buyTitle">Purchase Subscription</h3>
+      <div class="form-row">
+        <span class="form-label" id="buyMonthsLabel">Months</span>
+        <input type="number" class="months-input" id="monthsInput" min="2" max="36" value="2" onchange="calcAmount()" oninput="calcAmount()">
+        <span id="buyMonthsUnit"> months</span>
+        <span style="flex:1"></span>
+        <span class="form-label" id="buyAmountLabel">Amount</span>
+        <span class="amount-display" id="amountDisplay">¥60.00</span>
+      </div>
+      <div id="amountHint" style="font-size:11px;color:var(--muted);margin-top:-4px;margin-bottom:10px;text-align:right"></div>
+      <div class="form-row">
+        <span class="form-label" id="buyMethodLabel">Payment Method</span>
+        <div class="payment-tiles" id="paymentTiles">
+          <div class="payment-tile" data-method="wechat" id="tileWechat">WeChat Pay</div>
+          <div class="payment-tile" data-method="alipay" id="tileAlipay">Alipay</div>
+          <div class="payment-tile" data-method="paypal" id="tilePaypal">PayPal</div>
+
+
+          <div class="payment-tile" data-method="bank" id="tileBank">Bank Transfer</div>
+        </div>
+      </div>
+      <div class="proof-upload">
+        <label id="proofLabel">Upload Payment Proof (Must include Transaction No., see WeChat Pay detail screenshot)</label>
+        <div class="file-input-wrapper">
+          <button type="button" class="file-choose-btn" id="proofFileBtn">Choose File</button>
+          <span class="file-name-display" id="proofFileName">No file chosen</span>
+          <input type="file" id="proofFile" accept="image/*" style="display:none">
+        </div>
+      </div>
+      <div class="form-row" style="gap:12px">
+        <div style="flex:1">
+          <label class="form-label" id="txnNoLabel" style="display:block;margin-bottom:4px">✅ Transaction No. (required)</label>
+          <input type="text" id="txnNo" class="note-input" placeholder="Enter WeChat/Alipay transaction number" style="margin-bottom:0">
+        </div>
+        <div style="flex:1">
+          <label class="form-label" id="orderNoLabel" style="display:block;margin-bottom:4px">Merchant No. (optional)</label>
+          <input type="text" id="orderNo" class="note-input" placeholder="Other reference number" style="margin-bottom:0">
+        </div>
+      </div>
+      <textarea class="note-input" id="noteInput" placeholder="Note: Other supplementary information (optional)"></textarea>
+      <button class="btn btn-primary btn-submit" onclick="submitBuy()" id="btnSubmit">Confirm Payment</button>
+    </div>
+
+    <!-- 截图演示 -->
+    <div class="screenshot-demo" id="screenshotDemo">
+      <h3 id="demoTitle">📷 Screenshot Reference</h3>
+      <p class="demo-desc" id="demoDesc">Payment proof screenshot should match WeChat Pay detail page style, clearly showing:</p>
+      <ul class="demo-list" id="demoList">
+        <li id="demoItem1">✅ Transaction No. (required)</li>
+        <li id="demoItem2">Merchant No. (optional)</li>
+        <li id="demoItem3">✅ Payment amount</li>
+        <li id="demoItem4">✅ Payee: Miduo Tech</li>
+        <li id="demoItem5">✅ Payment time</li>
+      </ul>
+      <div class="demo-img-wrap">
+        <img src="/images/payment_demo.jpg" alt="截图演示" class="demo-img" id="demoImg"
+             onerror="this.parentElement.style.display='none'">
+      </div>
+    </div>
+
+    <!-- 许可费用与支付约定 -->
+    <div class="company-info-card" id="companyInfoCard">
+      <h3 id="companyInfoTitle">License Fees &amp; Payment Terms</h3>
+      <ol class="license-terms">
+        <li id="licenseTerm1"></li>
+        <li id="licenseTerm2"></li>
+        <li id="licenseTerm3"></li>
+        <li id="licenseTerm4"></li>
+      </ol>
+    </div>
+
+  </div>
+
+  <!-- 支付记录弹窗 -->
+  <div class="history-modal" id="historyModal">
+    <div class="history-box">
+      <h3 id="historyModalTitle">Payment History</h3>
+      <div class="history-top-bar">
+        <span style="font-size:12px;color:var(--muted)" id="historyTotalCount"></span>
+        <button class="btn-export" onclick="exportHistoryCSV()" id="btnExportCSV">Export CSV</button>
+      </div>
+      <div id="historyModalList"></div>
+      <div class="history-pagination" id="historyPagination">
+        <button class="btn-page" id="btnPrevPage" disabled>Prev</button>
+        <span class="page-info" id="pageInfo">Page 1/1</span>
+        <button class="btn-page" id="btnNextPage" disabled>Next</button>
+      </div>
+      <button class="btn-close-modal" id="btnCloseHistory">Close</button>
+    </div>
+  </div>
+
+  <!-- 收款账号弹窗 -->
+  <div class="qr-modal" id="qrModal">
+    <div class="qr-box">
+      <h3 id="qrTitle">WeChat Pay</h3>
+      <div class="qr-columns" id="qrContent">
+        <div class="qr-col qr-col-left">
+          <div class="qr-placeholder" id="qrPlaceholder">Replace with real QR code image in production</div>
+          <div class="pay-account" id="payAccount"></div>
+        </div>
+        <div class="qr-col qr-col-right" id="qrDemoCol">
+          <div class="qr-demo-label" id="qrDemoLabel">Screenshot Reference</div>
+          <img src="/images/payment_demo.jpg" alt="截图演示" class="qr-demo-img" id="qrDemoImg"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div class="qr-demo-placeholder" id="qrDemoPlaceholderText" style="display:none">Please save payment detail screenshot as<br>/images/payment_demo.jpg</div>
+          <ul class="qr-demo-list">
+            <li id="qrDemoItem1">✅ Transaction No. (required)</li>
+            <li id="qrDemoItem2">✅ Merchant No. (required)</li>
+            <li id="qrDemoItem3">✅ Payment amount</li>
+            <li id="qrDemoItem4">✅ Payee: Miduo Tech</li>
+            <li id="qrDemoItem5">✅ Payment time</li>
+          </ul>
+        </div>
+      </div>
+      <p id="qrHint">Scan QR code with WeChat to pay</p>
+      <p class="pay-amount" id="qrAmount">¥60.00</p>
+      <button class="btn" onclick="closeQR()" id="qrClose">Close</button>
+    </div>
+  </div>
+
+  <!-- 订阅条款弹窗 -->
+  <div class="terms-modal" id="termsModal">
+    <div class="terms-box">
+      <h3 id="termsTitle">Subscription Terms of Service</h3>
+      <div class="terms-subtitle" id="termsSubtitle">Please read the following terms carefully. You must agree to proceed with payment.</div>
+      <div class="terms-body" id="termsBody"><h4>1. Service Description</h4><p>This subscription service is provided by <span class="terms-highlight">Jinan Miduo Information Technology Co., Ltd.</span>. Users complete subscription renewal by uploading payment proof screenshots. The system will automatically extend your subscription period upon receiving valid proof.</p><h4>2. Simplified Fee Summary</h4><p>First subscription: <span class="terms-highlight">¥60</span> (approximately <span class="terms-highlight">$9.18 USD</span>), includes 2 bonus months.<br><br>Per world renewal: <span class="terms-highlight">¥3/month</span> — ¥36/year, ¥360/10 years, ¥3,600/100 years. <span class="terms-warning">Authorization is valid only for the version purchased</span>. When a new version is released, a new license purchase (¥3/month) is required. Existing time authorization remains valid for the old version.<br><br>If a subscription lapses, the maximum re-subscription fee is <span class="terms-warning">¥60</span>. If the lapse exceeds 12 months, re-subscription at ¥60 is required.<br><br>If a subscription is interrupted for more than 12 months, simply pay the maximum ¥60 to obtain the latest system version.<br><br><span style="color:var(--muted);font-size:12px">(This policy is designed to sustain ongoing development and improvement of this system — what we need is long-term, continuous support.)</span></p><h4>3. Refund Policy</h4><p>Due to the proof-based confirmation mechanism, <span class="terms-warning">once payment is confirmed and proof is submitted, no refunds will be issued</span>. Please verify the payment amount and proof information carefully before submitting.</p><h4>4. Service Changes</h4><p>We reserve the right to adjust subscription pricing and services based on project development, but benefits for already purchased periods remain unaffected. Price adjustments will be announced in advance.</p><h4>5. Disclaimer & Asset Ownership</h4><p>This software is provided "as is" without any express or implied warranty. We only deliver the software program usage license, and assume no liability for any losses caused by force majeure, system maintenance, software bugs, design flaws, server issues, secondary development, or other reasons.<br><br>All virtual assets within a world (including but not limited to images, models, videos, effects, scenes, artwork, etc.) belong to the <span class="terms-highlight">world owner</span>. The world owner bears <span class="terms-warning">full legal responsibility</span> for all assets within their world. Jinan Miduo Information Technology Co., Ltd. <span class="terms-warning">holds no ownership or legal rights whatsoever</span> over any assets or derivative products within any world.</p><h4>6. Intellectual Property</h4><p>All code, designs, trademarks, and patents of this system are owned by Jinan Miduo Information Technology Co., Ltd. Subscribers are granted a license for <span class="terms-highlight">commercial use</span>, but <span class="terms-warning">resale and reproduction are strictly prohibited</span>. Violations will face legal liability.</p><h4>7. Governing Law</h4><p>These terms are governed by the laws of the People's Republic of China. Disputes arising from these terms shall be resolved through friendly negotiation; failing that, they shall be submitted to the Jinan Arbitration Commission.</p><h4>8. Currency Payment Guide</h4><p>As long as the payment can be received and we can find a payment record, it works. Other currencies are priced based on the RMB minimum (¥3/month) for conversion.<br><br>Using <span class="terms-highlight">USD</span> as an example: at today's real-time market rate of 1 RMB ≈ 0.1475 USD, 3 × 0.1475 = <span class="terms-highlight">0.4425 USD</span> — simply send <span class="terms-highlight">0.443 USD or more</span>. A little extra is appreciated! Though the amount is modest.</p></div>
+      <div class="terms-footer">
+        <div class="terms-check-row" id="termsCheckRow" onclick="toggleTermsCheck()">
+          <input type="checkbox" id="termsCheckbox" onchange="syncTermsCheckUI()" onclick="event.stopPropagation()">
+          <span class="terms-check-label" id="termsCheckLabel">I have read and agree to all the above terms</span>
+        </div>
+        <div class="terms-actions">
+          <button class="btn btn-terms-cancel" onclick="closeTerms()" id="btnTermsCancel">Cancel</button>
+          <button class="btn btn-terms-agree" onclick="confirmTermsAgree()" id="btnTermsAgree" disabled>Agree &amp; Continue Payment</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 支付成功确认弹窗 -->
+  <div class="success-modal" id="successModal">
+    <div class="success-box">
+      <div class="success-icon">✅</div>
+      <h3 id="successTitle">Payment Submitted</h3>
+      <p class="success-msg" id="successMsg">Your payment proof has been submitted. We will extend your subscription after verification.</p>
+      <button class="btn btn-success-confirm" onclick="closeSuccessConfirm()" id="btnSuccessConfirm">OK</button>
+    </div>
+  </div>
+
+  <!-- 图片灯箱 -->
+  <div class="img-lightbox" id="imgLightbox" onclick="closeLightbox()">
+    <img src="" alt="放大预览" id="lightboxImg">
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- 管理员权限验证 -->
+  <script>
+    (function checkAdminAuth() {
+      const token = localStorage.getItem('adminToken');
+      const adminUser = localStorage.getItem('adminUser');
+
+      if (!token || !adminUser) {
+        window.location.href = '/admin_login.html';
+        return;
+      }
+
+      // 验证 token 有效性
+      fetch('/api/admin-auth/verify', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('Token invalid');
+        return res.json();
+      })
+      .then(data => {
+        if (data.success) {
+          document.getElementById('subscription-content').style.display = 'block';
+          console.log('[subscription] 管理员已登录:', JSON.parse(adminUser).username);
+        }
+      })
+      .catch(err => {
+        console.error('[subscription] 管理员验证失败:', err);
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminUser');
+        window.location.href = '/admin_login.html';
+      });
+    })();
+  </script>
+  <script src="/js/subscriptionPricing.js"></script>
+  <script src="/js/subscription.js"></script>
+</body>
+</html>

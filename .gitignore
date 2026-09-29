@@ -1,0 +1,150 @@
+# Dependencies（2026-09-16 起纳入版本库，支持克隆后直接运行）
+# node_modules/
+
+# Environment files (keep .example files, ignore real configs)
+.env
+.env.local
+.env.*.local
+.env.production
+.env.world2
+
+# Build output
+dist/
+build/
+public/dist/
+coverage/
+
+# Uploaded content (user data, not source code)
+uploads/
+public/uploads/
+public/gallery_content/
+public/models/uploaded/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+.codebuddy/
+.playwright-cli/
+
+# Video files
+*.mp4
+*.webm
+*.avi
+*.mov
+*.mkv
+*.wmv
+*.flv
+*.m4v
+
+# Audio files
+*.mp3
+*.wav
+
+# Archives
+*.zip
+*.tar.gz
+*.tar
+*.rar
+*.7z
+
+# Backups
+*.bak
+public/js/lib/_backup_r128/
+
+# Misc
+$null
+_extracted_script.js
+
+# Temp check scripts
+temp_check_*.js
+_check_*.js
+tmp_check_*.js
+tmp_verify_*.js
+browser_anim_drive_check.js
+browser_debug_suffix.js
+browser_diag2.js
+browser_fix_skeleton.js
+browser_fix_suffix.js
+browser_forearm_check.js
+
+# Local diagnostic tool (not deployed with source)
+public/js/skirtDiag.js
+
+# Server error logs
+*.err
+
+# Root debug artifacts (UI snapshots / temp check scripts)
+/*.yaml
+/check_*.js
+/scan_zh.js
+
+世界居民工坊-设计文档.md
+
+# 开发过程文档（AI 协作接力/联测/修复提示词、方案规划规范）：仅本地留档，不入库
+AI-Agent接入系统-*.md
+AI-Agent联测提示词-*.md
+AI-Agent修复提示词-*.md
+AI-Agent应用价值与内容系列规划.md
+LOD三版模型方案-开发规划与规范.md
+
+# Agent 联测运行时产物（events.jsonl / state.json / follow.log / inbox / done）
+# 每个驻场客户端用独立目录：live/、live-deepseek/、live-miduo/ ...
+examples/agent-client/live*/
+
+# 临时脚本与运行时产物（_tmp_*.js 诊断脚本 / *_out.txt 输出 / 凭据 json / _tmp_rt 目录）
+scripts/_tmp_*
+# 例外：Agent 验收链的环境前置脚本（保留入库，v3/v5/v6 回归可复现）
+!scripts/_tmp_agent_switch.js
+!scripts/_tmp_cleanup_test_agents.js
+!scripts/_tmp_tier_reset.js
+!scripts/_tmp_tier_seed_positions.js
+!scripts/_tmp_tier_setup.js
+
+# 一次性测试脚本与脚本输出文件
+scripts/test_upload_tmp.js
+scripts/*_out.txt
+
+# 运行日志目录（access/ops/audit 分流日志与服务器 stdout/stderr）
+logs/
+
+# 验收与调试截图产物：整目录忽略，仅白名单保留文档实际引用的图片
+Screenshot/*
+!Screenshot/shipin.gif
+!Screenshot/current_app.png.jpg
+!Screenshot/dashboard.jpg
+!Screenshot/teleport.jpg
+!Screenshot/teleport_button.jpg
+!Screenshot/world_layout.jpg
+!Screenshot/world_info.jpg
+!Screenshot/mobile_home.jpg
+!Screenshot/mobile_world.jpg
+!Screenshot/baseline_r185/
+Screenshot/baseline_r185/*
+!Screenshot/baseline_r185/_stage4_diff_report.md
+
+# 渲染成本诊断工具（控制台 fetch+eval 加载，本地保留、不入库）
+public/js/diagTurnLag.js
+public/js/diagRenderCost.js
+public/js/diagTurnSweep.js
+
+# Local model restoration report
+model-restore-report.json
+
+# Dependencies and local database dump
+node_modules/
+/db_export.sql
+
+# Local archives and snapshots
+/linux_node_modules.gz
+/snapshot.txt
+
+/node_modules/

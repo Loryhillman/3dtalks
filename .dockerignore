@@ -1,0 +1,13 @@
+.git
+.env
+.env.*
+node_modules
+logs
+dist
+build
+Screenshot
+db_export.sql
+*.md
+*.log
+*.tar.gz
+*.zip
