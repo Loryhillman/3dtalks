@@ -148,3 +148,8 @@ node_modules/
 /snapshot.txt
 
 /node_modules/
+
+# Private deployment files
+/transfer/
+/.env.server
+/docker-compose.server.yml
