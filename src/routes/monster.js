@@ -6,6 +6,9 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { query } = require('../database/db');
+const { authenticateToken } = require('../middleware/auth');
+const { MAIN_ROOM_ID } = require('../services/roomScope');
+const { worldWriteGuard } = require('../middleware/worldWriteGuard');
 
 let _wsModule = null;
 function getWs() {
@@ -13,6 +16,35 @@ function getWs() {
     try { _wsModule = require('../websocket/wsServer'); } catch(e) {}
   }
   return _wsModule;
+}
+
+// Monsters belong to the legacy main world. Keep old routes compatible when
+// rooms are off; with rooms on, combat requires the caller's own main-world character.
+function mainWorldCharacterOnly(fromParams = false) {
+  return (req, res, next) => {
+    if (process.env.ROOMS_ENABLED !== 'true') return next();
+    authenticateToken(req, res, async () => {
+      const characterId = fromParams ? req.params.characterId : req.body?.characterId;
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(characterId || '')) {
+        return res.status(400).json({ error: 'Неверный ID персонажа' });
+      }
+      try {
+        const { rows } = await query(`
+          SELECT 1 FROM characters WHERE id = $1 AND user_id = $2 AND last_room_id = $3
+        `, [characterId, req.user.userId, MAIN_ROOM_ID]);
+        if (!rows.length) return res.status(403).json({ error: 'Бой доступен только в основном мире' });
+        next();
+      } catch (error) {
+        console.error('[monster] character room check:', error);
+        res.status(500).json({ error: 'Не удалось проверить комнату персонажа' });
+      }
+    });
+  };
+}
+
+function mainWorldContentOnly(req, res, next) {
+  if (process.env.ROOMS_ENABLED !== 'true') return next();
+  return worldWriteGuard(req, res, next);
 }
 
 // ============================================================
@@ -102,7 +134,7 @@ router.get('/', async (req, res) => {
 // ============================================================
 // POST /api/monster/spawn  创建怪物（完整字段）
 // ============================================================
-router.post('/spawn', async (req, res) => {
+router.post('/spawn', mainWorldContentOnly, async (req, res) => {
   try {
     const {
       monsterType, spawnPosition,
@@ -195,7 +227,7 @@ router.post('/spawn', async (req, res) => {
 // ============================================================
 // PUT /api/monster/:id  更新怪物配置
 // ============================================================
-router.put('/:monsterId', async (req, res) => {
+router.put('/:monsterId', mainWorldContentOnly, async (req, res) => {
   try {
     const { monsterId } = req.params;
     const {
@@ -272,7 +304,7 @@ router.put('/:monsterId', async (req, res) => {
 // ============================================================
 // DELETE /api/monster/:id  删除怪物
 // ============================================================
-router.delete('/:monsterId', async (req, res) => {
+router.delete('/:monsterId', mainWorldContentOnly, async (req, res) => {
   try {
     await query('DELETE FROM monsters WHERE id = $1', [req.params.monsterId]);
     res.json({ message: '怪物已删除' });
@@ -293,7 +325,7 @@ router.delete('/:monsterId', async (req, res) => {
 // ============================================================
 // POST /api/monster/:id/take-damage  受击（含掉落逻辑）
 // ============================================================
-router.post('/:monsterId/take-damage', async (req, res) => {
+router.post('/:monsterId/take-damage', mainWorldCharacterOnly(), async (req, res) => {
   try {
     const { monsterId } = req.params;
     const { damage, characterId, userId } = req.body;
@@ -347,7 +379,8 @@ router.post('/:monsterId/take-damage', async (req, res) => {
       }
 
       // 掉落逻辑（静默：无码不掉）
-      const drop = await tryDropReward(monster, userId || null);
+      const drop = await tryDropReward(monster,
+        process.env.ROOMS_ENABLED === 'true' ? req.user.userId : (userId || null));
 
       // 重生计划（respawn_seconds > 0 则重置并激活）
       if (monster.respawn_seconds > 0) {
@@ -417,7 +450,7 @@ router.post('/:monsterId/take-damage', async (req, res) => {
 // ============================================================
 // POST /api/monster/character/:characterId/take-damage  玩家受击
 // ============================================================
-router.post('/character/:characterId/take-damage', async (req, res) => {
+router.post('/character/:characterId/take-damage', mainWorldCharacterOnly(true), async (req, res) => {
   try {
     const { characterId } = req.params;
     const { damage } = req.body;

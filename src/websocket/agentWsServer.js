@@ -30,6 +30,7 @@ const connectionRegistry = require('../agent/agentConnectionRegistry');         
 const logger = require('../services/logger');                                       // P8：日志三分流
 const clientIp = require('../middleware/clientIp');                                  // 联测 D：反代后取真实客户端 IP
 const wsServer = require('./wsServer');
+const { MAIN_ROOM_ID, isMainRoomPlayer } = require('../services/roomScope');
 
 const wss = new WebSocket.Server({ noServer: true });
 const activeAgents = new Map();  // connectionId -> state
@@ -252,7 +253,7 @@ wss.on('connection', async (ws, request, authResult) => {
     for (const d of flush) handleMessage(connectionId, ws, d);
   }
 
-  const players = Array.from(wsServer.getPlayerPositions().values());
+  const players = Array.from(wsServer.getPlayerPositions().values()).filter(isMainRoomPlayer);
   safeSend(state, { type: 'WORLD_SNAPSHOT', payload: {
     self: { id: agent.id, position: spawn },
     entities: players.map(p => ({ id: p.characterId, type: p.entityType === 'agent' ? 'agent' : 'human', name: p.characterName, position: p.position, animMode: p.animMode || null }))
@@ -435,6 +436,7 @@ function startPushLoop() {
       const visible = [];
       playerPositions.forEach((p, pConnId) => {
         if (pConnId === connId) return;
+        if (!isMainRoomPlayer(p)) return;
         if (!p.position) return;
         if (!withinRadius(state, p.position)) return;   // T4：半径过滤
         visible.push(p);
@@ -530,6 +532,7 @@ function startRealtimeLoop() {
 
       playerPositions.forEach((p, pConnId) => {
         if (pConnId === connId) return;                              // 自己不发（与 standard 口径一致）
+        if (!isMainRoomPlayer(p)) return;
         if (!p.position) return;
         if (!withinRadius(state, p.position)) return;                 // T4
         const last = snap.get(p.characterId);
@@ -587,9 +590,11 @@ function installChatPatch() {
   };
 
   const origNearby = wsServer.broadcastToNearby;
-  wsServer.broadcastToNearby = function (sourcePos, range, message, excludeConnId) {
-    origNearby.call(wsServer, sourcePos, range, message, excludeConnId);
-    forwardChatToAgents(message, sourcePos);
+  wsServer.broadcastToNearby = function (sourcePos, range, message, excludeConnId, roomId = MAIN_ROOM_ID) {
+    origNearby.call(wsServer, sourcePos, range, message, excludeConnId, roomId);
+    if (process.env.ROOMS_ENABLED !== 'true' || roomId === MAIN_ROOM_ID) {
+      forwardChatToAgents(message, sourcePos);
+    }
   };
 }
 

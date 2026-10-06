@@ -21,6 +21,8 @@ class WSClient {
   static messageQueue = [];
   static reconnectAttempts = 0;
   static maxReconnectAttempts = 5;
+  static roomEnded = false;
+  static sessionReplaced = false;
 
   static connect(url) {
     return new Promise((resolve, reject) => {
@@ -31,6 +33,7 @@ class WSClient {
           console.log('WebSocket connected');
           this.connected = true;
           this.reconnectAttempts = 0;
+          window.RoomSeating?.connecting();
           this.flushMessageQueue();
           resolve();
         };
@@ -45,10 +48,12 @@ class WSClient {
           reject(error);
         };
 
-        this.ws.onclose = () => {
+        this.ws.onclose = (event) => {
           console.log('WebSocket disconnected');
           this.connected = false;
-          this.attemptReconnect();
+          if (event.code === 4002) this.sessionReplaced = true;
+          window.RoomSeating?.disconnected();
+          if (!this.roomEnded && !this.sessionReplaced) this.attemptReconnect();
         };
       } catch (error) {
         reject(error);
@@ -75,12 +80,47 @@ class WSClient {
     const { type, payload } = data;
 
     switch (type) {
+      case 'ROOM_SEAT_ASSIGNED':
+      case 'ROOM_SEATS_STATE':
+      case 'ROOM_SEAT_CHANGED':
+      case 'ROOM_SEAT_RESULT':
+      case 'ROOM_LEFT':
+      case 'ROOM_SEAT_EXPIRED':
+      case 'ROOM_LOOK':
+        window.RoomSeating?.message(type, payload);
+        break;
+      case 'ROOM_SESSION_REPLACED':
+        window.RoomSeating?.blocked('replaced');
+        this.sessionReplaced = true;
+        this.messageQueue.length = 0;
+        alert(wsT('sessionReplaced',
+          'Персонаж открыт в другой вкладке. Эта вкладка отключена. Чтобы продолжить здесь, обновите страницу.'));
+        break;
+      case 'ROOM_JOIN_DENIED':
+        if (window.RoomSeating?.active) {
+          this.roomEnded = true;
+          window.RoomSeating.blocked(payload?.code === 'ROOM_FULL' ? 'full' : 'denied');
+          break;
+        }
+        if (window.ACTIVE_ROOM) {
+          alert(payload?.reason || 'Не удалось войти в комнату');
+          location.replace(location.pathname === '/play' ? '/rooms' : '/');
+        }
+        break;
+      case 'ROOM_ENDED':
+        if (window.ACTIVE_ROOM) {
+          this.roomEnded = true;
+          location.replace(location.pathname === '/play' ? '/rooms' : '/');
+        }
+        break;
       case 'WORLD_STATE':
         this.handleWorldState(payload);
+        window.RoomSeating?.message(type, payload);
         break;
 
       case 'PLAYER_JOINED':
         this.handlePlayerJoined(payload);
+        window.RoomSeating?.message(type, payload);
         break;
 
       case 'POSITION_UPDATE':

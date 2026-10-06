@@ -139,17 +139,23 @@ public/js/diagTurnSweep.js
 # Local model restoration report
 model-restore-report.json
 
-# Dependencies and local database dump
-node_modules/
-/db_export.sql
+# Private transfer bundle
+/transfer/
 
-# Local archives and snapshots
+# Local dependencies, secrets and data
+node_modules/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+!.env.*.example
+/db_export.sql
+/before-*.sql
+/*.glb
 /linux_node_modules.gz
 /snapshot.txt
-
-/node_modules/
-
-# Private deployment files
 /transfer/
-/.env.server
+/reports/demo-*.json
 /docker-compose.server.yml
+/docker-compose.ip.yml

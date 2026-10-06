@@ -11,6 +11,7 @@
  */
 
 const wsServer = require('../websocket/wsServer');
+const { MAIN_ROOM_ID, isMainRoomPlayer } = require('../services/roomScope');
 
 /**
  * Agent WS 连接成功后调用：写 playerPositions + 广播 PLAYER_JOINED
@@ -26,6 +27,7 @@ function onConnect(connectionId, agent, session, avatar, spawnOverride) {
   const av = avatar || {};
 
   playerPositions.set(connectionId, {
+    roomId: MAIN_ROOM_ID,
     characterId: agent.id,                   // 合成 ID agent:<uuid>
     characterName: agent.name,
     position: pos,
@@ -123,6 +125,7 @@ function findByCharacterId(characterId) {
   let bestCid = null, best = null, bestScore = -1;
   playerPositions.forEach((p, cid) => {
     if (!p || !p.position || String(p.characterId) !== target) return;
+    if (!isMainRoomPlayer(p)) return;
     const ts = p.lastUpdate ? new Date(p.lastUpdate).getTime() : 0;
     const score = (p.animMode ? 1e15 : 0) + (Number.isFinite(ts) ? ts : 0);
     if (score > bestScore) { bestScore = score; bestCid = cid; best = p; }

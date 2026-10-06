@@ -13,6 +13,7 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../database/db');
+const { legacyRoomFilter } = require('../services/roomScope');
 
 // 设置对象锁定状态
 // PUT /api/world/objects/:id/lock   body: { locked: boolean }
@@ -26,7 +27,7 @@ router.put('/objects/:id/lock', async (req, res) => {
     }
 
     const result = await query(
-      'UPDATE world_objects SET is_locked = $1, updated_at = NOW() WHERE id = $2 RETURNING id, is_locked',
+      `UPDATE world_objects SET is_locked = $1, updated_at = NOW() WHERE id = $2 ${legacyRoomFilter('AND')} RETURNING id, is_locked`,
       [locked, Number(id)]
     );
 

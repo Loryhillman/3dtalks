@@ -703,6 +703,41 @@
         <button class="sub-tab" onclick="switchSubTab('world','weather',this);loadWeatherConfig()" data-i18n="adminWorld.subtabWeather">🌤️ 天气控制</button>
         <button class="sub-tab" onclick="switchSubTab('world','custom-npc',this);loadCustomNPCList()" data-i18n="adminWorld.subtabCustomNPC">🤖 定制NPC</button>
         <button class="sub-tab" onclick="switchSubTab('world','model-guard',this);loadModelGuardConfig()" data-i18n="adminWorld.subtabModelGuard">🛡️ 模型守卫</button>
+        <button class="sub-tab" id="rooms-admin-tab" style="display:none" onclick="switchSubTab('world','rooms',this);AdminRooms.load()" data-i18n="roomsAdmin.tab">Комнаты</button>
+      </div>
+
+      <div id="world-sub-rooms" class="sub-page" style="display:none">
+        <div class="card">
+          <div class="card-header"><div class="card-title" data-i18n="roomsAdmin.title">Комнаты для встреч</div></div>
+          <p style="padding:12px;color:var(--muted)" data-i18n="roomsAdmin.draftOnly">Пока доступно создание черновиков.</p>
+          <form id="room-create-form" style="display:flex;gap:8px;flex-wrap:wrap;padding:12px;align-items:end">
+            <label><span data-i18n="roomsAdmin.name">Название</span><br><input id="room-create-name" required maxlength="120"></label>
+            <label><span data-i18n="roomsAdmin.slug">Адрес латиницей</span><br><input id="room-create-slug" required pattern="[a-z0-9][a-z0-9-]*[a-z0-9]" maxlength="80"></label>
+            <label><span data-i18n="roomsAdmin.capacity">Участников максимум</span><br><input id="room-create-capacity" type="number" min="1" max="100" value="6" required></label>
+            <label><span data-i18n="roomsAdmin.template">Шаблон</span><br><select id="room-create-template"></select></label>
+            <button class="btn btn-sm btn-blue" type="submit" data-i18n="roomsAdmin.create">Создать черновик</button>
+          </form>
+          <p id="room-create-message" role="status" style="padding:0 12px"></p>
+          <div style="padding:12px">
+            <h3 data-i18n="roomsAdmin.templatesTitle">Шаблоны переговорных</h3>
+            <p data-i18n="roomsAdmin.templatesHint">Оформите заготовку и опубликуйте её для создания новых комнат.</p>
+            <div id="room-template-list"></div>
+          </div>
+          <div id="rooms-admin-list" style="padding:12px"></div>
+          <div id="rooms-object-editor" style="display:none;padding:12px;border-top:1px solid var(--border)">
+            <h3 id="rooms-editor-title" style="margin-bottom:10px"></h3>
+            <form id="room-object-form" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
+              <label><span data-i18n="roomsAdmin.model">Модель</span><br><select id="room-object-model" required></select></label>
+              <label><span data-i18n="roomsAdmin.name">Название</span><br><input id="room-object-name" required maxlength="120"></label>
+              <label>X<br><input id="room-object-x" type="number" step="any" value="0" required style="width:75px"></label>
+              <label>Y<br><input id="room-object-y" type="number" step="any" value="0" required style="width:75px"></label>
+              <label>Z<br><input id="room-object-z" type="number" step="any" value="0" required style="width:75px"></label>
+              <button class="btn btn-sm btn-blue" type="submit" data-i18n="roomsAdmin.addObject">Добавить предмет</button>
+            </form>
+            <p id="room-object-message" role="status" style="padding:8px 0"></p>
+            <div id="room-object-list"></div>
+          </div>
+        </div>
       </div>
 
       <div id="world-sub-monsters" class="sub-page">
@@ -3823,6 +3858,7 @@
 <script src="js/adminSky.js" defer></script>
 <script src="js/adminModelLod.js?v=4" defer></script>
 <script src="js/adminAgentSettings.js?v=4" defer></script>
+<script src="js/adminRooms.js?v=4" defer></script>
 <script>
   function adminInlineT(key, fallback) {
     const fullKey = 'adminInlineUi.' + key;
@@ -4738,7 +4774,8 @@
     try {
       const url = _editingMonsterId ? `/api/monster/${_editingMonsterId}` : '/api/monster/spawn';
       const method = _editingMonsterId ? 'PUT' : 'POST';
-      const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+      const r = await fetch(url, { method, headers:{'Content-Type':'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}`}, body:JSON.stringify(body) });
       const data = await r.json();
       if (!r.ok) { showToast(data.error || adminInlineT('saveFailed', '保存失败'),'error'); return; }
       showToast(adminInlineT(_editingMonsterId ? 'monsterUpdated' : 'monsterCreated', _editingMonsterId ? '怪物已更新' : '怪物已创建'), 'success');
@@ -4750,7 +4787,8 @@
   async function deleteMonster(id) {
     if (!confirm(adminInlineT('confirmDeleteMonster', '确定删除该怪物？'))) return;
     try {
-      const r = await fetch(`/api/monster/${id}`, { method:'DELETE' });
+      const r = await fetch(`/api/monster/${id}`, { method:'DELETE', headers: {
+        'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` } });
       if (!r.ok) { showToast(adminInlineT('deleteFailed', '删除失败'),'error'); return; }
       showToast(adminInlineT('deleted', '已删除'),'success');
       loadMonsters();
@@ -5201,7 +5239,8 @@
       const url = _editingAdSlotId ? `/api/shop/ad-slots/${_editingAdSlotId}` : '/api/shop/ad-slots';
       const method = _editingAdSlotId ? 'PUT' : 'POST';
       const r = await fetch(url, {
-        method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        method, headers: { 'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` }, body: JSON.stringify(body)
       });
       const data = await r.json();
       if (!r.ok) { showToast(data.error || adminInlineT('saveFailed', '保存失败'), 'error'); return; }
@@ -5214,7 +5253,8 @@
   async function deleteAdSlot(id, name) {
     if (!confirm(adminInlineTp('confirmDeleteAdSlot', { name }, `确定删除广告位「${name}」？`))) return;
     try {
-      const r = await fetch(`/api/shop/ad-slots/${id}`, { method: 'DELETE' });
+      const r = await fetch(`/api/shop/ad-slots/${id}`, { method: 'DELETE', headers: {
+        'Authorization': `Bearer ${localStorage.getItem('adminToken') || ''}` } });
       if (!r.ok) { showToast(adminInlineT('deleteFailed', '删除失败'), 'error'); return; }
       showToast(adminInlineT('deleted', '已删除'), 'success');
       loadAdSlots();

@@ -1,0 +1,6 @@
+# Local acceptance testing only; combine with docker-compose.local.yml.
+services:
+  app:
+    environment:
+      ROOMS_ENABLED: "true"
+      APP_MODE: "rooms"

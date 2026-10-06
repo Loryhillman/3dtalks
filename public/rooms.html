@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>3DTalks</title>
+<link rel="stylesheet" href="/css/rooms.css"><script src="/i18n/i18n.js" defer></script><script src="/js/roomsLobby.js?v=3" defer></script></head>
+<body><main><header><h1>3DTalks</h1><button id="logout" hidden data-t="logout"></button></header>
+<p id="message" role="status" aria-live="polite"></p>
+<section id="auth" hidden><h2 data-t="welcome"></h2><form id="auth-form">
+<label><span data-t="username"></span><input name="username" autocomplete="username" required maxlength="100"></label>
+<label><span data-t="password"></span><input name="password" type="password" autocomplete="current-password" required></label>
+<div id="registration" hidden>
+<label>Email<input name="email" type="email" autocomplete="email"></label>
+<label><span data-t="question"></span><select name="securityQuestionId"></select></label>
+<label><span data-t="answer"></span><input name="securityAnswer" autocomplete="off"></label></div>
+<button type="submit" id="auth-submit" data-t="login"></button><button type="button" id="auth-toggle" data-t="register"></button>
+</form></section>
+<section id="cabinet" hidden><h2 data-t="myRooms"></h2><p id="quota"></p>
+<form id="create"><label><span data-t="name"></span><input name="name" maxlength="120" required></label>
+<label><span data-t="capacity"></span><input name="capacity" type="number" min="1" max="6" value="6" required></label>
+<p data-t="template"></p><button type="submit" data-t="create"></button></form>
+<form id="join"><label><span data-t="invite"></span><input name="link" required></label><button type="submit" data-t="join"></button></form>
+<div id="rooms"></div><button id="refresh" data-t="refresh"></button></section>
+<section id="invitation" hidden><h2 id="invite-name"></h2><p id="invite-info"></p><a id="enter" data-t="enter"></a><p><a href="/rooms" data-t="back"></a></p></section>
+</main></body></html>

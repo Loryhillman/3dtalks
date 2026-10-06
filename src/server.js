@@ -65,6 +65,10 @@ const staticCacheOptions = {
   etag: true,            // 启用ETag（用于更新时失效）
   lastModified: true,    // 启用Last-Modified
   setHeaders: (res, filePath) => {
+    if (process.env.DEV_DISABLE_STATIC_CACHE === 'true') {
+      res.setHeader('Cache-Control', 'no-store');
+      return;
+    }
     // 图片、模型等不可执行资源 - 强缓存30天
     if (filePath.match(/\.(png|jpg|jpeg|gif|glb|gltf|e8j|mp4|webm|svg|ico|webp)$/i)) {
       res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
@@ -81,6 +85,7 @@ const staticCacheOptions = {
   }
 };
 
+require('./routes/roomPages').registerRoomPages(app);
 app.use(express.static(path.join(__dirname, '../public'), staticCacheOptions));
 app.use('/i18n', express.static(path.join(__dirname, '../public/i18n'), staticCacheOptions));
 app.use('/node_modules', express.static(path.join(__dirname, '../node_modules'), staticCacheOptions));
@@ -129,6 +134,8 @@ const threejsImportRoutes = require('./routes/threejsImport');
 const securityQuestionsRoutes = require('./routes/securityQuestions');
 const subscriptionRoutes = require('./routes/subscription');
 const worldSpatialRoutes = require('./routes/worldSpatial');
+const adminRoomsRoutes = require('./routes/adminRooms');
+const roomsRoutes = require('./routes/rooms');
 const skyRoutes = require('./routes/sky');
 const { worldWriteGuard } = require('./middleware/worldWriteGuard');
 const agentApiRoutes = require('./routes/agent');  // AI Agent 接入 API（/api/agent/v1）
@@ -148,6 +155,10 @@ app.use('/api/monster', monsterRoutes);
 app.use('/api/portal', portalRoutes);
 app.use('/api/admin-auth', adminAuthRoutes);  // 管理员认证路由
 app.use('/api/admin', adminRoutes);  // 管理后台路由（需要管理员认证）
+// Until game/editor/WebSocket isolation is complete, rooms remain hidden.
+if (process.env.ROOMS_ENABLED === 'true') app.use('/api/admin/rooms', adminRoomsRoutes);
+if (process.env.ROOMS_ENABLED === 'true') app.use('/api/rooms', roomsRoutes);
+if (process.env.ROOMS_ENABLED === 'true') app.use('/api/my/rooms', require('./routes/userRooms'));
 app.use('/api/admin/maintenance', adminMaintenanceRoutes);  // 维护工具路由
 app.use('/api/admin/model-lod', modelLodRoutes);  // 模型 LOD 管理路由（需管理员认证）
 app.use('/api/tripo', tripoRoutes);  // Tripo AI 3D生成路由
@@ -527,6 +538,7 @@ async function start() {
       await ensureDefaultControls();
       await autoFixWorldUrl();  // 自检修正 world_url（导入他人数据库后自动修正）
     } catch (dbError) {
+      if (process.env.ROOMS_ENABLED === 'true') throw dbError;
       console.warn('Database initialization failed, continuing without database:', dbError.message);
     }
 

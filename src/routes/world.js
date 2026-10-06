@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const { query, pool } = require('../database/db');
 const { getPrefab, createPrefab } = require('../services/worldPrefabs');
+const { MAIN_ROOM_ID, legacyRoomFilter } = require('../services/roomScope');
 const fs = require('fs');
 const path = require('path');
 let _wsServerModule = null;
@@ -23,7 +24,8 @@ router.get('/state', async (req, res) => {
     const charactersResult = await query(
       `SELECT id, position, name FROM characters 
        WHERE position IS NOT NULL 
-       AND position != '{"x": 0, "y": 0, "z": 0}'::jsonb`
+       AND position != '{"x": 0, "y": 0, "z": 0}'::jsonb
+       ${process.env.ROOMS_ENABLED === 'true' ? `AND last_room_id = '${MAIN_ROOM_ID}'` : ''}`
     );
 
     // Get all monsters
@@ -87,6 +89,7 @@ router.get('/objects', async (req, res) => {
   try {
     const result = await query(`
       SELECT * FROM world_objects 
+      ${legacyRoomFilter()}
       ORDER BY created_at DESC
     `);
 
@@ -196,7 +199,7 @@ router.get('/objects/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const result = await query(
-      'SELECT * FROM world_objects WHERE id = $1',
+      `SELECT * FROM world_objects WHERE id = $1 ${legacyRoomFilter('AND')}`,
       [id]
     );
 
@@ -573,7 +576,7 @@ router.put('/objects/:id', async (req, res) => {
     const updateQuery = `
       UPDATE world_objects 
       SET ${updateFields.join(', ')}
-      WHERE id = $${paramIndex}
+      WHERE id = $${paramIndex} ${legacyRoomFilter('AND')}
       RETURNING *
     `;
     
@@ -612,7 +615,7 @@ router.delete('/objects/:id', async (req, res) => {
 
     // 先尝试删除world_objects
     const result = await query(
-      'DELETE FROM world_objects WHERE id = $1 RETURNING *',
+      `DELETE FROM world_objects WHERE id = $1 ${legacyRoomFilter('AND')} RETURNING *`,
       [id]
     );
 
@@ -659,7 +662,7 @@ router.delete('/objects/:id', async (req, res) => {
     const { id } = req.params;
     
     const result = await query(
-      'DELETE FROM world_objects WHERE id = $1 RETURNING *',
+      `DELETE FROM world_objects WHERE id = $1 ${legacyRoomFilter('AND')} RETURNING *`,
       [id]
     );
 
@@ -698,7 +701,7 @@ router.post('/objects/:id/copy', async (req, res) => {
 
     // Get original object
     const originalResult = await query(
-      'SELECT * FROM world_objects WHERE id = $1',
+      `SELECT * FROM world_objects WHERE id = $1 ${legacyRoomFilter('AND')}`,
       [id]
     );
 

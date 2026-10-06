@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title data-i18n="roomEditor.title">Редактор комнаты</title>
+  <style>
+    *{box-sizing:border-box}[hidden]{display:none!important}
+    body{margin:0;background:#171b24;color:#f2f2f2;font:14px system-ui;display:grid;grid-template-columns:260px minmax(0,1fr) 320px;grid-template-rows:auto minmax(0,1fr);height:100dvh;overflow:hidden}
+    #editor-header{grid-column:1/-1;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 16px;background:#222936;border-bottom:1px solid #455267;z-index:20}
+    #editor-header h1{font-size:18px;margin:0}#room-status{font-size:12px;max-width:200px}#message{color:#f0d280;max-width:320px}
+    #template-panel{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1}#template-panel label{max-width:200px;margin:0}#template-panel label span{display:none}#template-panel p[data-i18n]{display:none}#template-status{font-size:12px;max-width:210px}
+    aside{min-height:0;padding:14px;background:#222936;overflow-y:auto;overscroll-behavior:contain}#element-panel{border-right:1px solid #455267}#properties-panel{border-left:1px solid #455267}
+    main{min-width:0;min-height:0;position:relative;overflow:hidden}h2{font-size:16px;margin:16px 0 8px}p{line-height:1.4;margin:8px 0}
+    button,input,select{font:inherit}button{padding:8px;background:#395a85;color:white;border:1px solid transparent;border-radius:4px;cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #ffcc66}
+    button[aria-pressed="true"]{border-color:#ffcc66;background:#446a9e}button:disabled{opacity:.5;cursor:default}input,select{width:100%;padding:7px;background:#10151e;color:white;border:1px solid #596171;border-radius:4px}
+    label{display:block;margin:8px 0}.coords{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.coords input{min-width:0}
+    .row{display:flex;gap:6px}.row>*{flex:1}.item{display:block;width:100%;margin:3px 0;text-align:left;background:#30394a;overflow-wrap:anywhere}.item.selected{background:#446a9e;border-color:#ffcc66}
+    #viewport{width:100%;height:100%}#toolbar{position:absolute;top:12px;left:12px;right:12px;display:flex;flex-wrap:wrap;gap:6px;z-index:10}
+    #element-tabs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}#show-room{grid-column:1/-1}#element-tabs button{min-width:0;overflow-wrap:anywhere}
+    #seat-save{position:sticky;bottom:0;width:100%;margin-top:10px}#template-object-actions button{margin:4px 0}body.saving aside,body.saving main,body.saving #editor-header{pointer-events:none;opacity:.65}
+    @media(max-width:1050px){body{grid-template-columns:210px minmax(0,1fr) 270px}aside{padding:10px}#room-status{display:none}}
+    @media(max-width:760px){body{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto minmax(220px,50dvh) minmax(0,1fr)}main{grid-row:2;grid-column:1/-1}#element-panel{grid-row:3;grid-column:1}#properties-panel{grid-row:3;grid-column:2}#template-status,#message{font-size:11px}#toolbar button{font-size:12px;padding:6px}}
+  </style>
+</head>
+<body>
+  <header id="editor-header">    <h1 id="room-title" data-i18n="roomEditor.room">Комната</h1>
+    <p id="room-status"></p>
+    <p id="message" role="status"></p>
+    <section id="template-panel" hidden>
+      <label><span data-i18n="roomEditor.templateName">Название шаблона</span><input id="template-name" maxlength="120" required></label>
+      <p id="template-status" role="status"></p>
+      <p data-i18n="roomEditor.templateHint">Сохраните черновик, затем опубликуйте его для новых комнат. Уже созданные комнаты сохранят свою обстановку.</p>
+      <button id="template-save" type="button" data-i18n="roomEditor.saveDraft">Сохранить черновик</button>
+      <button id="template-publish" type="button" data-i18n="roomEditor.publishTemplate">Опубликовать версию</button>
+    </section>
+</header>
+  <aside id="element-panel">
+    <label><span data-i18n="roomEditor.search">Поиск объектов и мест</span><input id="element-search" type="search"></label>
+    <div class="row" id="element-tabs" style="margin:16px 0">
+      <button id="show-room" type="button" data-i18n="roomEnvelope.title">Помещение</button>
+      <button id="show-objects" type="button" data-i18n="roomEditor.objects">Предметы</button>
+      <button id="show-seats" type="button" data-i18n="roomSeatsEditor.title">Посадочные места</button>
+    </div>
+    <section id="room-panel" hidden>
+      <p data-i18n="roomEnvelope.hint">Выберите поверхность в списке или нажмите на неё в сцене. Окна и двери добавляются как обычные модели.</p>
+      <div id="room-surface-list"></div>
+      <p id="room-envelope-warning" role="status" style="color:#f0d280"></p>
+    </section>
+    <section id="objects-panel">
+    <h2 data-i18n="roomEditor.addModel">Добавить модель</h2>
+    <form id="add-form">
+      <label><span data-i18n="roomEditor.model">Модель</span><select id="model-id" required></select></label>
+      <label><span data-i18n="roomEditor.name">Название</span><input id="model-name" required maxlength="120"></label>
+      <button type="submit" data-i18n="roomEditor.addCenter">Добавить в центр</button>
+    </form>
+    <h2 data-i18n="roomEditor.objects">Предметы</h2>
+    <div id="object-list"></div>
+
+    </section>
+    <section id="seat-panel" hidden>
+      <h2 data-i18n="roomSeatsEditor.title">Посадочные места</h2>
+      <p data-i18n="roomSeatsEditor.hint">Координаты места задаются в комнате. Привязанный предмет переносит и поворачивает место, но не масштабирует его.</p>
+      <button id="room-return-draft" hidden type="button" data-i18n="roomSeatsEditor.editEnded">Редактировать завершённую комнату</button>
+        <button id="seat-new" type="button" data-i18n="roomSeatsEditor.new">Новое место</button>
+      <div id="seat-list"></div>
+
+      <p id="seat-overlap" role="status" style="color:#f0d280"></p>
+    </section>
+
+  </aside>
+  <main><div id="viewport"></div><div id="toolbar"><button id="move-mode" type="button" data-i18n="roomEditor.move">Перемещение</button><button id="rotate-mode" type="button" data-i18n="roomEditor.rotate">Поворот</button><button id="scale-mode" type="button" data-i18n="roomEditor.scale">Масштаб</button><button id="preview-mode" type="button" data-i18n="roomEditor.preview">Предпросмотр</button></div></main>
+  <aside id="properties-panel">
+    <h2 data-i18n="roomEditor.properties">Свойства выбранного элемента</h2>
+    <section id="room-properties" hidden>
+      <form id="room-envelope-form">
+        <h2 data-i18n="roomEnvelope.dimensions">Размеры помещения</h2>
+        <div class="coords">
+          <label><span data-i18n="roomEnvelope.width">Ширина</span><input id="envelope-width" type="number" step="any" min="1" max="200" required></label>
+          <label><span data-i18n="roomEnvelope.length">Длина</span><input id="envelope-length" type="number" step="any" min="1" max="200" required></label>
+          <label><span data-i18n="roomEnvelope.height">Высота</span><input id="envelope-height" type="number" step="any" min="2" max="30" required></label>
+        </div>
+        <h2 id="room-surface-title"></h2>
+        <label><span data-i18n="roomEnvelope.finish">Оформление поверхности</span><select id="surface-mode">
+          <option value="color" data-i18n="roomEnvelope.color">Однотонный цвет</option>
+          <option value="texture" data-i18n="roomEnvelope.texture">Повторяющаяся текстура</option>
+          <option value="image" data-i18n="roomEnvelope.image">Изображение на всю поверхность</option>
+        </select></label>
+        <label id="surface-color-label"><span data-i18n="roomEnvelope.color">Однотонный цвет</span><input id="surface-color" type="color" style="height:42px"></label>
+        <div id="surface-image-controls" hidden>
+          <input id="surface-upload" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+          <button id="surface-upload-button" type="button" data-i18n="roomEnvelope.upload">Загрузить изображение</button>
+          <p data-i18n="roomEnvelope.uploadHint">PNG, JPEG или WebP до 10 МБ. Большие изображения уменьшаются до 2048 пикселей.</p>
+          <img id="surface-preview" hidden alt="" style="width:100%;max-height:120px;object-fit:contain">
+        </div>
+        <label id="surface-fit-label" hidden><span data-i18n="roomEnvelope.fit">Заполнение</span><select id="surface-fit">
+          <option value="cover" data-i18n="roomEnvelope.cover">Заполнить без искажения (с обрезкой)</option>
+          <option value="stretch" data-i18n="roomEnvelope.stretch">Растянуть на всю поверхность</option>
+        </select></label>
+        <div class="row" id="surface-tiles" hidden>
+          <label><span data-i18n="roomEnvelope.tileWidth">Ширина повторения</span><input id="surface-tile-width" type="number" min="0.05" max="100" step="any" required></label>
+          <label><span data-i18n="roomEnvelope.tileHeight">Высота повторения</span><input id="surface-tile-height" type="number" min="0.05" max="100" step="any" required></label>
+        </div>
+        <button type="submit" data-i18n="roomEnvelope.apply">Применить помещение</button>
+      </form>
+      <p id="room-envelope-message" role="status"></p>
+    </section>
+    <section id="object-properties">    <form id="edit-form" hidden>
+      <h2 id="selected-name"></h2>
+      <label id="object-name-label" hidden><span data-i18n="roomEditor.name">Название</span><input id="object-name" maxlength="120"></label>
+      <div class="coords"><label>X<input id="pos-x" type="number" step="any" required></label><label>Y<input id="pos-y" type="number" step="any" required></label><label>Z<input id="pos-z" type="number" step="any" required></label></div>
+      <p data-i18n="roomEditor.rotationDegrees">Поворот, градусы</p>
+      <div class="coords"><label>X<input id="rot-x" type="number" step="any" required></label><label>Y<input id="rot-y" type="number" step="any" required></label><label>Z<input id="rot-z" type="number" step="any" required></label></div>
+      <p data-i18n="roomEditor.scale">Масштаб</p>
+      <div class="coords"><label>X<input id="scale-x" type="number" step="any" min="0.01" max="100" required></label><label>Y<input id="scale-y" type="number" step="any" min="0.01" max="100" required></label><label>Z<input id="scale-z" type="number" step="any" min="0.01" max="100" required></label></div>
+      <label><input id="object-collision" type="checkbox" style="width:auto"> <span data-i18n="roomEditor.collision">Столкновения</span></label>
+      <div id="template-object-actions" hidden>
+        <label id="replace-model-label"><span data-i18n="roomEditor.replacementModel">Новая модель предмета</span><select id="replace-model"></select></label>
+        <button id="replace-object" type="button" data-i18n="roomEditor.replaceModel">Заменить модель, сохранив место</button>
+        <button id="copy-object" type="button" data-i18n="roomEditor.copyObject">Копировать предмет с местами</button>
+      </div>
+      <div class="row"><button type="submit" data-i18n="roomEditor.savePosition">Сохранить положение</button><button id="delete-object" type="button" data-i18n="roomEditor.delete">Удалить</button></div>
+    </form></section>
+    <section id="seat-properties" hidden>      <form id="seat-form">
+        <label><span data-i18n="roomSeatsEditor.object">Привязка к предмету (необязательно)</span><select id="seat-object"></select></label>
+        <label><span data-i18n="roomSeatsEditor.label">Номер / название места</span><input id="seat-label" maxlength="40" required></label>
+        <div class="coords"><label>X<input id="seat-x" type="number" step="any" value="0" required></label><label>Y<input id="seat-y" type="number" step="any" value="1" required></label><label>Z<input id="seat-z" type="number" step="any" value="0" required></label></div>
+        <label><span data-i18n="roomSeatsEditor.yaw">Направление, градусы</span><input id="seat-yaw" type="number" step="any" value="0" required></label>
+        <input id="seat-map-x" type="hidden" value="0"><input id="seat-map-y" type="hidden" value="0">
+        <label><span data-i18n="roomSeatsEditor.order">Порядок автопосадки</span><input id="seat-order" type="number" step="1" value="1" required></label>
+        <label><input id="seat-enabled" type="checkbox" checked style="width:auto"> <span data-i18n="roomSeatsEditor.enabled">Место доступно</span></label>
+        <button type="submit" data-i18n="roomSeatsEditor.apply">Применить изменения</button>
+        <button id="seat-focus" type="button" data-i18n="roomSeatsEditor.focus">Показать место</button>
+
+        <button id="seat-remove" type="button" data-i18n="roomSeatsEditor.remove">Убрать место</button>
+      </form>      <p id="seat-message" role="status"></p>
+      <label><input id="seat-mode" type="checkbox" style="width:auto"> <span data-i18n="roomSeatsEditor.autoSeating">Автоматическая рассадка</span></label>
+      <button id="seat-save" type="button" data-i18n="roomSeatsEditor.save">Сохранить все места</button>
+</section>
+  </aside>
+  <script src="js/lib/three.min.js?v=185"></script>
+  <script src="js/geometryRenderer.js?v=2"></script>
+  <script src="/i18n/i18n.js"></script>
+  <script src="js/roomEnvelope.js?v=1"></script>
+  <script src="js/roomEnvelopeEditor.js?v=1"></script>
+  <script src="js/roomSeatLabels.js?v=1"></script>
+  <script src="js/roomSeatCoordinates.js?v=1"></script>
+  <script src="js/roomTemplateSession.js?v=3"></script>
+  <script src="js/roomSeatEditor.js?v=5"></script>
+  <script src="js/roomEditor.js?v=6"></script>
+</body>
+</html>

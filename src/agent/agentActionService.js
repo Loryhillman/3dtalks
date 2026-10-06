@@ -27,6 +27,7 @@ const presenceBridge = require('./agentPresenceBridge');
 const wsServer = require('../websocket/wsServer');
 const chatLogService = require('./chatLogService');
 const agentConfigService = require('./agentConfigService');
+const { isMainRoomPlayer } = require('../services/roomScope');
 
 const SAY_MAX_LEN = 200;
 const INTERACT_MAX_DISTANCE = 5;             // 互动距离上限 5m
@@ -234,7 +235,7 @@ function handleInteract(ctx, payload) {
   // 在 playerPositions 中查找 target
   let targetPos = null;
   playerPositions.forEach(p => {
-    if (p.characterId === targetId) targetPos = p.position;
+    if (p.characterId === targetId && isMainRoomPlayer(p)) targetPos = p.position;
   });
   // TODO: 也可扩展到 objects 表的距离查询（worldSpatial /around 同口径）
   if (!targetPos) {

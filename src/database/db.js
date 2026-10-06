@@ -57,7 +57,14 @@ async function initializeDatabase() {
     'migrations/add_world_chat_log.sql',
     'migrations/add_federation_nonce.sql',  // P5: 联邦传送 nonce 防重放 + transient session 表
     'migrations/add_agent_push_tier.sql',   // P8 后续: 每个 Key Agent 独立推送档 + 删除能力
-    'migrations/add_world_objects_agent_description.sql'  // 🤖 AI 物体描述（observe 下发给 Agent）
+    'migrations/add_world_objects_agent_description.sql',  // 🤖 AI 物体描述（observe 下发给 Agent）
+    'migrations/add_rooms.sql',
+    'migrations/add_room_rejoin_grants.sql',
+    'migrations/add_room_seats.sql',
+    'migrations/add_user_rooms.sql',
+    'migrations/add_account_room_character.sql',
+    'migrations/add_room_template_editor.sql',
+    'migrations/add_independent_room_seats.sql'
   ];
   for (const migFile of migrations) {
     const migrationPath = path.join(__dirname, '..', '..', 'database', migFile);
@@ -66,9 +73,17 @@ async function initializeDatabase() {
       await pool.query(migrationSQL);
       console.log('迁移脚本已执行:', migFile);
     } catch (migErr) {
+      if (migFile === 'migrations/add_rooms.sql' ||
+          migFile === 'migrations/add_room_rejoin_grants.sql' ||
+          migFile === 'migrations/add_room_seats.sql' ||
+          migFile === 'migrations/add_user_rooms.sql' ||
+          migFile === 'migrations/add_account_room_character.sql' ||
+          migFile === 'migrations/add_room_template_editor.sql' ||
+          migFile === 'migrations/add_independent_room_seats.sql') throw migErr;
       console.log('迁移脚本跳过（可能已执行或文件不存在）:', migFile, migErr.message);
     }
   }
+  await require('../services/roomTemplateSeed').ensureRoomTemplates(pool);
 }
 
 async function query(text, params) {

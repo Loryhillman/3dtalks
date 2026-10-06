@@ -485,6 +485,7 @@ class World {
   }
 
   setupTerrain() {
+    if (window.ACTIVE_ROOM) return;
     // Ground plane（使用最简材质，但保持颜色）
     const groundGeometry = new THREE.PlaneGeometry(CONFIG.WORLD_SIZE * 2, CONFIG.WORLD_SIZE * 2);
     const groundMaterial = new THREE.MeshBasicMaterial({
@@ -505,6 +506,7 @@ class World {
   }
 
   addGridHelper() {
+    if (window.ACTIVE_ROOM) return;
     const gridHelper = new THREE.GridHelper(CONFIG.WORLD_SIZE * 2, 40, 0x444444, 0x222222);
     gridHelper.position.y = 0.01;
     this.scene.add(gridHelper);
@@ -1604,6 +1606,10 @@ class World {
   }
 
   async loadAndAddSpawnPoint() {
+    if (window.ACTIVE_ROOM) {
+      this.spawnConfig = { position: window.ACTIVE_ROOM.spawn_position };
+      return;
+    }
     // 【关键】立即创建出生点网格+碰撞体（同步），防止API加载期间玩家穿透
     if (!this.spawnPoint) {
       this._createSpawnPointMesh();
@@ -1687,6 +1693,11 @@ class World {
   
   // 获取出生点位置（供Player使用）
   getSpawnPosition() {
+    if (window.ACTIVE_ROOM?.spawn_position) {
+      const spawn = window.ACTIVE_ROOM.spawn_position;
+      return { x: Number(spawn.x) || 0, y: (Number(spawn.y) || 0) + 2,
+        z: Number(spawn.z) || 0 };
+    }
     if (this.spawnConfig && this.spawnConfig.position) {
       return {
         x: this.spawnConfig.position.x,
@@ -2038,6 +2049,8 @@ class World {
     // 存储动画时间和四肢Group引用（用于旋转）
     characterGroup.userData.animTime = 0;
     characterGroup.userData.leftArm = leftArmGroup;
+    characterGroup.userData.seatHead = head;
+    characterGroup.userData.seatFallbackParts = [body, head, leftArmGroup, rightArmGroup, leftLegGroup, rightLegGroup];
     characterGroup.userData.rightArm = rightArmGroup;
     characterGroup.userData.leftLeg = leftLegGroup;
     characterGroup.userData.rightLeg = rightLegGroup;
@@ -3215,6 +3228,7 @@ class World {
    * 根据距离动态加载和卸载对象
    */
   updateObjectLoading() {
+    if (window.ACTIVE_ROOM) return;
     // 检查是否正在加载建筑，如果是则跳过，避免冲突
     if (this.isLoadingBuildings) {
       return;
@@ -4113,6 +4127,7 @@ class World {
    * 优化几何体处理
    */
   optimizeGeometryProcessing() {
+    if (window.ACTIVE_ROOM) return;
     // 已禁用：simplifyDistantObjects 会把远处模型替换为无贴图材质（变白）
     // mergeSimilarObjects 每帧遍历所有建筑，性能开销大
     return;
@@ -4187,6 +4202,7 @@ class World {
    * 更新视锥体剔除（带包围盒缓存，避免每帧重复计算）
    */
   updateFrustumCulling() {
+    if (window.ACTIVE_ROOM) return;
     // 更新相机的矩阵
     this.camera.updateMatrixWorld();
     
@@ -4254,6 +4270,7 @@ class World {
    * 更新级别细节（LOD）
    */
   updateLOD() {
+    if (window.ACTIVE_ROOM) return;
     // LOD 已禁用：applyLOD 会替换材质导致变白，可见性控制由 updateFrustumCulling 负责
     return;
   }
@@ -4832,7 +4849,19 @@ class World {
       // 只获取世界对象，不需要获取hunyuan3d/buildings，因为世界对象已经包含了所有已放置的建筑
       // P1: 空间分页——按玩家位置增量拉取，替代一次性全量（返回结构完全兼容）
       let worldObjects;
-      if (window.WorldSpatialManager) {
+      if (window.ACTIVE_ROOM) {
+        const response = await fetch('/api/rooms/' + encodeURIComponent(window.ACTIVE_ROOM.slug) +
+          '/objects?characterId=' + encodeURIComponent(localStorage.getItem('characterId') || ''), {
+          headers: { Authorization: 'Bearer ' + localStorage.getItem('token') }
+        });
+        worldObjects = await response.json();
+        if (!response.ok || !worldObjects.success) throw new Error('Room objects unavailable');
+        await this.loadRoomScene(worldObjects.objects);
+        this.isLoadingBuildings = false;
+        this.updateLoadingStatus(1, 1);
+        window.RoomSeating?.sceneReady();
+        return;
+      } else if (window.WorldSpatialManager) {
         if (!this._spatialMgr) {
           this._spatialMgr = new window.WorldSpatialManager(this);
         }
@@ -4847,11 +4876,13 @@ class World {
         // 获取位置覆盖（用于UUID等不在world_objects表中的对象）
         let transformOverrides = {};
         try {
+          if (!window.ACTIVE_ROOM) {
           const overridesResp = await fetch('/api/world/transform-overrides');
           const overridesData = await overridesResp.json();
           if (overridesData.success && overridesData.overrides) {
             overridesData.overrides.forEach(o => { transformOverrides[o.object_id] = o; });
             console.log(`🔄 加载了 ${Object.keys(transformOverrides).length} 个位置覆盖`);
+          }
           }
         } catch (e) {
           console.warn('获取位置覆盖失败:', e.message);
@@ -5043,6 +5074,7 @@ class World {
       }
     } catch (error) {
       console.error('加载生成建筑失败:', error);
+      if (window.ACTIVE_ROOM) window.RoomSeating?.sceneFailed();
       // 更新加载状态为完成（失败）
       this.updateLoadingStatus(1, 1);
       this.showLoadingProgress();
@@ -7330,6 +7362,37 @@ class World {
   /**
    * 添加几何体建筑到场景
    */
+  async loadRoomScene(objects) {
+    if (!Array.isArray(objects) || !objects.length) throw new Error('Room scene is empty');
+    this.allWorldObjects = [];
+    this.loadingQueue = [];
+    for (const object of objects) {
+      if (this.loadedObjects.has(object.id)) continue;
+      if (object.type === 'geometry_building') {
+        const geometry = typeof object.geometry_data === 'string' ? JSON.parse(object.geometry_data) : object.geometry_data;
+        if (!geometry?.components?.length) throw new Error(`Room geometry missing: ${object.id}`);
+        const group = GeometryRenderer.renderFromComponents(geometry.components, THREE);
+        group.position.set(object.position_x ?? 0, object.position_y ?? 0, object.position_z ?? 0);
+        group.rotation.set(object.rotation_x ?? 0, object.rotation_y ?? 0, object.rotation_z ?? 0);
+        group.scale.set(object.scale_x ?? 1, object.scale_y ?? 1, object.scale_z ?? 1);
+        group.userData.worldObjectId = object.id;
+        group.userData.componentCollision = true;
+        this.scene.add(group);
+        group.updateMatrixWorld(true);
+        this.generatedBuildings.set(object.id, { model: group, data: object, isGeometry: true });
+        if (object.has_collision) this.collisionObjects.push(...GeometryRenderer.buildCollisionObjects(group, object, THREE));
+      } else if (object.type === 'uploaded_model') {
+        await this.addUploadedModel(object);
+        if (!this.generatedBuildings.has(object.id) || this.generatedBuildings.get(object.id).isPlaceholder) {
+          throw new Error(`Room model unavailable: ${object.id}`);
+        }
+      } else {
+        throw new Error(`Unsupported room object: ${object.type}`);
+      }
+      this.loadedObjects.add(object.id);
+    }
+  }
+
   async addGeometryBuilding(worldObject) {
     console.log('添加几何体建筑:', worldObject);
     
@@ -8053,6 +8116,7 @@ class World {
       }
     }
 
+    window.RoomSeating?.renderPoses(this);
     // 直接渲染（无额外操作）
     this.renderer.render(this.scene, this.camera);
   }

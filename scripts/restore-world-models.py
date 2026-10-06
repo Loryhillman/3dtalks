@@ -102,13 +102,16 @@ def main():
     parser.add_argument('--workers', type=int, default=3, choices=range(1, 5))
     parser.add_argument('--report', type=Path, default=ROOT / 'model-restore-report.json')
     parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('--download', action='store_true',
+                        help='Explicitly download legacy demo assets; default is audit only')
     args = parser.parse_args()
     if urllib.parse.urlsplit(args.source).scheme != 'https':
         parser.error('Source must use HTTPS')
     paths = model_paths(args.dump)
     existing = sum((args.destination / p.lstrip('/')).is_file() for p in paths)
     print(f'Model paths: {len(paths)}; existing: {existing}; missing: {len(paths)-existing}', flush=True)
-    if args.dry_run:
+    if args.dry_run or not args.download:
+        print('Audit only. Legacy demo assets are downloaded only with --download.', flush=True)
         return
     args.destination.mkdir(parents=True, exist_ok=True)
     results = []

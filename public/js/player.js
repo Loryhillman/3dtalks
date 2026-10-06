@@ -105,6 +105,10 @@ class Player {
   }
 
   update(delta, camera) {
+    if (window.RoomSeating?.active) {
+      window.RoomSeating.updateLocal(this, camera);
+      return;
+    }
     // 同步目标旋转角度（当鼠标拖拽时）
     if (MOUSE.isDragging) {
       this.targetRotationY = MOUSE.targetRotationY;
@@ -857,6 +861,7 @@ class Player {
   }
 
   attack(target) {
+    if (window.RoomSeating?.active) return;
     if (!this.canAttack) return;
 
     const now = Date.now();
@@ -897,6 +902,7 @@ class Player {
   }
 
   enableFlying() {
+    if (window.RoomSeating?.active) return;
     this.isFlying = true;
     this.velocity.y = 0;
     UI.addChatMessage(window.i18n.t('playerMessages.system'), window.i18n.t('playerMessages.flyingEnabled'));
@@ -1171,6 +1177,7 @@ class Player {
    * 通过传送门传送
    */
   async teleportThroughPortal(portalId, portalData) {
+    if (window.RoomSeating?.active) return;
     // 防止重复传送
     if (this.isTeleporting) {
       console.log('⚠️ 传送进行中，跳过');
@@ -1336,6 +1343,7 @@ class Player {
    * @param {object} monsterData  来自 gameWorld.monsters.get(id)
    */
   setTarget(monsterId, monsterData) {
+    if (window.RoomSeating?.active) return;
     // 若已有选中高亮则先清除
     if (this.combatTarget && window.gameWorld) {
       window.gameWorld.hideMonsterSelected(this.combatTarget.id);
@@ -1460,6 +1468,7 @@ class Player {
    * 开始连击（从当前 comboIndex 开始）
    */
   startComboAttack() {
+    if (window.RoomSeating?.active) return;
     if (this.combatState !== 'attacking') return;
     if (this.isAttackingCombo) return;
     this.isAttackingCombo = true;

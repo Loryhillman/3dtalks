@@ -11,6 +11,12 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../database/db');
 const geometryBuilder = require('../services/geometryBuilder');
+const { MAIN_ROOM_ID } = require('../services/roomScope');
+
+router.use((req, res, next) => {
+  if (process.env.APP_MODE !== 'rooms') return next();
+  return require('../middleware/adminAuth').authenticateAdminToken(req, res, next);
+});
 
 /**
  * 获取所有可用的建筑模板
@@ -339,7 +345,11 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     
     const result = await pool.query(
-      'DELETE FROM geometry_buildings WHERE id = $1 RETURNING *',
+      process.env.ROOMS_ENABLED === 'true' ? `DELETE FROM geometry_buildings g WHERE g.id=$1
+        AND g.owner_user_id IS NULL
+        AND NOT EXISTS (SELECT 1 FROM world_objects w WHERE w.room_id <> '${MAIN_ROOM_ID}'
+          AND w.type='geometry_building' AND (w.model_path='geometry_building:' || g.id::text OR w.building_id=g.id))
+        RETURNING g.*` : 'DELETE FROM geometry_buildings WHERE id = $1 RETURNING *',
       [id]
     );
     
@@ -353,7 +363,8 @@ router.delete('/:id', async (req, res) => {
     // 级联清理：删除 world_objects 中引用此建筑的所有记录
     const cascadeResult = await pool.query(
       `DELETE FROM world_objects 
-       WHERE type = 'geometry_building' 
+       WHERE type = 'geometry_building'
+         ${process.env.ROOMS_ENABLED === 'true' ? `AND room_id='${MAIN_ROOM_ID}'` : ''}
          AND (model_path = $1 OR building_id::text = $2::text)
        RETURNING id`,
       [`geometry_building:${id}`, id]

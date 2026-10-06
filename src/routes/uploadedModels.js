@@ -440,6 +440,19 @@ router.delete('/uploaded-models/:id', async (req, res) => {
 
     const model = modelQuery.rows[0];
 
+    // Remove the record first: template foreign keys must reject deletion
+    // before any file is touched. Live room objects also keep their model.
+    try {
+      const deleted = await pool.query(`DELETE FROM uploaded_models WHERE id=$1
+        AND NOT EXISTS (SELECT 1 FROM world_objects WHERE model_path=$2) RETURNING id`, [id, model.path]);
+      if (!deleted.rows.length) return res.status(409).json({ success: false,
+        error: 'Модель используется в комнате', errorKey: 'uploadedModelsApi.inUse' });
+    } catch (error) {
+      if (['23503', '23001'].includes(error.code)) return res.status(409).json({ success: false,
+        error: 'Модель используется в шаблоне или его черновике', errorKey: 'uploadedModelsApi.inUse' });
+      throw error;
+    }
+
     // 删除文件或文件夹
     const filePath = path.join(__dirname, '../../public', model.path);
     
@@ -459,7 +472,6 @@ router.delete('/uploaded-models/:id', async (req, res) => {
     }
 
     // 删除数据库记录
-    await pool.query('DELETE FROM uploaded_models WHERE id = $1', [id]);
 
     console.log('✅ 模型已从数据库删除:', id);
 

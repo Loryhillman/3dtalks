@@ -17,6 +17,13 @@ class API {
         options.headers['Authorization'] = `Bearer ${localStorage.getItem('token')}`;
       }
 
+      // Legacy shop and plot writes belong to the acting character's world.
+      if (method !== 'GET' && (endpoint.startsWith('/shop/') || endpoint.startsWith('/plot/'))) {
+        const characterId = (typeof GAME_STATE !== 'undefined' && GAME_STATE.characterId)
+          || localStorage.getItem('characterId');
+        if (characterId) options.headers['X-Character-Id'] = characterId;
+      }
+
       if (data) {
         options.body = JSON.stringify(data);
       }

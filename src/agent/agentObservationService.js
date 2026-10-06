@@ -16,6 +16,7 @@
  */
 
 const { query } = require('../database/db');
+const { legacyRoomFilter, isMainRoomPlayer } = require('../services/roomScope');
 
 // ==================== 常量 ====================
 
@@ -162,6 +163,7 @@ async function queryObjects(pos, radius, limit, include) {
      FROM world_objects
      WHERE position_x BETWEEN $1 AND $2
        AND position_z BETWEEN $3 AND $4
+       ${legacyRoomFilter('AND')}
        ${typeClause}
      ORDER BY (position_x - $5)^2 + (position_z - $6)^2 ASC
      LIMIT $${params.length}`,
@@ -269,6 +271,7 @@ function collectEntities(pos, radius, selfAgent) {
     const best = new Map();   // characterId -> { raw, entity }
     playerPositions.forEach((p) => {
       if (!p || !p.position) return;
+      if (!isMainRoomPlayer(p)) return;
       const d = dist2D(pos.x, pos.z, Number(p.position.x) || 0, Number(p.position.z) || 0);
       if (d > radius) return;
       const id = String(p.characterId);

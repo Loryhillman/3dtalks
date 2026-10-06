@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { query } = require('../database/db');
+const { mainWorldUserGuard } = require('../middleware/mainWorldUserGuard');
 
 // Get user plots
 router.get('/user/:userId', async (req, res) => {
@@ -25,7 +26,7 @@ router.get('/user/:userId', async (req, res) => {
 });
 
 // Create plot
-router.post('/create', async (req, res) => {
+router.post('/create', mainWorldUserGuard(null, req => req.body.ownerId), async (req, res) => {
   try {
     const { ownerId, position, size } = req.body;
 
@@ -44,7 +45,7 @@ router.post('/create', async (req, res) => {
 });
 
 // Add building to plot
-router.post('/:plotId/add-building', async (req, res) => {
+router.post('/:plotId/add-building', mainWorldUserGuard('SELECT 1 FROM plots WHERE id = $1 AND owner_id = $2'), async (req, res) => {
   try {
     const { plotId } = req.params;
     const { buildingName, modelUrl, position, rotation, scale } = req.body;
@@ -89,7 +90,7 @@ router.get('/:plotId/buildings', async (req, res) => {
 });
 
 // Add asset to building
-router.post('/:buildingId/add-asset', async (req, res) => {
+router.post('/:buildingId/add-asset', mainWorldUserGuard('SELECT 1 FROM buildings b JOIN plots p ON p.id = b.plot_id WHERE b.id = $1 AND p.owner_id = $2'), async (req, res) => {
   try {
     const { buildingId } = req.params;
     const { assetName, modelUrl, position } = req.body;

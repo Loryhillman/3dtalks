@@ -6,6 +6,13 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { query } = require('../database/db');
+const { worldWriteGuard } = require('../middleware/worldWriteGuard');
+const { mainWorldUserGuard } = require('../middleware/mainWorldUserGuard');
+
+function mainWorldContentOnly(req, res, next) {
+  if (process.env.ROOMS_ENABLED !== 'true') return next();
+  return worldWriteGuard(req, res, next);
+}
 
 // ============================================================
 // 广告位（Ad Slots）管理接口
@@ -43,7 +50,7 @@ router.get('/ad-slots/active', async (req, res) => {
 
 // POST /api/shop/ad-slots  创建广告位
 // portalType: 'link'(外链) | 'world'(世界传送) | 'app'(应用拉起)
-router.post('/ad-slots', async (req, res) => {
+router.post('/ad-slots', mainWorldContentOnly, async (req, res) => {
   try {
     const {
       name, renterName,
@@ -108,7 +115,7 @@ router.post('/ad-slots', async (req, res) => {
 });
 
 // PUT /api/shop/ad-slots/:id  更新广告位
-router.put('/ad-slots/:id', async (req, res) => {
+router.put('/ad-slots/:id', mainWorldContentOnly, async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -175,7 +182,7 @@ router.put('/ad-slots/:id', async (req, res) => {
 });
 
 // DELETE /api/shop/ad-slots/:id  删除广告位
-router.delete('/ad-slots/:id', async (req, res) => {
+router.delete('/ad-slots/:id', mainWorldContentOnly, async (req, res) => {
   try {
     await query('DELETE FROM ad_slots WHERE id = $1', [req.params.id]);
     res.json({ message: '广告位已删除' });
@@ -190,7 +197,7 @@ router.delete('/ad-slots/:id', async (req, res) => {
 // ============================================================
 
 // Create shop
-router.post('/create', async (req, res) => {
+router.post('/create', mainWorldUserGuard(null, req => req.body.merchantId), async (req, res) => {
   try {
     const { merchantId, shopName, position } = req.body;
     const shopId = uuidv4();
@@ -206,7 +213,7 @@ router.post('/create', async (req, res) => {
 });
 
 // Add item to shop
-router.post('/add-item', async (req, res) => {
+router.post('/add-item', mainWorldUserGuard('SELECT 1 FROM shops WHERE id = $1 AND merchant_id = $2'), async (req, res) => {
   try {
     const { shopId, itemName, description, price, quantity, modelUrl } = req.body;
     const itemId = uuidv4();
@@ -250,7 +257,7 @@ router.get('/', async (req, res) => {
 });
 
 // Purchase item
-router.post('/purchase', async (req, res) => {
+router.post('/purchase', mainWorldUserGuard(null, req => req.body.buyerId), async (req, res) => {
   try {
     const { buyerId, shopItemId, quantity } = req.body;
     const itemResult = await query('SELECT price, quantity FROM shop_items WHERE id = $1', [shopItemId]);

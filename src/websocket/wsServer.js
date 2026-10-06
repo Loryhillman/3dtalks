@@ -6,6 +6,9 @@ const WebSocket = require('ws');
 const { v4: uuidv4 } = require('uuid');
 const { query } = require('../database/db');
 const voiceRelay = require('./voiceRelay');
+const jwt = require('jsonwebtoken');
+const { MAIN_ROOM_ID } = require('../services/roomScope');
+const { runRoomOperation } = require('../services/roomOperationQueue');
 
 let wss = null;
 
@@ -15,6 +18,156 @@ const activeConnections = new Map();
 
 // 未登记连接（断线重连但没重发 PLAYER_JOIN 的"幽灵"）告警去重时间戳
 const ghostWarnAt = new Map();
+const supersededConnections = new Set();
+const joinQueues = new Map();
+const rejoinGrants = new Map();
+const roomEpochs = new Map();
+const seatIdentities = new Map();
+const seatVersions = new Map();
+let seatsUsed = false;
+let seatService;
+function getSeatService() {
+  if (!seatService) seatService = require('../services/roomSeats')
+    .createRoomSeatService(require('../database/db').pool);
+  seatsUsed = true;
+  return seatService;
+}
+function seatIdentity(connectionId, player) {
+  return { roomId: player.roomId, characterId: player.characterId,
+    sessionId: connectionId, userId: seatIdentities.get(connectionId) };
+}
+async function publishSeats(roomId) {
+  try {
+    const seats = await getSeatService().list(roomId);
+    const version = (seatVersions.get(roomId) || 0) + 1;
+    seatVersions.set(roomId, version);
+    broadcastToRoom(roomId, { type: 'ROOM_SEATS_STATE', payload: { roomId, version, seats } });
+  } catch (error) { console.warn('[WS] Seat snapshot:', error.message); }
+}
+
+async function handleSeatCommand(connectionId, ws, type, payload) {
+  const player = playerPositions.get(connectionId);
+  if (supersededConnections.has(connectionId) || ws.readyState !== WebSocket.OPEN || !player?.seat) return;
+  const requestId = payload.requestId;
+  if (typeof requestId !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(requestId)) {
+    ws.send(JSON.stringify({ type: 'ROOM_SEAT_RESULT', payload: { success: false, code: 'INVALID_REQUEST_ID' } }));
+    return;
+  }
+  const requests = ws.seatRequests || (ws.seatRequests = new Map());
+  const signature = JSON.stringify([type, payload.seatId]);
+  const previous = requests.get(requestId);
+  if (previous) {
+    ws.send(JSON.stringify(previous.signature === signature ? previous.message : {
+      type: 'ROOM_SEAT_RESULT', payload: { requestId, success: false, code: 'REQUEST_ID_CONFLICT' }
+    }));
+    return;
+  }
+  // Retain all results for this connection; bound the cache without allowing
+  // an evicted old request to execute again.
+  if (requests.size >= 256 && type !== 'ROOM_LEAVE') {
+    ws.send(JSON.stringify({ type: 'ROOM_SEAT_RESULT', payload: { requestId, success: false, code: 'SEAT_REQUEST_LIMIT' } }));
+    return;
+  }
+  let message;
+  try {
+    if (type === 'ROOM_LEAVE') {
+      await getSeatService().release({ ...seatIdentity(connectionId, player), leave: true });
+      voiceRelay.handleDisconnect(connectionId);
+      playerPositions.delete(connectionId);
+      seatIdentities.delete(connectionId);
+      broadcastToRoom(player.roomId, { type: 'PLAYER_LEFT', payload: { characterId: player.characterId } });
+      message = { type: 'ROOM_LEFT', payload: { requestId, roomId: player.roomId } };
+    } else {
+      const assignment = await getSeatService().move({ ...seatIdentity(connectionId, player), seatId: payload.seatId,
+        isCurrent: () => ws.readyState === WebSocket.OPEN && playerPositions.get(connectionId) === player });
+      player.seat = { id: assignment.seat.id, ...assignment.pose };
+      player.position = assignment.pose.position;
+      broadcastToRoom(player.roomId, { type: 'ROOM_SEAT_CHANGED', payload: {
+        roomId: player.roomId, characterId: player.characterId, seat: player.seat
+      } });
+      message = { type: 'ROOM_SEAT_RESULT', payload: { requestId, success: true, seat: player.seat } };
+    }
+  } catch (error) {
+    message = { type: 'ROOM_SEAT_RESULT', payload: { requestId, success: false, code: error.code || 'SEAT_ERROR' } };
+  }
+  requests.set(requestId, { signature, message });
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(message));
+    if (message.type === 'ROOM_LEFT') ws.close(4004, 'Left room');
+  }
+  await publishSeats(player.roomId);
+}
+const REJOIN_GRACE_MS = 5 * 60 * 1000;
+
+function validRoomPosition(position) {
+  return position && ['x', 'y', 'z'].every(axis =>
+    typeof position[axis] === 'number' && Number.isFinite(position[axis]) &&
+    Math.abs(position[axis]) <= 10000);
+}
+
+function roomGrantKey(roomId, characterId) {
+  return `${roomId}:${characterId}`;
+}
+
+function hasRoomReturnAccess(roomId, characterId) {
+  if (!roomId || !characterId) return false;
+  for (const player of playerPositions.values()) {
+    if (player.roomId === roomId && player.characterId === characterId) return true;
+  }
+  const key = roomGrantKey(roomId, characterId);
+  const until = rejoinGrants.get(key) || 0;
+  if (until > Date.now()) return true;
+  rejoinGrants.delete(key);
+  return false;
+}
+
+async function hasPersistentRoomReturnAccess(roomId, characterId) {
+  if (!roomId || !characterId) return false;
+  const { rows } = await query(`
+    SELECT 1 FROM room_rejoin_grants g JOIN rooms r ON r.id = g.room_id
+    WHERE g.room_id = $1 AND g.character_id = $2 AND g.expires_at > now()
+      AND r.status = 'closed' AND r.allow_rejoin = true
+  `, [roomId, characterId]);
+  return rows.length > 0 || hasRoomReturnAccess(roomId, characterId);
+}
+
+function roomParticipants(roomId) {
+  return [...new Set([...playerPositions.values()]
+    .filter(player => player.roomId === roomId && player.characterId)
+    .map(player => player.characterId))];
+}
+
+// Keep the return window open while a participant remains connected to a closed room.
+// UPDATE cannot recreate a grant removed by "end meeting", even if that action races this tick.
+async function refreshActiveRoomGrants() {
+  if (process.env.ROOMS_ENABLED !== 'true') return;
+  const byRoom = new Map();
+  for (const [connectionId, player] of playerPositions) {
+    if (!player?.roomId || player.roomId === MAIN_ROOM_ID || !player.characterId ||
+        player.roomEpoch !== (roomEpochs.get(player.roomId) || 0) ||
+        activeConnections.get(connectionId)?.readyState !== WebSocket.OPEN) continue;
+    if (!byRoom.has(player.roomId)) byRoom.set(player.roomId, new Map());
+    byRoom.get(player.roomId).set(player.characterId, player.position);
+  }
+  for (const [roomId, characters] of byRoom) {
+    await query(`
+      UPDATE room_rejoin_grants g
+      SET expires_at = GREATEST(g.expires_at, now() + interval '5 minutes')
+      WHERE g.room_id = $1 AND g.character_id = ANY($2::uuid[])
+        AND EXISTS (SELECT 1 FROM rooms r WHERE r.id = g.room_id
+          AND r.status = 'closed' AND r.allow_rejoin = true)
+    `, [roomId, [...characters.keys()]]);
+    const positions = [...characters].filter(([, position]) => validRoomPosition(position))
+      .map(([id, position]) => ({ id, position }));
+    if (positions.length) await query(`
+      UPDATE characters c SET last_position = p.position
+      FROM jsonb_to_recordset($2::jsonb) AS p(id uuid, position jsonb)
+      WHERE c.id = p.id AND c.last_room_id = $1
+        AND EXISTS (SELECT 1 FROM rooms r WHERE r.id = $1
+          AND r.status = 'closed' AND r.allow_rejoin = true)
+    `, [roomId, JSON.stringify(positions)]);
+  }
+}
 
 /**
  * 连接已建立但服务器没有它的玩家登记（playerPositions）时的提示。
@@ -61,7 +214,14 @@ function setupWebSocketServer(httpServer) {
       ws.on('close', async () => {
         // 保存用户最后位置（下线时停留在当前位置）
         const playerData = playerPositions.get(connectionId);
-        if (playerData && playerData.characterId && playerData.position) {
+        if (playerData?.seat) {
+          await runRoomOperation(async () => {
+            await getSeatService().hold(seatIdentity(connectionId, playerData));
+            await publishSeats(playerData.roomId);
+          }).catch(error => console.warn('[WS] Seat disconnect:', error.message));
+        }
+        if (playerData && !supersededConnections.has(connectionId) &&
+            playerData.characterId && playerData.position) {
           try {
             await query(
               `UPDATE characters 
@@ -75,15 +235,35 @@ function setupWebSocketServer(httpServer) {
             console.error('保存玩家位置失败:', error);
           }
         }
+        if (!supersededConnections.has(connectionId) &&
+            process.env.ROOMS_ENABLED === 'true' && playerData?.roomId &&
+            playerData.roomId !== MAIN_ROOM_ID) {
+          try {
+            const room = await query('SELECT status, allow_rejoin FROM rooms WHERE id = $1', [playerData.roomId]);
+            if (room.rows[0]?.status === 'closed' && room.rows[0]?.allow_rejoin &&
+                playerData.roomEpoch === (roomEpochs.get(playerData.roomId) || 0)) {
+              rejoinGrants.set(roomGrantKey(playerData.roomId, playerData.characterId),
+                Date.now() + REJOIN_GRACE_MS);
+              await query(`
+                UPDATE room_rejoin_grants g
+                SET expires_at = GREATEST(g.expires_at, now() + interval '5 minutes')
+                WHERE g.room_id = $1 AND g.character_id = $2
+                  AND EXISTS (SELECT 1 FROM rooms r WHERE r.id = g.room_id
+                    AND r.status = 'closed' AND r.allow_rejoin = true)
+              `, [playerData.roomId, playerData.characterId]);
+            }
+          } catch (error) { console.warn('[WS] Could not record room rejoin:', error.message); }
+        }
         
         activeConnections.delete(connectionId);
+        seatIdentities.delete(connectionId);
         playerPositions.delete(connectionId);
         ghostWarnAt.delete(connectionId);
         voiceRelay.handleDisconnect(connectionId);
         
         // 广播玩家离线
-        if (playerData) {
-          broadcastToAll({
+        if (playerData && !supersededConnections.has(connectionId)) {
+          broadcastToRoom(playerData.roomId || MAIN_ROOM_ID, {
             type: 'PLAYER_LEFT',
             payload: {
               characterId: playerData.characterId,
@@ -92,6 +272,7 @@ function setupWebSocketServer(httpServer) {
             },
           });
         }
+        supersededConnections.delete(connectionId);
         
         console.log(`Client disconnected: ${connectionId}`);
       });
@@ -126,7 +307,37 @@ function setupWebSocketServer(httpServer) {
       });
     }, 30000);
     if (hbTimer.unref) hbTimer.unref();
-    wss.on('close', () => clearInterval(hbTimer));
+    const grantTimer = setInterval(() => {
+      refreshActiveRoomGrants().catch(error =>
+        console.warn('[WS] Could not refresh room grants:', error.message));
+    }, 60000);
+    if (grantTimer.unref) grantTimer.unref();
+    let seatTickPending = false;
+    const seatTimer = setInterval(() => {
+      if (!seatsUsed || seatTickPending) return;
+      seatTickPending = true;
+      runRoomOperation(async () => {
+        for (const [cid, player] of playerPositions) {
+          const socket = activeConnections.get(cid);
+          if (!player.seat || socket?.readyState !== WebSocket.OPEN || socket.isAlive === false) continue;
+          if (!(await getSeatService().renew(seatIdentity(cid, player)))) {
+            voiceRelay.handleDisconnect(cid);
+            playerPositions.delete(cid);
+            seatIdentities.delete(cid);
+            socket.send(JSON.stringify({ type: 'ROOM_SEAT_EXPIRED', payload: {} }));
+            socket.close(4003, 'Seat expired');
+            broadcastToRoom(player.roomId, { type: 'PLAYER_LEFT', payload: { characterId: player.characterId } });
+          }
+        }
+        const expired = await getSeatService().cleanupExpired();
+        const changedRooms = new Set(expired.map(row => row.room_id));
+        for (const player of playerPositions.values()) if (player.seat) changedRooms.add(player.roomId);
+        for (const roomId of changedRooms) await publishSeats(roomId);
+      }).catch(error => console.warn('[WS] Seat heartbeat:', error.message))
+        .finally(() => { seatTickPending = false; });
+    }, 20000);
+    if (seatTimer.unref) seatTimer.unref();
+    wss.on('close', () => { clearInterval(hbTimer); clearInterval(grantTimer); clearInterval(seatTimer); });
 
     console.log(`WebSocket server attached to HTTP server (shared port)`);
   } catch (error) {
@@ -135,11 +346,35 @@ function setupWebSocketServer(httpServer) {
 }
 
 function handleMessage(connectionId, ws, data) {
+  if (supersededConnections.has(connectionId)) return;
   const { type, payload } = data;
 
   switch (type) {
+    case 'ROOM_LOOK': {
+      const player = playerPositions.get(connectionId);
+      if (!player?.seat || !payload || !Number.isFinite(payload.yaw) || !Number.isFinite(payload.pitch)) break;
+      if (Date.now() - (player.lastLookAt || 0) < 80) break;
+      player.lastLookAt = Date.now();
+      const look = { yaw: Math.max(-1.2, Math.min(1.2, payload.yaw)), pitch: Math.max(-.65, Math.min(.65, payload.pitch)) };
+      broadcastToRoom(player.roomId, { type: 'ROOM_LOOK', payload: { roomId: player.roomId, characterId: player.characterId, look } });
+      break;
+    }
+    case 'ROOM_SEAT_SELECT':
+    case 'ROOM_LEAVE':
+      runRoomOperation(() => handleSeatCommand(connectionId, ws, type, payload || {}))
+        .catch(error => {
+          console.warn('[WS] Seat command:', error.message);
+          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ROOM_SEAT_RESULT',
+            payload: { requestId: payload?.requestId, success: false, code: error.code || 'SEAT_ERROR' } }));
+        });
+      break;
     case 'PLAYER_JOIN':
-      handlePlayerJoin(connectionId, ws, payload);
+      queuePlayerJoin(connectionId, ws, payload || {}).catch(error => {
+        console.error('[WS] Room join failed:', error);
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({
+          type: 'ROOM_JOIN_DENIED', payload: { reason: 'Не удалось войти в комнату' }
+        }));
+      });
       break;
 
     case 'POSITION_UPDATE':
@@ -184,6 +419,7 @@ function handleMessage(connectionId, ws, data) {
     case 'CHAT': {
       // 附近聊天：30m 内玩家可见，带服务端权威 characterId 供头顶气泡定位
       const sender = playerPositions.get(connectionId);
+      if (process.env.ROOMS_ENABLED === 'true' && !sender) break;
       const text = String(payload.message || '').slice(0, 200).trim();
       if (!text) break;
       const chatMessage = {
@@ -211,7 +447,9 @@ function handleMessage(connectionId, ws, data) {
           });
         } catch (e) { /* non-fatal */ }
       }).catch(() => {});
-      if (sender && sender.position) {
+      if (sender && sender.position && process.env.ROOMS_ENABLED === 'true' && sender.roomId !== MAIN_ROOM_ID) {
+        broadcastToNearby(sender.position, 30, chatMessage, null, sender.roomId);
+      } else if (sender && sender.position) {
         // 必须经 module.exports 调用：CHAT 旁路 patch（agentWsServer）替换的是导出属性，
         // 裸调用内部函数会绕过 patch，导致人类消息永远转发不到 Agent
         module.exports.broadcastToNearby(sender.position, 30, chatMessage);
@@ -242,14 +480,34 @@ function handleMessage(connectionId, ws, data) {
   }
 }
 
+// Serialize joins for one character. Otherwise two concurrent database updates
+// can finish out of order and leave last_room_id pointing at the old room.
+function queuePlayerJoin(connectionId, ws, payload) {
+  const characterId = payload.characterId;
+  const key = typeof characterId === 'string' && characterId.length <= 128
+    ? `character:${characterId}` : `connection:${connectionId}`;
+  const previous = joinQueues.get(key) || Promise.resolve();
+  const current = previous.catch(() => {}).then(() => {
+    const join = () => {
+      if (supersededConnections.has(connectionId) || ws.readyState !== WebSocket.OPEN) return;
+      return handlePlayerJoin(connectionId, ws, payload);
+    };
+    return process.env.ROOMS_ENABLED === 'true' ? runRoomOperation(join) : join();
+  });
+  joinQueues.set(key, current);
+  const cleanup = () => { if (joinQueues.get(key) === current) joinQueues.delete(key); };
+  current.then(cleanup, cleanup);
+  return current;
+}
+
 /**
  * 处理玩家模型URL更新（当客户端异步补全GLB URL后发送）
  * 更新服务器内存中的 glbUrl，并广播给其他在线玩家
  */
 function handleModelUpdate(connectionId, payload) {
   const { characterId, glbUrl, animUrls, isSelfContainedBundle } = payload;
-  if (playerPositions.has(connectionId)) {
-    const p = playerPositions.get(connectionId);
+  const p = playerPositions.get(connectionId);
+  if (p) {
     p.glbUrl = glbUrl || null;
     if (animUrls) p.animUrls = animUrls;
     p.isSelfContainedBundle = isSelfContainedBundle === true;
@@ -258,10 +516,10 @@ function handleModelUpdate(connectionId, payload) {
     return;
   }
   // 广播给所有其他玩家，让他们刷新该玩家的模型和动画
-  broadcastToAll({
+  broadcastToRoom(p.roomId || MAIN_ROOM_ID, {
     type: 'MODEL_UPDATE',
     payload: {
-      characterId,
+      characterId: p.characterId,
       glbUrl: glbUrl || null,
       animUrls: animUrls || null,
       isSelfContainedBundle: isSelfContainedBundle === true,
@@ -269,26 +527,152 @@ function handleModelUpdate(connectionId, payload) {
   });
 }
 
-function handlePlayerJoin(connectionId, ws, payload) {
+async function handlePlayerJoin(connectionId, ws, payload) {
+  if (supersededConnections.has(connectionId)) return;
+  if (process.env.APP_MODE === 'rooms' && (!payload.roomSlug || payload.roomSlug === 'main')) {
+    ws.send(JSON.stringify({ type: 'ROOM_JOIN_DENIED', payload: { code: 'ROOM_REQUIRED', reason: 'Выберите комнату' } }));
+    return;
+  }
   const { characterId, characterName, position, glbUrl, animUrls, weaponConfig, boneMapConfig, weaponSocketConfig, calibrationConfig, isGuest, isSelfContainedBundle } = payload;
-
-  // 同一角色的旧连接残留（断线重连/半开连接被心跳清理前）：若旧连接已死则清掉，
-  // 否则 WORLD_STATE 里同一角色会出现两条记录——新加入者会先按旧条建角色、
-  // 再被旧条的位置覆盖，出现"复活在旧坐标 / 位置反复回跳"。
-  playerPositions.forEach((p, cid) => {
-    if (cid === connectionId || !p || p.characterId !== characterId) return;
-    const old = activeConnections.get(cid);
-    if (!old || old.readyState !== WebSocket.OPEN) {
-      playerPositions.delete(cid);
-      ghostWarnAt.delete(cid);
-      console.log(`♻️ 清理角色 ${characterId} 的旧连接残留: ${cid}`);
+  let roomId = MAIN_ROOM_ID;
+  let roomPosition = position;
+  let verifiedName = characterName;
+  let verifiedCharacter = false;
+  let seatAssignment = null;
+  let seatUserId;
+  if (process.env.ROOMS_ENABLED === 'true' && payload.roomSlug && payload.roomSlug !== 'main') {
+    let decoded;
+    try { decoded = jwt.verify(payload.token, process.env.JWT_SECRET); } catch (_) {}
+    if (!decoded?.userId || !characterId) {
+      ws.send(JSON.stringify({ type: 'ROOM_JOIN_DENIED', payload: { reason: 'Нужна авторизация' } }));
+      return;
     }
-  });
+    if (process.env.APP_MODE === 'rooms') {
+      const canonical = await query('SELECT c.id FROM users u JOIN characters c ON c.id=u.room_character_id AND c.user_id=u.id WHERE u.id=$1', [decoded.userId]);
+      if (canonical.rows[0]?.id !== characterId) {
+        ws.send(JSON.stringify({ type: 'ROOM_JOIN_DENIED', payload: { code: 'CHARACTER_SESSION_CHANGED', reason: 'Обновите вход через кабинет' } }));
+        return;
+      }
+    }
+    const { rows } = await query(`
+      SELECT r.id, r.capacity, r.spawn_position, r.status, r.allow_rejoin, r.seating_mode,
+        c.name AS character_name, c.last_room_id, c.last_position
+      FROM rooms r JOIN characters c ON c.user_id = $2 AND c.id = $3
+      WHERE r.slug = $1 AND r.status IN ('open', 'closed')
+    `, [payload.roomSlug, decoded.userId, characterId]);
+    if (!rows.length || (rows[0].status === 'closed' &&
+        !rows[0].allow_rejoin) || (rows[0].status === 'closed' &&
+        !(await hasPersistentRoomReturnAccess(rows[0].id, characterId)))) {
+      ws.send(JSON.stringify({ type: 'ROOM_JOIN_DENIED', payload: { reason: 'Комната недоступна' } }));
+      return;
+    }
+    roomId = rows[0].id;
+    verifiedCharacter = true;
+    seatUserId = decoded.userId;
+    const spawn = rows[0].spawn_position || { x: 0, y: 0, z: 0 };
+    roomPosition = { x: Number(spawn.x) || 0, y: (Number(spawn.y) || 0) + 2,
+      z: Number(spawn.z) || 0 };
+    if (rows[0].status === 'closed' && rows[0].last_room_id === roomId) {
+      if (validRoomPosition(position)) roomPosition = position;
+      else if (validRoomPosition(rows[0].last_position)) roomPosition = rows[0].last_position;
+    }
+    verifiedName = rows[0].character_name;
+    const occupied = new Set([...playerPositions.entries()].filter(([cid, player]) =>
+      cid !== connectionId && player.roomId === roomId).map(([, player]) => player.characterId));
+    if (rows[0].seating_mode !== 'seated' && !occupied.has(characterId) && occupied.size >= rows[0].capacity) {
+      ws.send(JSON.stringify({ type: 'ROOM_JOIN_DENIED', payload: { reason: 'Комната заполнена' } }));
+      return;
+    }
+    rejoinGrants.delete(roomGrantKey(roomId, characterId));
+    if (rows[0].seating_mode === 'seated') {
+      try {
+        seatAssignment = await getSeatService().admit({ roomId, characterId, userId: decoded.userId,
+          sessionId: connectionId, isCurrent: () => ws.readyState === WebSocket.OPEN && !supersededConnections.has(connectionId) });
+      } catch (error) {
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ROOM_JOIN_DENIED',
+          payload: { code: error.code || 'SEAT_ERROR', reason: error.code === 'ROOM_FULL' ? 'Комната заполнена' : 'Не удалось занять место' } }));
+        return;
+      }
+      roomPosition = seatAssignment.pose.position;
+      seatUserId = decoded.userId;
+    } else {
+      await query('UPDATE characters SET last_room_id = $1 WHERE id = $2 AND user_id = $3',
+        [roomId, characterId, decoded.userId]);
+    }
+  } else if (process.env.ROOMS_ENABLED === 'true' && payload.token && characterId) {
+    try {
+      const decoded = jwt.verify(payload.token, process.env.JWT_SECRET);
+      const result = await query(`
+        UPDATE characters SET last_room_id = $1
+        WHERE id = $2 AND user_id = $3 RETURNING name
+      `, [MAIN_ROOM_ID, characterId, decoded.userId]);
+      if (result.rows.length) {
+        verifiedName = result.rows[0].name;
+        verifiedCharacter = true;
+        seatUserId = decoded.userId;
+      }
+    } catch (_) { /* Legacy main-world guests and stale tokens retain old flow. */ }
+  }
+
+  // The browser may have closed while authorization/database work was pending.
+  if (supersededConnections.has(connectionId) || ws.readyState !== WebSocket.OPEN) return;
+  const previous = playerPositions.get(connectionId);
+  if (previous && previous.roomId !== roomId) {
+    voiceRelay.handleDisconnect(connectionId);
+    broadcastToRoom(previous.roomId || MAIN_ROOM_ID, { type: 'PLAYER_LEFT', payload: {
+      characterId: previous.characterId, characterName: previous.characterName
+    } });
+  }
+
+  // An authenticated room character has one live session. Remove the old record
+  // before broadcasting the replacement, so snapshots never contain a double.
+  if (verifiedCharacter) {
+    if (!seatAssignment) {
+      // Also release a held claim from an already disconnected old tab.
+      const released = await query(`DELETE FROM room_seat_claims
+        WHERE character_id = $1 AND room_id <> $2 RETURNING room_id`, [characterId, roomId]);
+      for (const oldRoom of new Set(released.rows.map(row => row.room_id))) await publishSeats(oldRoom);
+    }
+    for (const [cid, oldPlayer] of playerPositions) {
+      if ((oldPlayer.characterId === characterId || (process.env.APP_MODE === 'rooms' && seatUserId && seatIdentities.get(cid) === seatUserId)) && oldPlayer.seat && (oldPlayer.roomId !== roomId || oldPlayer.characterId !== characterId)) {
+        await getSeatService().release(seatIdentity(cid, oldPlayer));
+        await publishSeats(oldPlayer.roomId);
+      }
+    }
+    playerPositions.forEach((oldPlayer, cid) => {
+      if (cid === connectionId || (oldPlayer?.characterId !== characterId && (process.env.APP_MODE !== 'rooms' || !seatUserId || seatIdentities.get(cid) !== seatUserId))) return;
+      if (!seatAssignment && oldPlayer.roomId === roomId && validRoomPosition(oldPlayer.position)) {
+        roomPosition = oldPlayer.position;
+      }
+      supersededConnections.add(cid);
+      const expiry = setTimeout(() => supersededConnections.delete(cid), 120000);
+      if (expiry.unref) expiry.unref();
+      playerPositions.delete(cid);
+      seatIdentities.delete(cid);
+      ghostWarnAt.delete(cid);
+      voiceRelay.handleDisconnect(cid);
+      if (oldPlayer.roomId !== roomId || oldPlayer.characterId !== characterId) {
+        broadcastToRoom(oldPlayer.roomId || MAIN_ROOM_ID, { type: 'PLAYER_LEFT', payload: {
+          characterId: oldPlayer.characterId, characterName: oldPlayer.characterName
+        } });
+      }
+      const oldSocket = activeConnections.get(cid);
+      if (oldSocket?.readyState === WebSocket.OPEN) {
+        try {
+          oldSocket.send(JSON.stringify({ type: 'ROOM_SESSION_REPLACED', payload: {} }));
+          oldSocket.close(4002, 'Session replaced');
+        } catch (_) { try { oldSocket.terminate(); } catch (_) {} }
+      }
+    });
+  }
 
   playerPositions.set(connectionId, {
+    seat: seatAssignment ? { id: seatAssignment.seat.id, ...seatAssignment.pose } : null,
+    roomId,
+    roomEpoch: roomEpochs.get(roomId) || 0,
     characterId,
-    characterName,
-    position,
+    characterName: verifiedName,
+    position: roomPosition,
     glbUrl: glbUrl || null,
     animUrls: animUrls || null,
     weaponConfig: weaponConfig || null,
@@ -299,14 +683,22 @@ function handlePlayerJoin(connectionId, ws, payload) {
     isSelfContainedBundle: isSelfContainedBundle === true,
     lastUpdate: new Date(),
   });
+  if (verifiedCharacter && seatUserId) seatIdentities.set(connectionId, seatUserId);
+  if (seatAssignment) {
+    ws.send(JSON.stringify({ type: 'ROOM_SEAT_ASSIGNED', payload: {
+      roomId, seat: playerPositions.get(connectionId).seat
+    } }));
+    await publishSeats(roomId);
+  }
 
   // Notify all players (含 glbUrl + animUrls + 武器配置 + 校准配置 + 游客标记 + 自包含包标记)
-  broadcastToAll({
+  broadcastToRoom(roomId, {
     type: 'PLAYER_JOINED',
     payload: {
       characterId,
-      characterName,
-      position,
+      characterName: verifiedName,
+      position: roomPosition,
+      seat: playerPositions.get(connectionId)?.seat || null,
       glbUrl: glbUrl || null,
       animUrls: animUrls || null,
       weaponConfig: weaponConfig || null,
@@ -331,20 +723,22 @@ function handlePlayerJoin(connectionId, ws, payload) {
         const { resolveSky } = require('../routes/sky');
         currentWeather.sky = await resolveSky(currentWeather);
       } catch(e) {}
+      if (ws.readyState !== WebSocket.OPEN || playerPositions.get(connectionId)?.roomId !== roomId) return;
       ws.send(JSON.stringify({
         type: 'WORLD_STATE',
         payload: {
-          players: Array.from(playerPositions.values()),
+          players: [...playerPositions.values()].filter(player => player.roomId === roomId),
           weather: currentWeather,
           timestamp: new Date(),
         },
       }));
     })
     .catch(() => {
+      if (ws.readyState !== WebSocket.OPEN || playerPositions.get(connectionId)?.roomId !== roomId) return;
       ws.send(JSON.stringify({
         type: 'WORLD_STATE',
         payload: {
-          players: Array.from(playerPositions.values()),
+          players: [...playerPositions.values()].filter(player => player.roomId === roomId),
           weather: { type: 'clear', intensity: 50, wind: 20 },
           timestamp: new Date(),
         },
@@ -363,16 +757,17 @@ function handlePositionUpdate(connectionId, payload) {
   }
 
   const player = playerPositions.get(connectionId);
+  if (player.seat) return;
   player.position = position;
   if (animMode !== undefined) player.animMode = animMode;
   if (rotation !== undefined) player.rotation = rotation;
   player.lastUpdate = new Date();
 
   // Broadcast position to nearby players
-  broadcastToAll({
+  broadcastToRoom(player.roomId || MAIN_ROOM_ID, {
     type: 'POSITION_UPDATE',
     payload: {
-      characterId,
+      characterId: player.characterId,
       position,
       animMode: animMode || null,
       rotation: rotation !== undefined ? rotation : null,
@@ -381,12 +776,15 @@ function handlePositionUpdate(connectionId, payload) {
 }
 
 function handleSkillCast(connectionId, payload) {
+  const sender = playerPositions.get(connectionId);
+  if (sender?.seat) return;
+  if (process.env.ROOMS_ENABLED === 'true' && !sender) return;
   const { characterId, skillId, targetPosition, skillEffect } = payload;
 
-  broadcastToAll({
+  broadcastToRoom(sender?.roomId || MAIN_ROOM_ID, {
     type: 'SKILL_CAST',
     payload: {
-      characterId,
+      characterId: sender?.characterId || characterId,
       skillId,
       targetPosition,
       skillEffect,
@@ -396,9 +794,12 @@ function handleSkillCast(connectionId, payload) {
 }
 
 function handleMonsterAttack(connectionId, payload) {
+  const sender = playerPositions.get(connectionId);
+  if (sender?.seat) return;
+  if (process.env.ROOMS_ENABLED === 'true' && !sender) return;
   const { monsterId, targetCharacterId, damage } = payload;
 
-  broadcastToAll({
+  broadcastToRoom(sender?.roomId || MAIN_ROOM_ID, {
     type: 'MONSTER_ATTACK',
     payload: {
       monsterId,
@@ -410,13 +811,15 @@ function handleMonsterAttack(connectionId, payload) {
 }
 
 function handleVoiceCommand(connectionId, payload) {
+  const sender = playerPositions.get(connectionId);
+  if (process.env.ROOMS_ENABLED === 'true' && !sender) return;
   const { characterId, command, recognizedText } = payload;
 
   // Broadcast voice command to all players (for immersion)
-  broadcastToAll({
+  broadcastToRoom(sender?.roomId || MAIN_ROOM_ID, {
     type: 'VOICE_COMMAND',
     payload: {
-      characterId,
+      characterId: sender?.characterId || characterId,
       command,
       recognizedText,
       timestamp: new Date(),
@@ -428,6 +831,7 @@ function handleVoiceCommand(connectionId, payload) {
 }
 
 function broadcastToAll(message) {
+  if (process.env.ROOMS_ENABLED === 'true') return broadcastToRoom(MAIN_ROOM_ID, message);
   const data = JSON.stringify(message);
 
   wss.clients.forEach((client) => {
@@ -437,7 +841,57 @@ function broadcastToAll(message) {
   });
 }
 
-function broadcastToNearby(sourcePosition, range, message, excludeConnectionId = null) {
+function broadcastToRoom(roomId, message) {
+  if (process.env.ROOMS_ENABLED !== 'true') return broadcastToAll(message);
+  const data = JSON.stringify(message);
+  let count = 0;
+  playerPositions.forEach((player, connectionId) => {
+    if (player.roomId !== roomId) return;
+    const client = activeConnections.get(connectionId);
+    if (client?.readyState === WebSocket.OPEN) {
+      client.send(data);
+      count++;
+    }
+  });
+  return count;
+}
+
+function invalidateRoomReturnAccess(roomId) {
+  roomEpochs.set(roomId, (roomEpochs.get(roomId) || 0) + 1);
+  clearRoomReturnGrants(roomId);
+}
+
+function clearRoomReturnGrants(roomId) {
+  for (const key of rejoinGrants.keys()) {
+    if (key.startsWith(`${roomId}:`)) rejoinGrants.delete(key);
+  }
+}
+
+function endRoom(roomId) {
+  if (process.env.ROOMS_ENABLED !== 'true' || roomId === MAIN_ROOM_ID) return 0;
+  invalidateRoomReturnAccess(roomId);
+  let count = 0;
+  playerPositions.forEach((player, connectionId) => {
+    if (player.roomId !== roomId) return;
+    const client = activeConnections.get(connectionId);
+    if (client?.readyState === WebSocket.OPEN) {
+      try {
+        client.send(JSON.stringify({ type: 'ROOM_ENDED', payload: { roomId } }));
+        client.close(4001, 'Room ended');
+      } catch (error) {
+        try { client.terminate(); } catch (_) {}
+      }
+    }
+    voiceRelay.handleDisconnect(connectionId);
+    playerPositions.delete(connectionId);
+    seatIdentities.delete(connectionId);
+    ghostWarnAt.delete(connectionId);
+    count++;
+  });
+  return count;
+}
+
+function broadcastToNearby(sourcePosition, range, message, excludeConnectionId = null, roomId = MAIN_ROOM_ID) {
   const data = JSON.stringify(message);
   let count = 0;
 
@@ -445,6 +899,7 @@ function broadcastToNearby(sourcePosition, range, message, excludeConnectionId =
   playerPositions.forEach((player, connectionId) => {
     if (excludeConnectionId && connectionId === excludeConnectionId) return;
     if (!player || !player.position) return;
+    if (process.env.ROOMS_ENABLED === 'true' && player.roomId !== roomId) return;
     const distance = calculateDistance(sourcePosition, player.position);
     if (distance <= range) {
       const client = activeConnections.get(connectionId);
@@ -471,6 +926,8 @@ function calculateDistance(pos1, pos2) {
  * 处理传送门创建通知
  */
 function handlePortalCreate(connectionId, payload) {
+  if (process.env.ROOMS_ENABLED === 'true' &&
+      playerPositions.get(connectionId)?.roomId !== MAIN_ROOM_ID) return;
   const { portalId, name, sourcePosition, targetPosition, portalType } = payload;
 
   console.log(`🌀 传送门创建: ${name} (${portalType})`);
@@ -493,6 +950,8 @@ function handlePortalCreate(connectionId, payload) {
  * 处理传送门传送事件
  */
 function handlePortalTeleport(connectionId, payload) {
+  if (process.env.ROOMS_ENABLED === 'true' &&
+      playerPositions.get(connectionId)?.roomId !== MAIN_ROOM_ID) return;
   const { characterId, portalId, fromPosition, toPosition } = payload;
 
   console.log(`✨ 玩家传送: ${characterId} 通过传送门 ${portalId}`);
@@ -522,6 +981,13 @@ function handlePortalTeleport(connectionId, payload) {
  */
 async function handleRequestPortals(connectionId, ws) {
   try {
+    if (process.env.ROOMS_ENABLED === 'true' &&
+        playerPositions.get(connectionId)?.roomId !== MAIN_ROOM_ID) {
+      ws.send(JSON.stringify({ type: 'PORTALS_LIST', payload: {
+        portals: [], timestamp: new Date()
+      } }));
+      return;
+    }
     // 从数据库获取所有活跃的传送门
     const result = await query(
       `SELECT id, name, source_position, target_position, portal_type, 
@@ -558,6 +1024,14 @@ async function handleRequestPortals(connectionId, ws) {
 module.exports = {
   setupWebSocketServer,
   broadcastToAll,
+  broadcastToRoom,
+  endRoom,
+  invalidateRoomReturnAccess,
+  clearRoomReturnGrants,
+  hasRoomReturnAccess,
+  hasPersistentRoomReturnAccess,
+  roomParticipants,
+  refreshActiveRoomGrants,
   broadcastToNearby,
   getPlayerPositions: () => playerPositions,
   getWss: () => wss,                     // P3：noServer 模式下供 upgradeRouter 调 wss.handleUpgrade

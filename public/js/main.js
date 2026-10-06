@@ -14,6 +14,7 @@ let _currentTmplData = null; // 存储当前角色的模板数据（含音效配
 // Make gameWorld accessible globally for name updates
 window.gameWorld = null;
 window.player = null;  // Make player accessible globally
+window.ACTIVE_ROOM = null;
 
 // i18n translation helper for dynamically created UI
 function _t(key, params) {
@@ -74,11 +75,22 @@ if (typeof window !== 'undefined') {
   else setInterval(debugFn, 100);
 })();
 
+window.addEventListener('storage', event => {
+  if (location.pathname === '/play' && (event.key === 'userId' || event.key === null || (event.key === 'token' && !event.newValue))) {
+    if (typeof WSClient !== 'undefined') { WSClient.roomEnded = true; WSClient.ws?.close(); }
+    location.replace('/rooms');
+  }
+});
+
 window.addEventListener('load', async () => {
   try {
     // 优先检测跨世界传送参数
     const urlParams = new URLSearchParams(window.location.search);
-    const isTeleport = urlParams.get('teleport') === 'true';
+    if (location.pathname === '/play' && !localStorage.getItem('token')) {
+      location.replace('/join/' + encodeURIComponent(urlParams.get('room') || ''));
+      return;
+    }
+    const isTeleport = urlParams.get('teleport') === 'true' && location.pathname !== '/play';
     const teleportToken = urlParams.get('token');
 
     if (isTeleport && teleportToken) {
@@ -90,6 +102,10 @@ window.addEventListener('load', async () => {
     // Check if user is logged in
     const token = localStorage.getItem('token');
     if (!token) {
+      if (urlParams.get('room') && urlParams.get('room') !== 'main') {
+        showLoginScreen();
+        return;
+      }
       // 游客模式：直接进入世界浏览，持续提示注册
       initializeGameAsGuest();
       return;
@@ -99,6 +115,16 @@ window.addEventListener('load', async () => {
     await initializeGame();
   } catch (error) {
     console.error('Initialization error:', error);
+    if (location.pathname === '/play') {
+      if (typeof WSClient !== 'undefined') { WSClient.roomEnded = true; WSClient.ws?.close(); }
+      const panel = document.createElement('div');
+      panel.style.cssText = 'position:fixed;inset:0;z-index:100000;background:#171e29;color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px';
+      const text = document.createElement('p'); text.textContent = error.message;
+      const back = document.createElement('a'); back.href = '/rooms'; back.style.color = '#a7dfcf';
+      back.textContent = window.i18n?.t('roomsLobby.back') || 'В мои комнаты';
+      panel.append(text, back); document.body.append(panel);
+      return;
+    }
     UI.showNotification(_t('common.error'), _t('mainUi.initFailed', { message: error.message }));
   }
 });
@@ -488,6 +514,25 @@ async function initializeGame() {
       return;
     }
 
+    const requestedRoom = new URLSearchParams(location.search).get('room');
+    if (requestedRoom && requestedRoom !== 'main') {
+      const response = await fetch('/api/rooms/' + encodeURIComponent(requestedRoom) +
+        '?characterId=' + encodeURIComponent(GAME_STATE.characterId), {
+        headers: { Authorization: 'Bearer ' + localStorage.getItem('token') }
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        throw new Error(data.code === 'ROOM_NOT_FOUND' ? 'Комната не найдена или закрыта' :
+          'Не удалось войти в комнату');
+      }
+      window.ACTIVE_ROOM = data.room;
+      window.RoomSeating?.enter(data.room);
+      for (const id of ['world-portal-btn', 'portal-manager-btn']) {
+        const button = document.getElementById(id);
+        if (button) button.style.display = 'none';
+      }
+    }
+
     // Create 3D world
     const canvas = document.getElementById('canvas');
     gameWorld = new World(canvas);
@@ -503,12 +548,19 @@ async function initializeGame() {
 
     // Create player controller at spawn position
     // Note: World will load spawn point asynchronously, but provides default position immediately
-    const spawnPosition = gameWorld.getSpawnPosition();
+    let spawnPosition = gameWorld.getSpawnPosition();
+    const savedRoomPosition = window.ACTIVE_ROOM?.status === 'closed'
+      ? window.ACTIVE_ROOM.resume_position : null;
+    if (savedRoomPosition && ['x', 'y', 'z'].every(axis =>
+      typeof savedRoomPosition[axis] === 'number' &&
+      Number.isFinite(savedRoomPosition[axis]) && Math.abs(savedRoomPosition[axis]) <= 10000)) {
+      spawnPosition = savedRoomPosition;
+    }
     console.log('🎮 初始化玩家位置:', spawnPosition);
 
     // 读取已选角色模板 GLB 及所有MVP动画
     // 防御字符串 "null"（localStorage.setItem('key', null) 会存入字符串 "null"）
-    const selectedGlbUrl = (() => {
+    let selectedGlbUrl = (() => {
       const v = localStorage.getItem('selectedTemplateGlbUrl');
       return (!v || v === 'null' || v.trim() === '') ? null : v;
     })();
@@ -563,9 +615,13 @@ async function initializeGame() {
     // 从API加载模板完整配置的函数（统一入口）
     const loadTemplateFromApi = (resolvedGlbUrlArg) => {
       return fetch('/api/public/character-templates')
-        .then(r => r.json())
+        .then(r => {
+          if (!r.ok) throw new Error(`Character templates: HTTP ${r.status}`);
+          return r.json();
+        })
         .then(data => {
-          const templates = data.templates || [];
+          if (!Array.isArray(data.templates)) throw new Error('Invalid character template response');
+          const templates = data.templates;
           // 优先按 templateId 匹配，fallback 用 glbUrl 反查
           let tmpl = selectedTemplateId
             ? templates.find(t => String(t.id) === String(selectedTemplateId))
@@ -585,6 +641,20 @@ async function initializeGame() {
             }
           }
           if (!tmpl) {
+            // A deleted local template can remain selected in browser storage.
+            // Clear its dependent assets before constructing Player; network
+            // failures above still preserve the cached selection for a retry.
+            if (selectedTemplateId || /^\/(uploads|models)\//.test(selectedGlbUrl || '')) {
+              for (const key of Object.keys(localStorage)) {
+                if (key.startsWith('selectedTemplate')) localStorage.removeItem(key);
+              }
+              selectedGlbUrl = null;
+              selectedWeaponConfig = null;
+              for (const key of Object.keys(selectedAnimUrls)) delete selectedAnimUrls[key];
+              _currentTmplData = null;
+              console.info('[Character] Selected template is unavailable; using the built-in avatar');
+              return null;
+            }
             console.warn('🚫 API中未找到模板ID:', selectedTemplateId, '且GLB URL无法反查, glbToMatch:', resolvedGlbUrlArg || selectedGlbUrl);
             console.warn('🚫 服务器返回模板列表:', templates.map(t => t.id + '|' + t.name + '|' + t.glb_url).join(', '));
             return resolvedGlbUrlArg;
@@ -676,7 +746,7 @@ async function initializeGame() {
     window.player = player;  // Make accessible globally
 
     // 初始化画廊系统（虚拟世界中显示照片/视频）
-    if (typeof window.initGallerySystem === 'function') {
+    if (!window.ACTIVE_ROOM && typeof window.initGallerySystem === 'function') {
       window.initGallerySystem(gameWorld.scene, gameWorld.camera, player.characterGroup);
     }
 
@@ -743,6 +813,8 @@ async function initializeGame() {
       type: 'PLAYER_JOIN',
       payload: {
         characterId: GAME_STATE.characterId,
+        roomSlug: window.ACTIVE_ROOM?.slug || 'main',
+        token: localStorage.getItem('token'),
         characterName: characterData.character.name,
         position: spawnPosition,
         glbUrl: _finalGlbUrl || null,
@@ -756,10 +828,10 @@ async function initializeGame() {
     });
 
     // Load world entities
-    await loadWorldEntities();
+    if (!window.ACTIVE_ROOM) await loadWorldEntities();
     
     // Initialize Building Manager (for admin)
-    if (typeof BuildingManager !== 'undefined') {
+    if (!window.ACTIVE_ROOM && typeof BuildingManager !== 'undefined') {
       const buildingManager = new BuildingManager(
         gameWorld,
         gameWorld.camera,
@@ -2789,6 +2861,7 @@ function initializeProfilePage() {
   if (logoutBtn) {
     logoutBtn.addEventListener('click', () => {
       localStorage.clear();
+      if (location.pathname === '/play') { location.replace('/rooms'); return; }
       window.location.reload();
     });
   }

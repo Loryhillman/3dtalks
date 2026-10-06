@@ -16,6 +16,7 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../database/db');
+const { legacyRoomFilter } = require('../services/roomScope');
 const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
@@ -143,6 +144,7 @@ router.get('/around', async (req, res) => {
 
     // 1. world_objects 方框范围查询（走 idx_world_objects_pos / type_pos）
     const whereClauses = ['position_x BETWEEN $1 AND $2', 'position_z BETWEEN $3 AND $4'];
+    if (process.env.ROOMS_ENABLED === 'true') whereClauses.push(legacyRoomFilter('', false));
     const params = [xMin, xMax, zMin, zMax];
     if (type) {
       whereClauses.push(`type = $${params.length + 1}`);
@@ -209,10 +211,10 @@ router.get('/paged', async (req, res) => {
     const offset = (page - 1) * limit;
     const type = req.query.type;
 
-    let where = 'TRUE';
+    let where = process.env.ROOMS_ENABLED === 'true' ? legacyRoomFilter('', false) : 'TRUE';
     const params = [];
     if (type) {
-      where = 'type = $1';
+      where += ' AND type = $1';
       params.push(type);
     }
 

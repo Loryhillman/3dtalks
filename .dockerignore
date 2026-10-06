@@ -11,3 +11,8 @@ db_export.sql
 *.log
 *.tar.gz
 *.zip
+
+# Local migration copies and database backups are not application sources.
+/transfer/
+/before-*.sql
+/model-restore-report.json

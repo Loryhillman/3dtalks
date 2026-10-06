@@ -8,7 +8,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
-const { query } = require('../database/db');
+const { query, pool } = require('../database/db');
+const accountCharacters = require('../services/accountCharacter').createAccountCharacterService(pool);
 const { loginRateLimiter, registerRateLimiter, onLoginSuccess, onLoginFailure, onRegisterSuccess } = require('../middleware/loginRateLimiter');
 
 
@@ -62,28 +63,13 @@ router.post('/register', registerRateLimiter(), async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const hashedAnswer = await bcrypt.hash(securityAnswer, 10);
-    const userId = uuidv4();
-
-    await query(
-      'INSERT INTO users (id, username, email, password_hash, security_question_id, security_answer) VALUES ($1, $2, $3, $4, $5, $6)',
-      [userId, username, email, hashedPassword, securityQuestionId, hashedAnswer]
-    );
-
-    // Create default character
-    const characterId = uuidv4();
-    await query(
-      'INSERT INTO characters (id, user_id, name) VALUES ($1, $2, $3)',
-      [characterId, userId, `${username}`]
-    );
-
-    // Create character appearance
-    await query(
-      'INSERT INTO character_appearance (character_id) VALUES ($1)',
-      [characterId]
-    );
+    const { userId, characterId } = await accountCharacters.register({
+      username, email, passwordHash: hashedPassword,
+      questionId: securityQuestionId, answerHash: hashedAnswer
+    });
 
     // 注册成功记录日志
-    await onRegisterSuccess(clientIp, email, username);
+    await onRegisterSuccess(clientIp, email, username).catch(error => console.error('[auth] registration audit:', error));
 
     const token = jwt.sign({ userId, username }, JWT_SECRET, { expiresIn: '7d' });
 
@@ -132,24 +118,7 @@ router.post('/login', loginRateLimiter('user'), async (req, res) => {
     // 登录成功
     await onLoginSuccess(username, clientIp, 'user');
 
-    let charResult = await query(
-      'SELECT id FROM characters WHERE user_id = $1 LIMIT 1',
-      [user.id]
-    );
-
-    // 若因数据不一致没有角色，自动补建一个
-    if (charResult.rows.length === 0) {
-      const characterId = uuidv4();
-      await query(
-        'INSERT INTO characters (id, user_id, name) VALUES ($1, $2, $3)',
-        [characterId, user.id, `${user.username}`]
-      );
-      await query(
-        'INSERT INTO character_appearance (character_id) VALUES ($1)',
-        [characterId]
-      );
-      charResult = { rows: [{ id: characterId }] };
-    }
+    const characterId = await accountCharacters.repair(user.id);
 
     const token = jwt.sign(
       { userId: user.id, username: user.username },
@@ -161,7 +130,7 @@ router.post('/login', loginRateLimiter('user'), async (req, res) => {
       message: 'Login successful', messageKey: 'authApi.loggedIn',
       token,
       userId: user.id,
-      characterId: charResult.rows[0].id,
+      characterId,
     });
   } catch (error) {
     console.error(error);
@@ -191,7 +160,8 @@ router.get('/me', async (req, res) => {
 
     res.json({
       success: true,
-      user: result.rows[0]
+      user: result.rows[0],
+      characterId: await accountCharacters.repair(decoded.userId)
     });
   } catch (error) {
     console.error('Get user info error:', error);

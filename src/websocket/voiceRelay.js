@@ -91,6 +91,7 @@ function _getNearby(connectionId) {
   const nearby = [];
   _playerPositions.forEach((p, cid) => {
     if (cid === connectionId || !p.position) return;
+    if (process.env.ROOMS_ENABLED === 'true' && p.roomId !== sender.roomId) return;
     const d = _calculateDistance(sender.position, p.position);
     if (d <= VOICE_RANGE) nearby.push({ connectionId: cid, player: p, distance: d });
   });
@@ -110,10 +111,11 @@ function _sweepExpiredSpeakers() {
 /**
  * 统计某位置附近（VOICE_RANGE 内）正在说话的其他玩家数量
  */
-function _getActiveSpeakerCountNear(position, excludeConnectionId) {
+function _getActiveSpeakerCountNear(position, excludeConnectionId, roomId) {
   let count = 0;
   _activeSpeakers.forEach((info, cid) => {
     if (cid === excludeConnectionId || !info.position) return;
+    if (process.env.ROOMS_ENABLED === 'true' && info.roomId !== roomId) return;
     if (_calculateDistance(position, info.position) <= VOICE_RANGE) count++;
   });
   return count;
@@ -138,7 +140,7 @@ async function handleVoiceStart(connectionId, ws) {
     return;
   }
 
-  const speakerCount = _getActiveSpeakerCountNear(sender.position, connectionId);
+  const speakerCount = _getActiveSpeakerCountNear(sender.position, connectionId, sender.roomId);
   if (speakerCount >= maxReceivers) {
     _send(ws, 'VOICE_DENIED', {
       reason: '同时说话人数已达上限',
@@ -154,6 +156,7 @@ async function handleVoiceStart(connectionId, ws) {
     position: sender.position,
     characterId: sender.characterId,
     characterName: sender.characterName,
+    roomId: sender.roomId,
     startedAt: Date.now(),
   });
 
@@ -175,7 +178,8 @@ async function handleVoiceStart(connectionId, ws) {
         speaking: true,
       },
     },
-    connectionId
+    connectionId,
+    sender.roomId
   );
 }
 
@@ -186,7 +190,7 @@ async function handleVoiceProbe(connectionId, ws) {
   const { maxReceivers } = await _loadConfig();
   const { sender, nearby } = _getNearby(connectionId);
   _sweepExpiredSpeakers();
-  const speakerCount = sender ? _getActiveSpeakerCountNear(sender.position, connectionId) : 0;
+  const speakerCount = sender ? _getActiveSpeakerCountNear(sender.position, connectionId, sender.roomId) : 0;
   const allowed = !!sender && speakerCount < maxReceivers;
   _send(ws, 'VOICE_PROBE_RESULT', {
     allowed,
@@ -214,7 +218,8 @@ function handleVoiceEnd(connectionId) {
         speaking: false,
       },
     },
-    connectionId
+    connectionId,
+    sender.roomId
   );
 }
 
@@ -265,7 +270,18 @@ async function handleVoiceMessage(connectionId, ws, payload) {
  */
 function handleDisconnect(connectionId) {
   _lastMessageAt.delete(connectionId);
+  const speaker = _activeSpeakers.get(connectionId);
   _activeSpeakers.delete(connectionId);
+  if (speaker?.position && _broadcastToNearby) {
+    _broadcastToNearby(speaker.position, VOICE_RANGE, {
+      type: 'VOICE_STATE',
+      payload: {
+        characterId: speaker.characterId,
+        characterName: speaker.characterName,
+        speaking: false,
+      },
+    }, connectionId, speaker.roomId);
+  }
 }
 
 module.exports = {

@@ -224,7 +224,36 @@ class GeometryRenderer {
       if (comp.opacity !== undefined) matOpts.opacity = comp.opacity;
 
       const material = new THREE.MeshStandardMaterial(matOpts);
-      const mesh = new THREE.Mesh(geometry, material);
+      let materials = material;
+      const surface = comp.surface;
+      if (comp.type === 'box' && surface?.appearance && Number.isInteger(surface.face) && surface.face >= 0 && surface.face < 6) {
+        const face = new THREE.MeshStandardMaterial({color:surface.appearance.color,roughness:1});
+        materials = Array(6).fill(material);materials[surface.face]=face;
+        const appearance=surface.appearance;
+        if(appearance.mode!=='color' && /^\/uploads\/room-surfaces\/[a-f0-9]{64}\.webp$/.test(appearance.image || '')) {
+          let disposed=false;
+          face.addEventListener('dispose',()=>{disposed=true;face.map?.dispose();});
+          const texture=new THREE.TextureLoader().load(appearance.image,loaded=>{
+            if(disposed){loaded.dispose();return;}
+            if(appearance.mode==='texture') {
+              loaded.wrapS=loaded.wrapT=THREE.RepeatWrapping;
+              loaded.repeat.set(surface.width/appearance.tileWidth,surface.height/appearance.tileHeight);
+            } else if(appearance.fit==='cover') {
+              const imageAspect=loaded.image.width/loaded.image.height,aspect=surface.width/surface.height;
+              const x=Math.min(1,aspect/imageAspect),y=Math.min(1,imageAspect/aspect);
+              loaded.repeat.set(x,y);loaded.offset.set((1-x)/2,(1-y)/2);
+            }
+            loaded.needsUpdate=true;face.map=loaded;face.color.set('#ffffff');face.needsUpdate=true;
+          },undefined,()=>{
+            texture.dispose();
+            if(!disposed && typeof window!=='undefined')window.dispatchEvent(new CustomEvent('room-surface-error',{detail:{surface:surface.key,path:appearance.image}}));
+          });
+          if(THREE.SRGBColorSpace)texture.colorSpace=THREE.SRGBColorSpace;
+          else if(THREE.sRGBEncoding)texture.encoding=THREE.sRGBEncoding;
+        }
+      }
+      const mesh = new THREE.Mesh(geometry, materials);
+      if(surface)mesh.userData.roomSurface=surface.key;
 
       if (comp.position) {
         mesh.position.set(

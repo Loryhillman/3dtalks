@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
 const { authenticateToken: auth } = require('../middleware/auth');
+const { MAIN_ROOM_ID } = require('../services/roomScope');
 
 // 获取所有传送门
 router.get('/', async (req, res) => {
@@ -142,16 +143,21 @@ router.post('/use', auth, async (req, res) => {
     const portal = portalResult.rows[0];
 
     // 获取角色信息
-    const characterResult = await db.query(
-      'SELECT level FROM characters WHERE id = $1',
-      [character_id]
-    );
+    const characterResult = process.env.ROOMS_ENABLED === 'true'
+      ? await db.query(
+        'SELECT level, last_room_id FROM characters WHERE id = $1 AND user_id = $2',
+        [character_id, req.user.userId]
+      )
+      : await db.query('SELECT level FROM characters WHERE id = $1', [character_id]);
 
     if (characterResult.rows.length === 0) {
       return res.status(404).json({ error: '角色不存在' });
     }
 
     const character = characterResult.rows[0];
+    if (process.env.ROOMS_ENABLED === 'true' && character.last_room_id !== MAIN_ROOM_ID) {
+      return res.status(403).json({ error: 'Порталы доступны только в основном мире' });
+    }
 
     // 检查等级要求
     if (character.level < portal.required_level) {

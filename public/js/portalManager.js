@@ -14,6 +14,7 @@ const PortalManager = {
    * 显示传送门管理界面
    */
   show() {
+    if (window.ACTIVE_ROOM) return;
     const manager = document.getElementById('portal-manager');
     if (manager) {
       manager.style.display = 'block';
@@ -490,6 +491,7 @@ const PortalManager = {
    * 执行坐标传送
    */
   teleportToCoord() {
+    if (window.ACTIVE_ROOM) return;
     // 检查是否为游客
     if (GAME_STATE && GAME_STATE.isGuest) {
       const message = portalText('guestBlocked', '⚠️ 游客模式无法使用传送功能，请注册后使用');
