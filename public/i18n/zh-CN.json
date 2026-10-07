@@ -5251,6 +5251,13 @@
     "editTemplate": "编辑模板"
   },
   "roomEditor": {
+    "uploadFile": "从电脑上传 GLB",
+    "uploadHint": "最大 100 MB。上传后会选中该模型。点击“添加到中心”将其放入房间。",
+    "glbRequired": "请选择 GLB 文件。",
+    "modelTooLarge": "模型大小不能超过 100 MB。",
+    "modelUploading": "正在上传并处理模型…",
+    "modelUploaded": "模型已上传。点击“添加到中心”将其放入房间。",
+    "modelUploadFailed": "模型上传失败。请检查网络连接后重试。",
     "title": "房间编辑器",
     "room": "房间",
     "addModel": "添加模型",

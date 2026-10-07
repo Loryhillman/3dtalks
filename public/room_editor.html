@@ -49,6 +49,10 @@
     </section>
     <section id="objects-panel">
     <h2 data-i18n="roomEditor.addModel">Добавить модель</h2>
+    <section id="model-upload-panel" hidden>
+      <label><span data-i18n="roomEditor.uploadFile">Загрузить GLB с компьютера</span><input id="model-upload-file" type="file" accept=".glb"></label>
+      <p data-i18n="roomEditor.uploadHint">До 100 МБ. После загрузки модель будет выбрана в списке. Нажмите «Добавить в центр», чтобы разместить её.</p>
+    </section>
     <form id="add-form">
       <label><span data-i18n="roomEditor.model">Модель</span><select id="model-id" required></select></label>
       <label><span data-i18n="roomEditor.name">Название</span><input id="model-name" required maxlength="120"></label>
@@ -147,6 +151,7 @@
   <script src="js/roomSeatCoordinates.js?v=1"></script>
   <script src="js/roomTemplateSession.js?v=3"></script>
   <script src="js/roomSeatEditor.js?v=5"></script>
-  <script src="js/roomEditor.js?v=6"></script>
+  <script src="js/roomModelUpload.js?v=1"></script>
+  <script src="js/roomEditor.js?v=7"></script>
 </body>
 </html>

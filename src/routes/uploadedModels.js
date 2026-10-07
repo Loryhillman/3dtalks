@@ -13,6 +13,7 @@ const { compressIfNeeded } = require('../services/modelAutoCompress');
 const { compressTextures } = require('../services/textureCompress');
 const { decimateIfNeeded } = require('../services/modelDecimate');
 const { generateLodVariants } = require('../services/modelLod');
+const { authenticateAdminToken } = require('../middleware/adminAuth');
 
 // 配置文件上传
 const storage = multer.diskStorage({
@@ -53,7 +54,7 @@ const upload = multer({
  * POST /api/upload-model
  * 上传3D模型文件（支持ZIP压缩包）
  */
-router.post('/upload-model', upload.single('model'), async (req, res) => {
+async function uploadModel(req, res) {
   try {
     if (!req.file) {
       return res.status(400).json({ error: '请上传文件', errorKey: 'uploadedModelsApi.chooseFile' });
@@ -189,7 +190,28 @@ router.post('/upload-model', upload.single('model'), async (req, res) => {
       details: error.message
     });
   }
+}
+
+router.post('/upload-model', upload.single('model'), uploadModel);
+
+// Room editing uses the same model pipeline, restricted to administrators and GLB.
+const roomUpload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024, files: 1 },
+  fileFilter(_req, file, cb) {
+    if (path.extname(file.originalname).toLowerCase() !== '.glb') {
+      const error = new Error('Choose a GLB file');
+      error.errorKey = 'roomEditor.glbRequired';
+      return cb(error);
+    }
+    cb(null, true);
+  }
 });
+router.post('/admin/rooms/models/upload', authenticateAdminToken, (req, res, next) => {
+  roomUpload.single('model')(req, res, error => {
+    if (!error) return next();
+    res.status(400).json({ success: false, error: 'Model upload rejected',
+      errorKey: error.code === 'LIMIT_FILE_SIZE' ? 'roomEditor.modelTooLarge' : error.errorKey || 'uploadedModelsApi.uploadFailed' });
+  });
+}, uploadModel);
 
 /**
  * POST /api/upload-models-batch

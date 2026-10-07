@@ -85,6 +85,28 @@
     return data;
   }
   window.roomEditorApi = api;
+  function addModelOption(model) {
+    for (const id of ['model-id', 'replace-model']) {
+      const option = document.createElement('option');
+      option.value = model.id;
+      option.textContent = `${model.name} (#${model.id})`;
+      document.getElementById(id).append(option);
+    }
+  }
+  document.getElementById('model-upload-file').addEventListener('change', event => {
+    const file = event.target.files[0];
+    if (!file || busy || room?.status !== 'draft') return;
+    action(async () => {
+      message.textContent = tr('modelUploading', 'Загружаем модель…');
+      try {
+        const model = await RoomModelUpload.upload(file);
+        addModelOption(model);
+        document.getElementById('model-id').value = model.id;
+        document.getElementById('model-name').value = model.name;
+        message.textContent = tr('modelUploaded', 'Модель загружена. Нажмите «Добавить в центр», чтобы разместить её.');
+      } finally { event.target.value = ''; }
+    });
+  });
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#202630');
@@ -308,19 +330,15 @@
         room.status === 'draft' ? tr('draft', 'Черновик — изменения доступны') :
           tr('readOnly', 'Комната открыта только для просмотра');
       document.getElementById('add-form').hidden = room.status !== 'draft';
+      document.getElementById('model-upload-panel').hidden = room.status !== 'draft';
       document.getElementById('template-panel').hidden = !template;
       document.getElementById('template-object-actions').hidden = room.status !== 'draft';
       document.getElementById('replace-model-label').hidden = !template;
       document.getElementById('replace-object').hidden = !template;
       document.getElementById('object-name-label').hidden = !template;
       if (template) document.getElementById('template-name').value = template.draft.name;
-      const select = document.getElementById('model-id');
       for (const model of (await api('/models')).models) {
-        const option = document.createElement('option');
-        option.value = model.id;
-        option.textContent = `${model.name} (#${model.id})`;
-        select.append(option);
-        document.getElementById('replace-model').append(option.cloneNode(true));
+        addModelOption(model);
       }
       await loadObjects();
       updateTemplateStatus();
