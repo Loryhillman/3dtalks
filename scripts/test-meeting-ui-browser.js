@@ -28,8 +28,8 @@ let browser;
  assert.equal(await page.locator('#skill-hud').count(),0,'meeting does not create RPG skill slots');
  const hidden=['health-bar','monster-head-hud','minimap','btn-profile','btn-inventory','controls-hint','debug-panel','world-portal-btn','inventory-page','profile-page'];
  for(const id of hidden)assert.equal(await page.locator('#'+id).isVisible(),false,id+' should be hidden');
- await page.evaluate(()=>{for(const id of ['mobile-jump-btn','mobile-joystick','performance-monitor']){const node=document.createElement('div');node.id=id;node.style.display='block';document.body.append(node);}document.getElementById('skill-voice-btn').style.cssText='position:fixed!important;top:5px;left:5px;bottom:24px';});
- for(const id of ['mobile-jump-btn','mobile-joystick','performance-monitor'])assert.equal(await page.locator('#'+id).isVisible(),false);
+ await page.evaluate(()=>{for(const id of ['mobile-jump-btn','mobile-joystick','performance-monitor','performance-panel']){const node=document.createElement('div');node.id=id;node.style.display='block';document.body.append(node);}document.getElementById('skill-voice-btn').style.cssText='position:fixed!important;top:5px;left:5px;bottom:24px';});
+ for(const id of ['mobile-jump-btn','mobile-joystick','performance-monitor','performance-panel'])assert.equal(await page.locator('#'+id).isVisible(),false);
  // Inline changes from control settings must not break the meeting layout.
  await page.evaluate(()=>{document.getElementById('skill-voice-btn').style.position='fixed';});
  for(const locale of ['en-US','ru-RU']) {
@@ -42,10 +42,13 @@ let browser;
   await page.waitForFunction(()=>{const bar=document.getElementById('meeting-toolbar').getBoundingClientRect();return Math.abs(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--meeting-top-edge'))-Math.ceil(bar.bottom+10))<1;});
   const boxes=await page.evaluate(()=>{const ids=['meeting-toolbar','meeting-footer','room-seat-picker','nearby-chat-wrap','skill-voice-btn'];return Object.fromEntries(ids.map(id=>{const r=document.getElementById(id).getBoundingClientRect();return[id,{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height}];}));});
   for(const [id,r] of Object.entries(boxes)){assert(r.x>=-1&&r.right<=width+1&&r.y>=-1&&r.bottom<=height+1,`${width}x${height} ${id} stays on screen: ${JSON.stringify(r)}`);}
+  assert(boxes['meeting-toolbar'].width<=361,'room toolbar is a compact card');
   assert(boxes['meeting-toolbar'].bottom<=boxes['room-seat-picker'].y,`${width}x${height} header/picker overlap`);
   assert(boxes['room-seat-picker'].bottom<=boxes['meeting-footer'].y,`${width}x${height} picker/footer overlap`);
   const a=boxes['nearby-chat-wrap'],b=boxes['skill-voice-btn'];assert(a.right<=b.x||b.right<=a.x,'chat and microphone do not overlap');
   assert.equal(await page.locator('#nearby-chat-input').isVisible(),true);
+  if(locale==='ru-RU'&&width===1366)await page.screenshot({path:'/tmp/meeting-compact-desktop.png'});
+  if(locale==='ru-RU'&&width===320)await page.screenshot({path:'/tmp/meeting-compact-mobile.png'});
   await page.keyboard.press('Escape');
  }
  }

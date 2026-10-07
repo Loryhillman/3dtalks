@@ -1549,6 +1549,7 @@ class World {
    * 显示性能监控面板
    */
   showPerformancePanel() {
+    if (window.MeetingUI?.active) return;
     const now = performance.now();
 
     // 限制面板更新频率
