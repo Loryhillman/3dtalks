@@ -5,7 +5,7 @@ const { randomUUID } = require('node:crypto');
 const assert = require('node:assert/strict');
 if (process.env.ROOM_EDITOR_BROWSER_CHECK !== '1') throw new Error('Set ROOM_EDITOR_BROWSER_CHECK=1 to check the local Docker installation');
 process.chdir(require('node:path').resolve(__dirname, '..'));
-const app=execFileSync('docker',['compose','-f','docker-compose.local.yml','ps','-q','app'],{encoding:'utf8'}).trim();
+const app=execFileSync('docker',['compose','-f','compose.yaml','ps','-q','app'],{encoding:'utf8'}).trim();
 const key='editorcheck-'+randomUUID().replaceAll('-','');
 const db=`const {Pool}=require('pg');const fs=require('fs');const pool=new Pool({host:process.env.DB_HOST,port:process.env.DB_PORT,user:process.env.DB_USER,password:process.env.DB_PASSWORD,database:process.env.DB_NAME});`;
 const seed=db+`(async()=>{try{const key=process.argv[1];const admin=(await pool.query('SELECT id,username FROM admin_users WHERE is_active ORDER BY id LIMIT 1')).rows[0];

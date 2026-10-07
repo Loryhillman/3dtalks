@@ -1,4 +1,4 @@
-/** Persist development-only secrets across container recreation. */
+/** Persist application secrets across container recreation, in dev and production. */
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -38,6 +38,16 @@ function ensureLocalSecrets(stateDir = process.env.LOCAL_STATE_DIR || path.join(
 }
 
 if (require.main === module) {
+  if (process.env.SIMPLE_DEPLOYMENT === 'true') {
+    const required = ['DB_PASSWORD', 'WORLD_URL', 'ADMIN_USERNAME', 'ADMIN_PASSWORD'];
+    for (const key of required) {
+      if (!process.env[key]?.trim()) throw new Error(`Fill ${key} in .env before starting`);
+    }
+    const url = new URL(process.env.WORLD_URL);
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash || url.pathname !== '/') {
+      throw new Error('WORLD_URL must be a site address, e.g. http://localhost:3002');
+    }
+  }
   ensureLocalSecrets();
   require('../src/server');
 }

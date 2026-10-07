@@ -1,14 +1,13 @@
-# Local room development: docker compose -f docker-compose.local.yml -f docker-compose.dev.yml up -d
+# Development: docker compose -f compose.yaml -f compose.dev.yaml up -d --build
 services:
   app:
     command: ["node", "--watch", "--watch-preserve-output", "scripts/local-start.js"]
     environment:
-      ROOMS_ENABLED: "true"
-      APP_MODE: "rooms"
+      NODE_ENV: development
       DEV_DISABLE_STATIC_CACHE: "true"
     volumes:
       - ./src:/app/src:ro
       - ./scripts:/app/scripts:ro
       - ./database:/app/database:ro
-      # Nested asset volumes from local.yml remain mounted and writable.
+      # Nested asset volumes from compose.yaml remain mounted and writable.
       - ./public:/app/public:ro

@@ -1091,9 +1091,7 @@ CREATE TRIGGER trigger_update_ai_scenes_updated_at
 -- 第十部分：种子数据
 -- =====================================================================
 
-INSERT INTO admin_users (username, password_hash, email, full_name, role) VALUES
-('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMye/pKq3g.zhCdPMKdYH5B4M5HJq3VXQW', 'admin@example.com', '系统管理员', 'super_admin')
-ON CONFLICT (username) DO NOTHING;
+-- The first administrator is created from environment settings by bootstrapAdmin.
 
 INSERT INTO ai_providers (provider_name, display_name, provider_type, is_enabled, is_default, config_schema, description) VALUES
 ('tencent_hunyuan', '腾讯混元（对话+3D）', 'chat,image_to_3d', true, true,

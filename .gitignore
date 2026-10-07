@@ -159,3 +159,7 @@ __pycache__/
 /reports/demo-*.json
 /docker-compose.server.yml
 /docker-compose.ip.yml
+
+# Supported Compose entry points
+!/compose.yaml
+!/compose.dev.yaml

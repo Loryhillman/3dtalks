@@ -31,7 +31,7 @@ async function initializeDatabase() {
     console.log('Database initialized from database/init.sql');
   } catch (error) {
     console.error('Database initialization error:', error);
-    // 不抛出错误，让服务器继续运行
+    if (process.env.ROOMS_ENABLED === 'true') throw error;
   }
 
   // 第2步：执行迁移脚本（独立于 init.sql，即使 init.sql 失败也会执行）
@@ -84,6 +84,7 @@ async function initializeDatabase() {
     }
   }
   await require('../services/roomTemplateSeed').ensureRoomTemplates(pool);
+  await require('../services/bootstrapAdmin').ensureBootstrapAdmin(pool);
 }
 
 async function query(text, params) {
