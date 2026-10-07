@@ -5182,7 +5182,7 @@
     "loginFailed": "Login failed",
     "noToken": "No token provided",
     "userNotFound": "User not found",
-    "invalidToken": "Invalid token",
+    "invalidToken": "会话已过期或无效，请重新登录。",
     "enterUsername": "请输入账号",
     "accountOrQuestionMissing": "该账号不存在或未设置安全问题",
     "recoveryUnavailable": "该账号未设置安全问题，无法找回密码",
@@ -5202,7 +5202,8 @@
     "questionBirthDate": "你的出生日期",
     "questionPhone": "你的手机号",
     "questionIdentity": "你的身份证号",
-    "questionFormerPartner": "你前女友的名字"
+    "questionFormerPartner": "你前女友的名字",
+    "meFailed": "无法加载账户，请重试。"
   },
   "roomsAdmin": {
     "confirmDeleteRoom": "删除房间并断开参与者连接？",
@@ -5406,7 +5407,8 @@
     "INVALID_CAPACITY": "人数上限超过座位数。",
     "REQUEST_KEY_REUSED": "请求已使用不同参数提交。",
     "ROOM_INVALID": "房间验证失败，请联系管理员。",
-    "INVALID_TEMPLATE": "无法从模板创建房间，请联系管理员。"
+    "INVALID_TEMPLATE": "无法从模板创建房间，请联系管理员。",
+    "language": "语言"
   },
   "roomEnvelope": {
     "title": "房间结构",
@@ -5442,5 +5444,16 @@
     "uploaded": "图片已上传，请保存更改。",
     "applied": "房间设置已应用，请保存模板草稿。",
     "saved": "房间设置已保存"
+  },
+  "authLimits": {
+    "loginMinute": "登录尝试过多，请在 {{seconds}} 秒后重试。",
+    "loginHour": "已达到登录尝试限制，请在 {{minutes}} 分钟后重试。",
+    "registerMinute": "注册尝试过多，请在 {{seconds}} 秒后重试。",
+    "registerHour": "已达到注册限制，请在 {{minutes}} 分钟后重试。",
+    "accountLocked": "账户已被锁定，请联系管理员。",
+    "accountLockedUntil": "账户暂时被锁定，请在 {{minutes}} 分钟后重试。",
+    "usernameRejected": "请选择不包含重复字符或保留前缀加数字的其他用户名。",
+    "rateLimited": "请求过多，请在 {{seconds}} 秒后重试。",
+    "rateLimitedUnknown": "请求过多，请稍等后重试。"
   }
 }

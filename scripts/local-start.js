@@ -47,7 +47,7 @@ function ensureLocalSecrets(stateDir = process.env.LOCAL_STATE_DIR || path.join(
 }
 
 if (require.main === module) {
-  try {
+  (async () => {
     if (process.env.SIMPLE_DEPLOYMENT === 'true') validateStartupConfiguration(process.env);
     try {
       ensureLocalSecrets();
@@ -55,11 +55,13 @@ if (require.main === module) {
       error.startupContext = 'state';
       throw error;
     }
+    // Complete the schema before route imports perform their startup queries.
+    await require('../src/database/db').initializeDatabase();
     require('../src/server');
-  } catch (error) {
+  })().catch(error => {
     logStartupError(error);
     process.exit(1);
-  }
+  });
 }
 
 module.exports = { ensureLocalSecrets };

@@ -446,12 +446,12 @@ router.get('/language', async (req, res) => {
     );
     
     if (result.rows.length > 0) {
-      res.json({ language: result.rows[0].config_value });
+      res.json({ language: ['zh-CN', 'en-US', 'ru-RU'].includes(result.rows[0].config_value) ? result.rows[0].config_value : 'en-US' });
     } else {
-      res.json({ language: 'zh-CN' }); // 默认中文
+      res.json({ language: 'en-US' }); // Default for new visitors.
     }
   } catch (error) {
-    console.error('获取语言设置失败:', error);
+    console.error('Failed to load default language:', error);
     res.status(500).json({ error: 'Failed to get language setting', details: error.message });
   }
 });

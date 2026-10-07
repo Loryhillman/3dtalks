@@ -823,6 +823,10 @@ CREATE TABLE IF NOT EXISTS ui_controls (
   mobile_position_y VARCHAR(20),
   mobile_width VARCHAR(20),
   mobile_height VARCHAR(20),
+  landscape_position_x VARCHAR(20),
+  landscape_position_y VARCHAR(20),
+  landscape_width VARCHAR(20),
+  landscape_height VARCHAR(20),
   style_config JSONB DEFAULT '{}',
   is_visible BOOLEAN DEFAULT true,
   is_enabled BOOLEAN DEFAULT true,
@@ -1260,4 +1264,3 @@ CREATE INDEX IF NOT EXISTS idx_scene_3dgs_source_type ON scene_3dgs(source_type)
 CREATE INDEX IF NOT EXISTS idx_scene_3dgs_scene_type  ON scene_3dgs(scene_type);
 CREATE INDEX IF NOT EXISTS idx_scene_3dgs_is_public   ON scene_3dgs(is_public);
 CREATE INDEX IF NOT EXISTS idx_scene_3dgs_created_at  ON scene_3dgs(created_at DESC);
-

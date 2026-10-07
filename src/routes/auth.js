@@ -164,8 +164,11 @@ router.get('/me', async (req, res) => {
       characterId: await accountCharacters.repair(decoded.userId)
     });
   } catch (error) {
+    if (['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError'].includes(error.name)) {
+      return res.status(401).json({ error: 'Invalid token', errorKey: 'authApi.invalidToken' });
+    }
     console.error('Get user info error:', error);
-    res.status(401).json({ error: 'Invalid token', errorKey: 'authApi.invalidToken' });
+    res.status(500).json({ error: 'Failed to load user information', errorKey: 'authApi.meFailed' });
   }
 });
 

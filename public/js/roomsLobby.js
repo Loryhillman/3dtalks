@@ -20,9 +20,16 @@
     if (renewed) localStorage.setItem('token', renewed);
     if (!response.ok) {
       if ([401, 403].includes(response.status) && !url.includes('/auth/')) { clearSession(); showAuth(); }
-      const key = data.code || data.errorKey;
-      const translated = key && (data.errorKey ? window.i18n.t(key) : t(key));
-      throw Object.assign(new Error(translated && translated !== key && translated !== 'roomsLobby.' + key ? translated : t('failed')), { status: response.status });
+      const key = data.errorKey || data.code;
+      const translated = key && (data.errorKey ? window.i18n.tp(key, data.messageParams || {}) : t(key, data.messageParams));
+      let errorMessage = translated && translated !== key && translated !== 'roomsLobby.' + key ? translated : t('failed');
+      if (response.status === 429 && errorMessage === t('failed')) {
+        const seconds = Number(data.retryAfter || response.headers.get('Retry-After'));
+        errorMessage = Number.isFinite(seconds) && seconds > 0
+          ? window.i18n.tp('authLimits.rateLimited', { seconds: Math.ceil(seconds) })
+          : window.i18n.t('authLimits.rateLimitedUnknown');
+      }
+      throw Object.assign(new Error(errorMessage), { status: response.status });
     }
     return data;
   }
@@ -129,10 +136,15 @@
   }); };
   $('refresh').onclick = () => action(load);
   $('logout').onclick = () => { clearSession(); showAuth(); message(); };
+  $('lobby-language').onchange = event => action(async () => {
+    await window.i18n.setLocaleLocal(event.target.value);
+    location.reload();
+  });
   window.addEventListener('storage', event => { if (['token', 'userId'].includes(event.key)) location.reload(); });
   (async () => {
     await window.i18n.init();
     document.documentElement.lang = window.i18n.currentLocale;
+    $('lobby-language').value = window.i18n.currentLocale;
     for (const element of document.querySelectorAll('[data-t]')) element.textContent = t(element.dataset.t);
     try {
       const data = await api('/api/auth/security-questions');

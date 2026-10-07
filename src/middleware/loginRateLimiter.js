@@ -18,10 +18,11 @@
  *
  * 参数：
  *   - 'admin':  5次/分钟 IP，3次失败锁定60分钟，第2次失败起延迟
- *   - 'user':   5次/分钟 IP，5次失败锁定30分钟，第3次失败起延迟
+ *   - 'user':   20 requests/minute/IP, lock after 5 failures, delay after 3 failures.
  */
 
 const { query } = require('../database/db');
+const { resolveClientIp } = require('./clientIp');
 
 // ======================== 配置常量 ========================
 
@@ -41,35 +42,34 @@ const POLICIES = {
   },
   user: {
     type: 'user',
-    maxPerMinute: 5,
-    maxPerHour: 15,
+    maxPerMinute: 20,
+    maxPerHour: 120,
     maxFailures: 5,
     lockMinutes: 30,
     delayStartAt: 3,
     delayStep: 2,
     ipWindowSec: 60,
-    ipWindowCount: 5,
+    ipWindowCount: 20,
     ipHourWindowSec: 3600,
-    ipHourWindowCount: 15
+    ipHourWindowCount: 120
   },
   register: {
     type: 'register',
-    maxPerMinute: 2,           // 注册更严格：每分钟最多2次
-    maxPerHour: 5,             // 每小时最多5次
-    maxPerDay: 10,             // 每天最多10次
-    delayStartAt: 2,           // 第2次请求起开始延迟
-    delayStep: 3,              // 每次+3秒（比登录更激进）
-    emailWindowMin: 30,        // 同一邮箱30分钟内只能注册1次
+    maxPerMinute: 10,
+    maxPerHour: 60,
+    delayStartAt: 5,
+    delayStep: 1,
+    emailWindowMin: 30,
     ipWindowSec: 60,
-    ipWindowCount: 2,
+    ipWindowCount: 10,
     ipHourWindowSec: 3600,
-    ipHourWindowCount: 5
+    ipHourWindowCount: 60
   }
 };
 
 // ======================== 内存状态 ========================
 
-// IP 请求追踪: { "ip": { minute: [{ts}], hour: [{ts}] } }
+// Request history per action and IP: { "scope:ip": { minute: [ts], hour: [ts] } }.
 const ipTracker = new Map();
 
 // 每10分钟清理一次过期记录
@@ -87,7 +87,7 @@ setInterval(() => {
 // ======================== 工具函数 ========================
 
 function getClientIp(req) {
-  return req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.connection?.remoteAddress || 'unknown';
+  return resolveClientIp(req);
 }
 
 /**
@@ -159,8 +159,8 @@ async function lockAccount(username, targetType, lockMinutes, reason) {
 /**
  * 获取IP窗口内请求次数
  */
-function getIpWindowCount(ip, windowMs) {
-  const data = ipTracker.get(ip);
+function getIpWindowCount(ip, windowMs, scope) {
+  const data = ipTracker.get(scope + ':' + ip);
   if (!data) return 0;
   const now = Date.now();
   if (windowMs <= 60000) {
@@ -172,15 +172,29 @@ function getIpWindowCount(ip, windowMs) {
 /**
  * 记录IP请求
  */
-function recordIpRequest(ip) {
+function recordIpRequest(ip, scope) {
   const now = Date.now();
-  let data = ipTracker.get(ip);
+  let data = ipTracker.get(scope + ':' + ip);
   if (!data) {
     data = { minute: [], hour: [] };
-    ipTracker.set(ip, data);
+    ipTracker.set(scope + ':' + ip, data);
   }
   data.minute.push(now);
   data.hour.push(now);
+}
+
+function retryAfterFor(ip, scope, windowMs) {
+  const data = ipTracker.get(scope + ':' + ip);
+  const now = Date.now();
+  const timestamps = (windowMs <= 60000 ? data?.minute : data?.hour) || [];
+  const oldest = timestamps.find(ts => now - ts < windowMs);
+  return oldest === undefined ? 1 : Math.max(1, Math.ceil((oldest + windowMs - now) / 1000));
+}
+
+function limitedResponse(res, status, code, errorKey, seconds, error) {
+  if (seconds !== null) res.setHeader('Retry-After', String(seconds));
+  return res.status(status).json({ code, errorKey, error, retryAfter: seconds,
+    messageParams: seconds === null ? {} : { seconds, minutes: Math.ceil(seconds / 60) } });
 }
 
 // ======================== 主中间件工厂 ========================
@@ -196,55 +210,42 @@ function loginRateLimiter(targetType) {
     const username = req.body?.username?.trim();
 
     // ---- 第1层: IP 级别频率限制 ----
-    recordIpRequest(clientIp);
 
     // 每分钟限制
-    const minuteCount = getIpWindowCount(clientIp, policy.ipWindowSec * 1000);
-    if (minuteCount > policy.ipWindowCount) {
-      console.warn(`[RateLimiter] IP ${clientIp} 超过每分钟请求限制 (${minuteCount}/${policy.ipWindowCount})`);
-      return res.status(429).json({
-        error: '请求过于频繁，请稍后再试',
-        retryAfter: 60,
-        code: 'RATE_LIMITED_IP_MINUTE'
-      });
+    const minuteCount = getIpWindowCount(clientIp, policy.ipWindowSec * 1000, policy.type);
+    if (minuteCount >= policy.ipWindowCount) {
+      console.warn(`[RateLimiter] IP ${clientIp} exceeded login requests per minute (${minuteCount}/${policy.ipWindowCount})`);
+      return limitedResponse(res, 429, 'RATE_LIMITED_IP_MINUTE', 'authLimits.loginMinute', retryAfterFor(clientIp, policy.type, 60000), 'Too many login requests. Try again later.');
     }
 
     // 每小时限制
-    const hourCount = getIpWindowCount(clientIp, policy.ipHourWindowSec * 1000);
-    if (hourCount > policy.ipHourWindowCount) {
-      console.warn(`[RateLimiter] IP ${clientIp} 超过每小时请求限制 (${hourCount}/${policy.ipHourWindowCount})`);
-      return res.status(429).json({
-        error: '请求过于频繁，请一小时后重试',
-        retryAfter: 3600,
-        code: 'RATE_LIMITED_IP_HOUR'
-      });
+    const hourCount = getIpWindowCount(clientIp, policy.ipHourWindowSec * 1000, policy.type);
+    if (hourCount >= policy.ipHourWindowCount) {
+      console.warn(`[RateLimiter] IP ${clientIp} exceeded login requests per hour (${hourCount}/${policy.ipHourWindowCount})`);
+      return limitedResponse(res, 429, 'RATE_LIMITED_IP_HOUR', 'authLimits.loginHour', retryAfterFor(clientIp, policy.type, 3600000), 'Login request limit reached. Try again later.');
     }
+
+    recordIpRequest(clientIp, policy.type);
 
     // ---- 第2层: 账号锁定检查 ----
     if (username) {
       const lockInfo = await isAccountLocked(username, policy.type);
       if (lockInfo) {
-        console.warn(`[RateLimiter] 账号 ${username} 处于锁定状态`);
+        console.warn(`[RateLimiter] Account ${username} is locked`);
         await recordAttempt(username, clientIp, policy.type, false, 'account_locked');
 
         const retryAfter = lockInfo.unlock_at
           ? Math.max(0, Math.ceil((new Date(lockInfo.unlock_at).getTime() - Date.now()) / 1000))
           : null;
 
-        return res.status(423).json({
-          error: retryAfter
-            ? `账号已被临时锁定，请在 ${Math.ceil(retryAfter / 60)} 分钟后重试`
-            : '账号已被锁定，请联系管理员',
-          retryAfter,
-          code: 'ACCOUNT_LOCKED'
-        });
+        return limitedResponse(res, 423, 'ACCOUNT_LOCKED', retryAfter === null ? 'authLimits.accountLocked' : 'authLimits.accountLockedUntil', retryAfter, 'Account locked.');
       }
 
       // ---- 第3层: 渐进式延迟 ----
       const recentFails = await countRecentFailures(username, policy.lockMinutes);
       if (recentFails >= policy.delayStartAt) {
         const delaySeconds = (recentFails - policy.delayStartAt + 1) * policy.delayStep;
-        console.log(`[RateLimiter] 渐进延迟 ${delaySeconds}s (账号: ${username}, 最近失败: ${recentFails})`);
+        console.log(`[RateLimiter] Delay ${delaySeconds}s (account: ${username}, recent failures: ${recentFails})`);
         await delay(delaySeconds * 1000);
       }
     }
@@ -278,10 +279,10 @@ async function onLoginFailure(username, ipAddress, targetType, reason) {
     if (lockInfo) return;
 
     await lockAccount(username, policy.type, policy.lockMinutes,
-      `连续失败 ${recentFails} 次（阈值 ${policy.maxFailures}）自动锁定 ${policy.lockMinutes} 分钟`
+      `Account locked for ${policy.lockMinutes} minutes after ${recentFails} failures (threshold: ${policy.maxFailures})`
     );
 
-    console.warn(`[RateLimiter] 账号 ${username} 已被自动锁定 ${policy.lockMinutes} 分钟 (失败 ${recentFails} 次)`);
+    console.warn(`[RateLimiter] Account ${username} locked for ${policy.lockMinutes} minutes after ${recentFails} failures`);
   }
 }
 
@@ -393,7 +394,7 @@ async function logRegistrationAttempt(ip, email, username, success, reason) {
       [username || 'unknown', ip, success, reason || null]
     );
   } catch (e) {
-    console.warn('[RegisterLimiter] 记录注册日志失败:', e.message);
+    console.warn('[RegisterLimiter] Failed to record registration attempt:', e.message);
   }
 }
 
@@ -407,79 +408,69 @@ function registerRateLimiter() {
     const { username, email } = req.body;
 
     // ---- 第1层: IP 级别频率限制 ----
-    recordIpRequest(clientIp);
 
     // 每分钟限制
-    const minuteCount = getIpWindowCount(clientIp, policy.ipWindowSec * 1000);
-    if (minuteCount > policy.ipWindowCount) {
-      console.warn(`[RegisterLimiter] IP ${clientIp} 超过每分钟注册限制 (${minuteCount}/${policy.ipWindowCount})`);
+    const minuteCount = getIpWindowCount(clientIp, policy.ipWindowSec * 1000, policy.type);
+    if (minuteCount >= policy.ipWindowCount) {
+      console.warn(`[RegisterLimiter] IP ${clientIp} exceeded registration requests per minute (${minuteCount}/${policy.ipWindowCount})`);
       await logRegistrationAttempt(clientIp, email || 'unknown', username || 'unknown', false, 'ip_minute_limit');
-      return res.status(429).json({
-        error: '注册过于频繁，请60秒后重试',
-        retryAfter: 60,
-        code: 'REGISTER_RATE_LIMITED'
-      });
+      return limitedResponse(res, 429, 'REGISTER_RATE_LIMITED', 'authLimits.registerMinute', retryAfterFor(clientIp, policy.type, 60000), 'Too many registration requests. Try again later.');
     }
 
     // 每小时限制
-    const hourCount = getIpWindowCount(clientIp, policy.ipHourWindowSec * 1000);
-    if (hourCount > policy.ipHourWindowCount) {
-      console.warn(`[RegisterLimiter] IP ${clientIp} 超过每小时注册限制 (${hourCount}/${policy.ipHourWindowCount})`);
+    const hourCount = getIpWindowCount(clientIp, policy.ipHourWindowSec * 1000, policy.type);
+    if (hourCount >= policy.ipHourWindowCount) {
+      console.warn(`[RegisterLimiter] IP ${clientIp} exceeded registration requests per hour (${hourCount}/${policy.ipHourWindowCount})`);
       await logRegistrationAttempt(clientIp, email || 'unknown', username || 'unknown', false, 'ip_hour_limit');
-      return res.status(429).json({
-        error: '注册过于频繁，请一小时后重试',
-        retryAfter: 3600,
-        code: 'REGISTER_RATE_LIMITED_HOUR'
-      });
+      return limitedResponse(res, 429, 'REGISTER_RATE_LIMITED_HOUR', 'authLimits.registerHour', retryAfterFor(clientIp, policy.type, 3600000), 'Registration request limit reached. Try again later.');
     }
+
+    recordIpRequest(clientIp, policy.type);
 
     // ---- 第2层: 邮箱频率限制（防止换IP注册同一邮箱） ----
     if (email && policy.emailWindowMin > 0) {
       try {
         const emailUsed = await isEmailRecentlyUsed(email, policy.emailWindowMin);
         if (emailUsed) {
-          console.warn(`[RegisterLimiter] 邮箱 ${email} 在 ${policy.emailWindowMin} 分钟内已注册过`);
+          console.warn(`[RegisterLimiter] Email ${email} was registered within the last ${policy.emailWindowMin} minutes`);
           await logRegistrationAttempt(clientIp, email, username || 'unknown', false, 'email_recently_used');
-          return res.status(429).json({
-            error: `该邮箱最近已注册，请${policy.emailWindowMin}分钟后重试`,
-            retryAfter: policy.emailWindowMin * 60,
-            code: 'EMAIL_RECENTLY_USED'
-          });
+          return limitedResponse(res, 409, 'EMAIL_RECENTLY_USED', 'authApi.alreadyExists', null, 'This email is already registered. Sign in instead.');
         }
       } catch (dbErr) {
-        console.error('[RegisterLimiter] 邮箱检查失败:', dbErr.message);
+        console.error('[RegisterLimiter] Email check failed:', dbErr.message);
         // 数据库错误不阻塞注册（避免单点故障）
       }
     }
 
     // ---- 第3层: 用户名模式检测 ----
     if (username && isSuspiciousUsername(username)) {
-      console.warn(`[RegisterLimiter] 检测到可疑用户名: ${username} (IP: ${clientIp})`);
+      console.warn(`[RegisterLimiter] Rejected suspicious username: ${username} (IP: ${clientIp})`);
       await logRegistrationAttempt(clientIp, email || 'unknown', username, false, 'suspicious_username');
 
-      let detail = '用户名包含异常字符模式';
+      let detail = 'Username contains an unusual character pattern.';
       if (/(.)(\1){3,}/.test(username)) {
-        detail = '用户名包含连续 4 个及以上相同字符，请拆分或替换';
+        detail = 'Username contains four or more repeated characters.';
       } else if (['test','spam','bot','hack','admin','root','sql'].some(p => username.toLowerCase().startsWith(p) && /\d{3,}$/.test(username))) {
-        detail = '用户名包含敏感前缀 + 数字组合，请使用普通用户名';
+        detail = 'Choose a username without a reserved prefix followed by numbers.';
       } else if (/^\d{10,}$/.test(username)) {
-        detail = '用户名不能为 10 位以上纯数字';
+        detail = 'Username cannot consist of ten or more digits only.';
       } else if (/^[a-z0-9]{8,}$/i.test(username)) {
-        detail = '用户名疑似随机字符串，请使用有意义的用户名';
+        detail = 'Choose a recognizable username instead of a random sequence.';
       }
 
       return res.status(400).json({
-        error: '用户名格式不符合要求，请使用3-20位正常字符',
+        error: 'Please choose a different username.',
+        errorKey: 'authLimits.usernameRejected',
         detail: detail,
         code: 'SUSPICIOUS_USERNAME'
       });
     }
 
     // ---- 第4层: 渐进式延迟（拖慢自动化脚本） ----
-    const requestCount = getIpWindowCount(clientIp, policy.ipHourWindowSec * 1000);
+    const requestCount = getIpWindowCount(clientIp, policy.ipHourWindowSec * 1000, policy.type);
     if (requestCount >= policy.delayStartAt) {
-      const delaySeconds = (requestCount - policy.delayStartAt + 1) * policy.delayStep;
-      console.log(`[RegisterLimiter] 渐进延迟 ${delaySeconds}s (IP: ${clientIp}, 请求次数: ${requestCount})`);
+      const delaySeconds = Math.min(3, (requestCount - policy.delayStartAt + 1) * policy.delayStep);
+      console.log(`[RegisterLimiter] Delay ${delaySeconds}s (IP: ${clientIp}, request count: ${requestCount})`);
       await delay(delaySeconds * 1000);
     }
 

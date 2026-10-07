@@ -223,7 +223,7 @@ vm.runInContext(fs.readFileSync(path.join(base, 'i18n.js'), 'utf8'), context);
   assert.equal((await apiClient.get('/auth/me')).success, true);
   assert.equal(promptCount, 1);
   responseQueue.push({ status: 401, body: { error: 'Invalid token', errorKey: 'authApi.invalidToken' } }, { status: 401, body: { error: 'Invalid token', errorKey: 'authApi.invalidToken' } });
-  await assert.rejects(apiClient.get('/auth/me'), error => error.message === 'Недействительный токен авторизации');
+  await assert.rejects(apiClient.get('/auth/me'), error => error.message === i18n.t('authApi.invalidToken'));
   assert.equal(promptCount, 2); // Exactly one prompt for this request; no retry loop.
   responseQueue.push({ status: 429, body: { error: 'Custom limit', code: 'LIMIT', retryAfter: 9 } });
   await assert.rejects(apiClient.get('/test'), error => error.message === 'Custom limit' && error.code === 'LIMIT' && error.retryAfter === 9);
@@ -248,7 +248,7 @@ vm.runInContext(fs.readFileSync(path.join(base, 'i18n.js'), 'utf8'), context);
     }
   }
   checkAuthMetadata(authAst);
-  assert.equal(authMessages, 26);
+  assert.equal(authMessages, 27);
   const hudSource = fs.readFileSync(path.join(__dirname, '../public/js/skillHUD.js'), 'utf8');
   const microphoneLabel = { textContent: 'Voice' };
   let finishHudLocale;

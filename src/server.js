@@ -91,7 +91,7 @@ app.use('/i18n', express.static(path.join(__dirname, '../public/i18n'), staticCa
 app.use('/node_modules', express.static(path.join(__dirname, '../node_modules'), staticCacheOptions));
 
 // Database initialization
-const { initializeDatabase, query } = require('./database/db');
+const { initializeDatabase, isDatabaseInitialized, query } = require('./database/db');
 
 // Routes
 const authRoutes = require('./routes/auth');
@@ -533,7 +533,7 @@ async function start() {
   try {
     // 尝试初始化数据库，但失败时不阻止服务器启动
     try {
-      await initializeDatabase();
+      if (!isDatabaseInitialized()) await initializeDatabase();
       console.log('Database initialized');
       await ensureDefaultControls();
       await autoFixWorldUrl();  // 自检修正 world_url（导入他人数据库后自动修正）

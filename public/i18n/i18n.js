@@ -12,7 +12,7 @@
 class I18n {
   constructor() {
     this.supportedLocales = ['zh-CN', 'en-US', 'ru-RU'];
-    this.currentLocale = 'zh-CN';
+    this.currentLocale = 'en-US';
     this.translations = {};
     this.initialized = false;
     this.callbacks = [];
@@ -43,18 +43,18 @@ class I18n {
           // A world default applies only when this browser has no personal choice.
           this.currentLocale = this.getStoredLocale() || data.language;
           try { localStorage.setItem('locale', this.currentLocale); } catch (e) { /* ignore */ }
-          console.log('[i18n] 从服务器获取语言:', this.currentLocale);
+          console.log('[i18n] Selected language:', this.currentLocale);
           return this.currentLocale;
         }
       }
     } catch (error) {
-      console.warn('[i18n] 从服务器获取语言失败，使用本地缓存:', error.message);
+      console.warn('[i18n] Language request failed; using the browser preference or English:', error.message);
     }
     
-    // 降级：使用本地缓存或默认中文
+    // Fall back to the browser preference or English.
     const cached = this.getStoredLocale();
-    this.currentLocale = cached || 'zh-CN';
-    console.log('[i18n] 使用缓存/默认语言:', this.currentLocale);
+    this.currentLocale = cached || 'en-US';
+    console.log('[i18n] Using saved/default language:', this.currentLocale);
     return this.currentLocale;
   }
 
@@ -75,7 +75,7 @@ class I18n {
       if (this.currentLocale !== 'en-US') await this._loadTranslations('en-US');
       
       this.initialized = true;
-      console.log('[i18n] 初始化完成, locale:', this.currentLocale);
+      console.log('[i18n] Initialized, locale:', this.currentLocale);
       return;
     })();
     
@@ -93,20 +93,20 @@ class I18n {
       const response = await fetch(`/i18n/${locale}.json`, { cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       this.translations[locale] = await response.json();
-      console.log('[i18n] 语言包加载完成:', locale);
+      console.log('[i18n] Catalog loaded:', locale);
     } catch (error) {
-      console.error('[i18n] 加载语言包失败:', error);
+      console.error('[i18n] Failed to load catalog:', error);
       // Fall back to a complete source catalog.
-      const fallback = locale === 'zh-CN' ? 'en-US' : 'zh-CN';
-      if (!this.translations[fallback]) {
+      const fallback = 'en-US';
+      if (locale !== fallback && !this.translations[fallback]) {
         try {
           const fbResp = await fetch(`/i18n/${fallback}.json`, { cache: 'no-store' });
           if (fbResp.ok) {
             this.translations[fallback] = await fbResp.json();
-            console.warn('[i18n] 已降级到:', fallback);
+            console.warn('[i18n] Using fallback catalog:', fallback);
           }
         } catch (e) {
-          console.error('[i18n] 降级也失败:', e);
+          console.error('[i18n] Failed to load fallback catalog:', e);
         }
       }
     }
@@ -118,7 +118,7 @@ class I18n {
    */
   async setLocaleToServer(locale) {
     if (!this.supportedLocales.includes(locale)) {
-      console.error('[i18n] 无效的语言:', locale);
+      console.error('[i18n] Unsupported language:', locale);
       return false;
     }
 
@@ -155,10 +155,10 @@ class I18n {
         try { cb(this.currentLocale); } catch (e) { console.error('[i18n] callback error:', e); }
       });
 
-      console.log('[i18n] 语言已切换到:', locale);
+      console.log('[i18n] Language changed:', locale);
       return true;
     } catch (error) {
-      console.error('[i18n] 保存语言到服务器失败:', error);
+      console.error('[i18n] Failed to save language:', error);
       return false;
     }
   }
@@ -209,7 +209,7 @@ class I18n {
       }
       return typeof result === 'string' ? result : null;
     };
-    return resolve(this.currentLocale) || resolve('en-US') || resolve('zh-CN') || key;
+    return resolve(this.currentLocale) || resolve('en-US') || key;
   }
 
   /**

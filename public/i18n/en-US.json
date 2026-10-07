@@ -5182,7 +5182,7 @@
     "loginFailed": "Login failed",
     "noToken": "No token provided",
     "userNotFound": "User not found",
-    "invalidToken": "Invalid token",
+    "invalidToken": "Your session has expired or is invalid. Please sign in again.",
     "enterUsername": "Enter your account name",
     "accountOrQuestionMissing": "Account not found or no security question configured",
     "recoveryUnavailable": "No security question configured; password recovery is unavailable",
@@ -5202,7 +5202,8 @@
     "questionBirthDate": "Your date of birth",
     "questionPhone": "Your phone number",
     "questionIdentity": "Your identity document number",
-    "questionFormerPartner": "Your former girlfriend’s name"
+    "questionFormerPartner": "Your former girlfriend’s name",
+    "meFailed": "Could not load your account. Please try again."
   },
   "roomsAdmin": {
     "confirmDeleteRoom": "Delete this room and disconnect participants?",
@@ -5406,7 +5407,8 @@
     "INVALID_CAPACITY": "Capacity exceeds available seats.",
     "REQUEST_KEY_REUSED": "Request was already used with different parameters.",
     "ROOM_INVALID": "Room validation failed. Contact the administrator.",
-    "INVALID_TEMPLATE": "Cannot create room from template. Contact the administrator."
+    "INVALID_TEMPLATE": "Cannot create room from template. Contact the administrator.",
+    "language": "Language"
   },
   "roomEnvelope": {
     "title": "Room shell",
@@ -5442,5 +5444,16 @@
     "uploaded": "Image uploaded. Save your changes.",
     "applied": "Room shell applied. Save the template draft.",
     "saved": "Room shell saved"
+  },
+  "authLimits": {
+    "loginMinute": "Too many sign-in attempts. Try again in {{seconds}} seconds.",
+    "loginHour": "Sign-in limit reached. Try again in {{minutes}} minutes.",
+    "registerMinute": "Too many registration attempts. Try again in {{seconds}} seconds.",
+    "registerHour": "Registration limit reached. Try again in {{minutes}} minutes.",
+    "accountLocked": "This account is locked. Contact the administrator.",
+    "accountLockedUntil": "This account is temporarily locked. Try again in {{minutes}} minutes.",
+    "usernameRejected": "Please choose another username without repeated characters or a reserved prefix followed by numbers.",
+    "rateLimited": "Too many requests. Try again in {{seconds}} seconds.",
+    "rateLimitedUnknown": "Too many requests. Wait a little and try again."
   }
 }

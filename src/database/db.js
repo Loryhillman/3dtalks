@@ -18,6 +18,7 @@ const pool = new Pool({
 pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
 });
+let initialized = false;
 
 async function initializeDatabase() {
   // Initialize the base schema.
@@ -42,6 +43,8 @@ async function initializeDatabase() {
     'add_security_questions.sql',
     'add_login_attempts.sql',
     'migrations/add_system_config.sql',
+    'migrations/add_default_language.sql',
+    'migrations/add_ui_control_layout.sql',
     'migrations/add_user_subscriptions.sql',
     'migrations/add_payment_reference.sql',
     'migrations/add_world_id_to_subscriptions.sql',
@@ -73,7 +76,9 @@ async function initializeDatabase() {
       await pool.query(migrationSQL);
       console.log('Migration applied:', migFile);
     } catch (migErr) {
-      if (migFile === 'migrations/add_rooms.sql' ||
+      if (migFile === 'migrations/add_default_language.sql' ||
+          migFile === 'migrations/add_ui_control_layout.sql' ||
+          migFile === 'migrations/add_rooms.sql' ||
           migFile === 'migrations/add_room_rejoin_grants.sql' ||
           migFile === 'migrations/add_room_seats.sql' ||
           migFile === 'migrations/add_user_rooms.sql' ||
@@ -85,6 +90,7 @@ async function initializeDatabase() {
   }
   await require('../services/roomTemplateSeed').ensureRoomTemplates(pool);
   await require('../services/bootstrapAdmin').ensureBootstrapAdmin(pool);
+  initialized = true;
 }
 
 async function query(text, params) {
@@ -101,4 +107,5 @@ module.exports = {
   query,
   pool,
   initializeDatabase,
+  isDatabaseInitialized: () => initialized,
 };

@@ -510,9 +510,9 @@ async function ensureDefaultControls() {
     }
 
     if (inserted > 0) {
-      console.log(`[UIControls] 初始化完成，新增 ${inserted} 个默认控件`);
+      console.log(`[UIControls] Initialized ${inserted} new default controls`);
     } else {
-      console.log('[UIControls] 所有默认控件已存在，无需初始化');
+      console.log('[UIControls] Default controls already exist');
     }
 
     // 为已存在的记录填充横屏默认值（只填充NULL字段，不覆盖用户配置）
@@ -528,10 +528,10 @@ async function ensureDefaultControls() {
           OR landscape_height IS NULL`
     );
     if (updated.rowCount > 0) {
-      console.log(`[UIControls] 已为 ${updated.rowCount} 个现有控件填充横屏默认值`);
+      console.log(`[UIControls] Filled landscape defaults for ${updated.rowCount} existing controls`);
     }
   } catch (error) {
-    console.error('[UIControls] 初始化默认控件失败:', error.message);
+    console.error('[UIControls] Failed to initialize default controls:', error.message);
   }
 }
 
