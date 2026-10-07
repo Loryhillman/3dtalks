@@ -592,7 +592,7 @@ async function start() {
       console.warn('[Server] Chat archival loop failed to start; the main service continues:', e.message);
     }
   } catch (error) {
-    console.error('Failed to start server:', error);
+    require('./services/startupConfig').logStartupError(error);
     process.exit(1);
   }
 }

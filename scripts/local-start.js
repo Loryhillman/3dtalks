@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { isWeakSecret } = require('../src/services/secretAutoFix');
+const { ConfigurationError, validateStartupConfiguration, logStartupError } = require('../src/services/startupConfig');
 
 const secretKeys = [
   'JWT_SECRET',
@@ -16,7 +17,15 @@ function ensureLocalSecrets(stateDir = process.env.LOCAL_STATE_DIR || path.join(
   const secretFile = path.join(stateDir, 'secrets.json');
   let saved = {};
   if (fs.existsSync(secretFile)) {
-    saved = JSON.parse(fs.readFileSync(secretFile, 'utf8'));
+    const content = fs.readFileSync(secretFile, 'utf8');
+    try {
+      saved = JSON.parse(content);
+    } catch {
+      throw new ConfigurationError([{ key: 'LOCAL_STATE_DIR', message: 'secrets.json is invalid JSON. Restore the secrets file from a backup.' }]);
+    }
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved) || secretKeys.some(key => saved[key] !== undefined && typeof saved[key] !== 'string')) {
+      throw new ConfigurationError([{ key: 'LOCAL_STATE_DIR', message: 'secrets.json must contain an object with string secret values. Restore it from a backup.' }]);
+    }
   }
 
   let changed = false;
@@ -38,18 +47,19 @@ function ensureLocalSecrets(stateDir = process.env.LOCAL_STATE_DIR || path.join(
 }
 
 if (require.main === module) {
-  if (process.env.SIMPLE_DEPLOYMENT === 'true') {
-    const required = ['DB_PASSWORD', 'WORLD_URL', 'ADMIN_USERNAME', 'ADMIN_PASSWORD'];
-    for (const key of required) {
-      if (!process.env[key]?.trim()) throw new Error(`Fill ${key} in .env before starting`);
+  try {
+    if (process.env.SIMPLE_DEPLOYMENT === 'true') validateStartupConfiguration(process.env);
+    try {
+      ensureLocalSecrets();
+    } catch (error) {
+      error.startupContext = 'state';
+      throw error;
     }
-    const url = new URL(process.env.WORLD_URL);
-    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash || url.pathname !== '/') {
-      throw new Error('WORLD_URL must be a site address, e.g. http://localhost:3002');
-    }
+    require('../src/server');
+  } catch (error) {
+    logStartupError(error);
+    process.exit(1);
   }
-  ensureLocalSecrets();
-  require('../src/server');
 }
 
 module.exports = { ensureLocalSecrets };
