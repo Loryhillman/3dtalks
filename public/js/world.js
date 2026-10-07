@@ -1782,138 +1782,23 @@ class World {
         if (_sl) window.LightPool.releaseLight(_sl);
         window.LightPool.release(playerData.group);
       }
+      if (playerData.group.userData.accountAvatarRoot) {
+        playerData.group.userData.accountAvatarTicket = (playerData.group.userData.accountAvatarTicket || 0) + 1;
+        const avatarRoot = playerData.group.userData.accountAvatarRoot;
+        playerData.group.remove(avatarRoot);
+        window.UserAvatarRenderer?.dispose(avatarRoot);
+      }
       this.scene.remove(playerData.group);
       this.players.delete(characterId);
       console.log(`[World] 已移除玩家 ${characterId}`);
     }
   }
 
-  addPlayer(characterId, characterName, position = { x: 0, y: 0, z: 0 }, isLoggedIn = true, glbUrl = null, weaponConfig = null, boneMapConfig = null, weaponSocketConfig = null, calibrationConfig = null) {
+  addPlayer(characterId, characterName, position = { x: 0, y: 0, z: 0 }, isLoggedIn = true, glbUrl = null, weaponConfig = null, boneMapConfig = null, weaponSocketConfig = null, calibrationConfig = null, avatarConfig = null) {
     this.removePlayer(characterId);
     
-    // Player character body
-    const characterGroup = new THREE.Group();
+    const {characterGroup,body,head,leftArmGroup,rightArmGroup,leftLegGroup,rightLegGroup,leftElbowGroup,rightElbowGroup,leftKneeGroup,rightKneeGroup} = window.AvatarBase.create(isLoggedIn);
 
-    // Body (torso)
-    const bodyGeometry = new THREE.BoxGeometry(0.6, 1.2, 0.3);
-    const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x4a90e2 });
-    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-    body.position.y = 0.3;
-    body.castShadow = true;
-    body.receiveShadow = true;
-    characterGroup.add(body);
-
-    // Head (低多边形球体 - 8面)
-    // 未登录用户显示灰色，已登录用户显示正常肤色
-    const headGeometry = new THREE.SphereGeometry(0.4, 8, 8);
-    const headColor = isLoggedIn ? 0xffaa99 : 0x888888; // 灰色表示游客
-    const headMaterial = new THREE.MeshStandardMaterial({ color: headColor });
-    const head = new THREE.Mesh(headGeometry, headMaterial);
-    head.position.y = 1.2;
-    head.castShadow = true;
-    head.receiveShadow = true;
-    characterGroup.add(head);
-
-    // 左臂 (上臂+肘关节+前臂)
-    const upperArmGeometry = new THREE.CylinderGeometry(0.08, 0.08, 0.5, 6);
-    const forearmGeometry = new THREE.CylinderGeometry(0.07, 0.07, 0.5, 6);
-    const armMaterial = new THREE.MeshStandardMaterial({ color: 0xffaa99 });
-    
-    const leftArmGroup = new THREE.Group();
-    leftArmGroup.position.set(-0.38, 0.8, 0); // 肩膀位置
-    
-    // 左上臂
-    const leftUpperArm = new THREE.Mesh(upperArmGeometry, armMaterial);
-    leftUpperArm.position.y = -0.25; // 上臂中心
-    leftUpperArm.castShadow = true;
-    leftArmGroup.add(leftUpperArm);
-    
-    // 左肘关节
-    const leftElbowGroup = new THREE.Group();
-    leftElbowGroup.position.set(0, -0.5, 0); // 肘部位置
-    
-    // 左前臂
-    const leftForearm = new THREE.Mesh(forearmGeometry, armMaterial);
-    leftForearm.position.y = -0.25; // 前臂中心
-    leftForearm.castShadow = true;
-    leftElbowGroup.add(leftForearm);
-    
-    leftArmGroup.add(leftElbowGroup);
-    characterGroup.add(leftArmGroup);
-
-    // 右臂 (上臂+肘关节+前臂)
-    const rightArmGroup = new THREE.Group();
-    rightArmGroup.position.set(0.38, 0.8, 0); // 肩膀位置
-    
-    // 右上臂
-    const rightUpperArm = new THREE.Mesh(upperArmGeometry, armMaterial);
-    rightUpperArm.position.y = -0.25;
-    rightUpperArm.castShadow = true;
-    rightArmGroup.add(rightUpperArm);
-    
-    // 右肘关节
-    const rightElbowGroup = new THREE.Group();
-    rightElbowGroup.position.set(0, -0.5, 0); // 肘部位置
-    
-    // 右前臂
-    const rightForearm = new THREE.Mesh(forearmGeometry, armMaterial);
-    rightForearm.position.y = -0.25;
-    rightForearm.castShadow = true;
-    rightElbowGroup.add(rightForearm);
-    
-    rightArmGroup.add(rightElbowGroup);
-    characterGroup.add(rightArmGroup);
-
-    // 左腿 (大腿+膝关节+小腿)
-    const thighGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.6, 6);
-    const calfGeometry = new THREE.CylinderGeometry(0.09, 0.09, 0.6, 6);
-    const legMaterial = new THREE.MeshStandardMaterial({ color: 0x2c3e50 });
-    
-    const leftLegGroup = new THREE.Group();
-    leftLegGroup.position.set(-0.18, -0.3, 0); // 大腿根位置
-    
-    // 左大腿
-    const leftThigh = new THREE.Mesh(thighGeometry, legMaterial);
-    leftThigh.position.y = -0.3;
-    leftThigh.castShadow = true;
-    leftLegGroup.add(leftThigh);
-    
-    // 左膝关节
-    const leftKneeGroup = new THREE.Group();
-    leftKneeGroup.position.set(0, -0.6, 0); // 膝盖位置
-    
-    // 左小腿
-    const leftCalf = new THREE.Mesh(calfGeometry, legMaterial);
-    leftCalf.position.y = -0.3;
-    leftCalf.castShadow = true;
-    leftKneeGroup.add(leftCalf);
-    
-    leftLegGroup.add(leftKneeGroup);
-    characterGroup.add(leftLegGroup);
-
-    // 右腿 (大腿+膝关节+小腿)
-    const rightLegGroup = new THREE.Group();
-    rightLegGroup.position.set(0.18, -0.3, 0); // 大腿根位置
-    
-    // 右大腿
-    const rightThigh = new THREE.Mesh(thighGeometry, legMaterial);
-    rightThigh.position.y = -0.3;
-    rightThigh.castShadow = true;
-    rightLegGroup.add(rightThigh);
-    
-    // 右膝关节
-    const rightKneeGroup = new THREE.Group();
-    rightKneeGroup.position.set(0, -0.6, 0); // 膝盖位置
-    
-    // 右小腿
-    const rightCalf = new THREE.Mesh(calfGeometry, legMaterial);
-    rightCalf.position.y = -0.3;
-    rightCalf.castShadow = true;
-    rightKneeGroup.add(rightCalf);
-    
-    rightLegGroup.add(rightKneeGroup);
-    characterGroup.add(rightLegGroup);
-    
     // 右手武器：仅当 weaponConfig 有效（非 null 且为对象）时才创建
     const hasWeapon = !window.MeetingUI?.active && (typeof weaponConfig === 'object' && weaponConfig !== null);
     const _wCfg = hasWeapon ? weaponConfig : {};
@@ -2051,6 +1936,7 @@ class World {
     characterGroup.userData.animTime = 0;
     characterGroup.userData.leftArm = leftArmGroup;
     characterGroup.userData.seatHead = head;
+    characterGroup.userData.defaultSeatHead = head;
     characterGroup.userData.seatFallbackParts = [body, head, leftArmGroup, rightArmGroup, leftLegGroup, rightLegGroup];
     characterGroup.userData.rightArm = rightArmGroup;
     characterGroup.userData.leftLeg = leftLegGroup;
@@ -2089,7 +1975,8 @@ class World {
     }
 
     // 如果有 GLB 模板，异步加载替换方块人
-    if (glbUrl) {
+    if (avatarConfig) window.UserAvatarRenderer?.apply(characterGroup, avatarConfig);
+    if (glbUrl && !avatarConfig) {
       this._loadPlayerGlb(characterId, characterGroup, nameSprite, glbUrl);
     }
 

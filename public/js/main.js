@@ -564,9 +564,16 @@ async function initializeGame() {
       const v = localStorage.getItem('selectedTemplateGlbUrl');
       return (!v || v === 'null' || v.trim() === '') ? null : v;
     })();
+    let accountAvatar = null;
+    if (window.ACTIVE_ROOM) {
+      selectedGlbUrl = null;
+      const response = await fetch('/api/my/avatar', { headers: { Authorization: 'Bearer ' + localStorage.getItem('token') } });
+      if (!response.ok) throw new Error(window.i18n.t('avatar.SERVICE_ERROR'));
+      accountAvatar = (await response.json()).config;
+    }
     const selectedWalkUrl = localStorage.getItem('selectedTemplateWalkUrl') || null;
     const selectedRunUrl = localStorage.getItem('selectedTemplateRunUrl') || null;
-    const selectedTemplateId = localStorage.getItem('selectedTemplateId') || null;
+    const selectedTemplateId = window.ACTIVE_ROOM ? null : localStorage.getItem('selectedTemplateId') || null;
     // 读取武器配置
     let selectedWeaponConfig = null;
     try {
@@ -739,6 +746,8 @@ async function initializeGame() {
 
     // 此时 localStorage 里的 selectedTemplateWeaponConfig 已是最新，再创建 Player
     player = new Player(gameWorld, GAME_STATE.characterId, characterData, _finalGlbUrl || selectedGlbUrl);
+
+    if (accountAvatar) window.UserAvatarRenderer?.apply(player.characterGroup, accountAvatar);
 
     // Set player initial position to spawn point
     player.position.set(spawnPosition.x, spawnPosition.y, spawnPosition.z);

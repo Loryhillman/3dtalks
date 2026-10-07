@@ -1,18 +1,11 @@
 (() => {
-  const aliases = {
-    hips: ['hips', 'pelvis'], leftUpLeg: ['leftupleg', 'leftthigh', 'thighl'],
-    leftLeg: ['leftleg', 'leftcalf', 'calfl'], leftFoot: ['leftfoot', 'footl'],
-    rightUpLeg: ['rightupleg', 'rightthigh', 'thighr'], rightLeg: ['rightleg', 'rightcalf', 'calfr'],
-    rightFoot: ['rightfoot', 'footr'], head: ['head'],
-    leftArm: ['leftarm', 'upperarml'], leftForeArm: ['leftforearm', 'lowerarml'], leftHand: ['lefthand', 'handl'],
-    rightArm: ['rightarm', 'upperarmr'], rightForeArm: ['rightforearm', 'lowerarmr'], rightHand: ['righthand', 'handr']
-  };
+  const aliases = window.AvatarRig?.aliases || {};
   function rig(group) {
     const data = group.userData, model = data.glbModel;
     if (data.roomSeatRig && data.roomSeatRig.model === model) return data.roomSeatRig;
     const found = {}, named = new Map();
     model?.traverse(node => {
-      if (node.isBone) named.set(node.name.toLowerCase().replace(/^mixamorig\d*:?/, '').replace(/[^a-z0-9]/g, ''), node);
+      if (node.isBone) named.set(window.AvatarRig.normalize(node.name), node);
     });
     for (const [key, names] of Object.entries(aliases)) {
       const mapped = data.boneMap?.[key];
@@ -21,6 +14,10 @@
     }
     const descendant = (child, parent) => {
       for (let node = child?.parent; node; node = node.parent) if (node === parent) return true;
+      if (data.accountAvatarConfig?.mode === 'full' && data.nameSprite && state.found.head) {
+        const headPosition = group.worldToLocal(state.found.head.getWorldPosition(new THREE.Vector3()));
+        data.nameSprite.position.y = headPosition.y + .65;
+      }
       return false;
     };
     const supported = ['left', 'right'].every(side => found.hips && found[side+'Foot'] &&

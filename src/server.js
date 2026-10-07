@@ -143,6 +143,7 @@ const agentApiRoutes = require('./routes/agent');  // AI Agent 接入 API（/api
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', securityQuestionsRoutes);  // 安全问题管理（需管理员认证）
 app.use('/api/users', userRoutes);
+app.use('/api/my/avatar', require('./routes/userAvatar'));
 app.use('/api/world/spatial', worldSpatialRoutes);
 // 世界内容写操作仅管理员可用（GET 在守卫内部放行，联邦跨域读取不受影响）
 app.use('/api/world', worldWriteGuard, worldRoutes);

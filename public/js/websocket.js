@@ -302,8 +302,12 @@ class WSClient {
   }
 
   static handlePlayerJoined(payload) {
-    const { characterId, characterName, position, isGuest, glbUrl, animUrls, weaponConfig, boneMapConfig, weaponSocketConfig, calibrationConfig, isSelfContainedBundle, entityType } = payload;
+    const { characterId, characterName, position, isGuest, glbUrl, animUrls, weaponConfig, boneMapConfig, weaponSocketConfig, calibrationConfig, avatarConfig, isSelfContainedBundle, entityType } = payload;
 
+    if (characterId === GAME_STATE.characterId && avatarConfig) {
+      const own = gameWorld.players.get(characterId);
+      if (own) window.UserAvatarRenderer?.apply(own.group, avatarConfig);
+    }
     if (characterId !== GAME_STATE.characterId) {
       const isAgent = entityType === 'agent';
       const displayName = isAgent ? '🤖' + characterName : characterName;
@@ -315,7 +319,7 @@ class WSClient {
       }
       // 把所有配置直接传给 addPlayer，确保在 _loadPlayerGlb 之前写入 userData
       // isGuest为true → isLoggedIn传false，显示星星粒子
-      gameWorld.addPlayer(characterId, displayName, position, !isGuest, finalGlbUrl, weaponConfig || null, boneMapConfig || null, weaponSocketConfig || null, calibrationConfig || null);
+      gameWorld.addPlayer(characterId, displayName, position, !isGuest, finalGlbUrl, weaponConfig || null, boneMapConfig || null, weaponSocketConfig || null, calibrationConfig || null, avatarConfig || null);
       // 标记 Agent 实体：供 handlePositionUpdate 做客户端地形贴地（服务器端 Agent 恒 y=0）
       if (isAgent) {
         const pdMark = gameWorld.players.get(characterId);
@@ -468,7 +472,7 @@ class WSClient {
           }
           // 直接传入骨骼/武器/校准配置，确保在 _loadPlayerGlb 之前写入 userData
           // 游客玩家显示星星粒子，正式玩家显示完整模型
-          gameWorld.addPlayer(player.characterId, displayName, player.position, !player.isGuest, finalGlbUrl, player.weaponConfig || null, player.boneMapConfig || null, player.weaponSocketConfig || null, player.calibrationConfig || null);
+          gameWorld.addPlayer(player.characterId, displayName, player.position, !player.isGuest, finalGlbUrl, player.weaponConfig || null, player.boneMapConfig || null, player.weaponSocketConfig || null, player.calibrationConfig || null, player.avatarConfig || null);
           const pd = gameWorld.players.get(player.characterId);
           // 快照路径同样标记 Agent 实体（人类后进场时 Agent 经 WORLD_STATE 到达）
           if (pd && player.entityType === 'agent') pd.group.userData.isAgent = true;
@@ -496,6 +500,7 @@ class WSClient {
           // 已存在的玩家：Agent 若缺标识则就地补（覆盖"AI 先进场、真人后刷新"的顺序）
           if (player.entityType === 'agent') this.ensureAgentNameTag(player.characterId);
           gameWorld.updatePlayerPosition(player.characterId, player.position);
+          if (player.avatarConfig) window.UserAvatarRenderer?.apply(gameWorld.players.get(player.characterId).group, player.avatarConfig);
           // 如果 WORLD_STATE 里携带了 glbUrl，但本地该玩家还没有模型（仍是木棍人），则立即加载
           if (finalGlbUrl) {
             const pd = gameWorld.players.get(player.characterId);

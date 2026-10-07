@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>3DTalks — Avatar</title>
+<link rel="stylesheet" href="/css/rooms.css"><link rel="stylesheet" href="/css/avatar.css">
+<script src="/i18n/i18n.js?v=english-default-1" defer></script>
+<script src="/js/lib/three.min.js?v=185" defer></script><script src="/js/lib/GLTFLoader.js?v=185" defer></script>
+<script src="/js/avatarBase.js?v=1" defer></script><script src="/js/avatarRig.js?v=1" defer></script><script src="/js/userAvatarRenderer.js?v=1" defer></script><script src="/js/roomSeatAvatar.js?v=3" defer></script><script src="/js/avatarEditor.js?v=1" defer></script></head>
+<body><main><header><h1 data-avatar-t="title"></h1><a href="/rooms" data-avatar-t="back"></a></header>
+<p id="avatar-status" role="status" aria-live="polite"></p>
+<div class="avatar-layout"><section class="avatar-preview"><canvas id="avatar-canvas" aria-label="Avatar preview"></canvas>
+<p data-avatar-t="previewHint"></p><label><span data-avatar-t="look"></span><input id="avatar-look" type="range" min="-1" max="1" step=".02" value="0"></label></section>
+<form id="avatar-form"><label><span data-avatar-t="mode"></span><select name="mode"><option value="standard" data-avatar-t="standard"></option><option value="full" data-avatar-t="full"></option></select></label>
+<div id="avatar-standard"><label><span data-avatar-t="headType"></span><select name="headType"><option value="image" data-avatar-t="image"></option><option value="sphere" data-avatar-t="sphere"></option><option value="cube" data-avatar-t="cube"></option><option value="model" data-avatar-t="model"></option></select></label>
+<label><span data-avatar-t="bodyColor"></span><input name="bodyColor" type="color" value="#4a90e2"></label><label><span data-avatar-t="headColor"></span><input name="headColor" type="color" value="#ffaa99"></label>
+<label><span data-avatar-t="headScale"></span><input name="headScale" type="number" min=".5" max="1.5" step=".01" value="1"></label>
+<label><span data-avatar-t="headOffset"></span><input name="headOffset" type="number" min="-.3" max=".3" step=".01" value="0"></label>
+<label><span data-avatar-t="headYaw"></span><input name="headYaw" type="number" min="-180" max="180" step="1" value="0"></label></div>
+<div id="avatar-full" hidden><p data-avatar-t="rigHint"></p><label><span data-avatar-t="headYaw"></span><input name="bodyYaw" type="number" min="-180" max="180" step="1" value="0"></label></div>
+<label><span data-avatar-t="asset"></span><select name="assetId"><option value="" data-avatar-t="noAsset"></option></select></label>
+<label><span data-avatar-t="upload"></span><input id="avatar-file" type="file" accept=".png,.jpg,.jpeg,.webp"></label>
+<p id="avatar-file-hint"></p><div class="actions"><button type="button" id="avatar-delete" data-avatar-t="deleteAsset"></button><button type="button" id="avatar-reset" data-avatar-t="reset"></button><button type="submit" id="avatar-save" data-avatar-t="save"></button></div>
+<p data-avatar-t="saveHint"></p></form></div></main></body></html>

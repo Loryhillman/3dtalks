@@ -68,7 +68,8 @@ async function initializeDatabase() {
     'migrations/add_user_rooms.sql',
     'migrations/add_account_room_character.sql',
     'migrations/add_room_template_editor.sql',
-    'migrations/add_independent_room_seats.sql'
+    'migrations/add_independent_room_seats.sql',
+    'migrations/add_user_avatars.sql'
   ];
   for (const migFile of migrations) {
     const migrationPath = path.join(__dirname, '..', '..', 'database', migFile);
@@ -86,7 +87,8 @@ async function initializeDatabase() {
           migFile === 'migrations/add_user_rooms.sql' ||
           migFile === 'migrations/add_account_room_character.sql' ||
           migFile === 'migrations/add_room_template_editor.sql' ||
-          migFile === 'migrations/add_independent_room_seats.sql') throw migErr;
+          migFile === 'migrations/add_independent_room_seats.sql' ||
+          migFile === 'migrations/add_user_avatars.sql') throw migErr;
       console.log('Migration skipped (already applied, missing file or schema mismatch):', migFile, migErr.message);
     }
   }

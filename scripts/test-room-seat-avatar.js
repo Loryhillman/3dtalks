@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const context = { console, URL }; context.window = context;
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(require.resolve('../public/js/lib/three.min.js'), 'utf8'), context);
+vm.runInContext(fs.readFileSync(require.resolve('../public/js/avatarRig.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(require.resolve('../public/js/roomSeatAvatar.js'), 'utf8'), context);
 const T = context.THREE;
 // First frames and failed GLB downloads must render the procedural avatar.

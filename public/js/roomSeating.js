@@ -133,6 +133,12 @@
     capacityBadge.style.cssText = 'background:#171e29;color:white;padding:8px;border-radius:6px';
     toolbar.append(capacityBadge);
     window.MeetingUI?.enter(room, toolbar);
+    window.addEventListener?.('avatar-load-error', event => {
+      if (event.detail.group !== window.player?.characterGroup) return;
+      let message = document.getElementById('room-avatar-error');
+      if (!message) { message = document.createElement('p'); message.id = 'room-avatar-error'; message.setAttribute('role', 'alert'); message.style.cssText = 'margin:8px 0 0;font-size:12px;color:#ffd595'; toolbar.append(message); }
+      message.textContent = window.i18n.t('avatar.roomLoadFailed');
+    });
     const style=document.createElement('style');style.textContent=`
       #room-seat-picker{position:fixed;right:16px;top:145px;width:310px;max-height:calc(100dvh - 165px);overflow:auto;box-sizing:border-box;z-index:12001;padding:14px;background:#171e29ee;color:white;border:1px solid #65758a;border-radius:10px;font:14px system-ui}
       #room-seat-picker[hidden],#room-seat-picker [hidden],.room-seat-labels[hidden]{display:none!important}

@@ -58,10 +58,16 @@ router.get('/character/:characterId', async (req, res) => {
 });
 
 // Update character appearance
-router.post('/character/:characterId/appearance', async (req, res) => {
+router.post('/character/:characterId/appearance', authenticateToken, async (req, res) => {
   try {
     const { characterId } = req.params;
+    const owner = await query('SELECT id FROM characters WHERE id=$1 AND user_id=$2', [characterId, req.user.userId]);
+    if (!owner.rows.length) return res.status(403).json({ error: 'Character access denied' });
+    const allowed = new Set(['face_brows','face_glasses','face_nose','face_skin','face_ears','face_mouth','face_beard','face_jaw','hair','top_wear','bottom_wear','shoes']);
     const appearanceData = req.body;
+    if (!appearanceData || Object.entries(appearanceData).some(([key,value]) => !allowed.has(key) || (value !== null && (typeof value !== 'string' || value.length > 255)))) {
+      return res.status(400).json({ error: 'Invalid appearance fields' });
+    }
 
     const updateFields = [];
     const updateValues = [];

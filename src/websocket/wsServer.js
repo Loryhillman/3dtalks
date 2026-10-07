@@ -507,6 +507,7 @@ function queuePlayerJoin(connectionId, ws, payload) {
 function handleModelUpdate(connectionId, payload) {
   const { characterId, glbUrl, animUrls, isSelfContainedBundle } = payload;
   const p = playerPositions.get(connectionId);
+  if (p?.avatarConfig) return; // Account avatars are resolved from the database on join.
   if (p) {
     p.glbUrl = glbUrl || null;
     if (animUrls) p.animUrls = animUrls;
@@ -533,7 +534,8 @@ async function handlePlayerJoin(connectionId, ws, payload) {
     ws.send(JSON.stringify({ type: 'ROOM_JOIN_DENIED', payload: { code: 'ROOM_REQUIRED', reason: 'Выберите комнату' } }));
     return;
   }
-  const { characterId, characterName, position, glbUrl, animUrls, weaponConfig, boneMapConfig, weaponSocketConfig, calibrationConfig, isGuest, isSelfContainedBundle } = payload;
+  let { characterId, characterName, position, glbUrl, animUrls, weaponConfig, boneMapConfig, weaponSocketConfig, calibrationConfig, isGuest, isSelfContainedBundle } = payload;
+  let avatarConfig = null;
   let roomId = MAIN_ROOM_ID;
   let roomPosition = position;
   let verifiedName = characterName;
@@ -554,6 +556,10 @@ async function handlePlayerJoin(connectionId, ws, payload) {
         return;
       }
     }
+    const avatarUser = (await query('SELECT avatar_config FROM users WHERE id=$1', [decoded.userId])).rows[0];
+    avatarConfig = Object.keys(avatarUser?.avatar_config || {}).length ? avatarUser.avatar_config : { ...require('../services/userAvatars').DEFAULT };
+    glbUrl = animUrls = weaponConfig = boneMapConfig = weaponSocketConfig = calibrationConfig = null;
+    isSelfContainedBundle = isGuest = false;
     const { rows } = await query(`
       SELECT r.id, r.capacity, r.spawn_position, r.status, r.allow_rejoin, r.seating_mode,
         c.name AS character_name, c.last_room_id, c.last_position
@@ -673,6 +679,7 @@ async function handlePlayerJoin(connectionId, ws, payload) {
     characterId,
     characterName: verifiedName,
     position: roomPosition,
+    avatarConfig,
     glbUrl: glbUrl || null,
     animUrls: animUrls || null,
     weaponConfig: weaponConfig || null,
@@ -699,6 +706,7 @@ async function handlePlayerJoin(connectionId, ws, payload) {
       characterName: verifiedName,
       position: roomPosition,
       seat: playerPositions.get(connectionId)?.seat || null,
+      avatarConfig,
       glbUrl: glbUrl || null,
       animUrls: animUrls || null,
       weaponConfig: weaponConfig || null,
