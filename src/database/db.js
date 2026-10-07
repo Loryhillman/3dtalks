@@ -20,10 +20,10 @@ pool.on('error', (err) => {
 });
 
 async function initializeDatabase() {
-  // 第1步：执行 init.sql（独立 try-catch）
+  // Initialize the base schema.
   try {
-    // 统一使用 database/init.sql 作为唯一权威初始化文件
-    // 路径相对于项目根目录：src/database/db.js -> ../../database/init.sql
+    // Use database/init.sql as the canonical base schema.
+    // Resolve the schema path relative to this module.
     const initPath = path.join(__dirname, '..', '..', 'database', 'init.sql');
     const initSQL = await fs.readFile(initPath, 'utf-8');
 
@@ -34,9 +34,9 @@ async function initializeDatabase() {
     if (process.env.ROOMS_ENABLED === 'true') throw error;
   }
 
-  // 第2步：执行迁移脚本（独立于 init.sql，即使 init.sql 失败也会执行）
+  // Apply migrations after the base schema initialization.
   const migrations = [
-    // 'add_ui_controls_alignment.sql',  // 已执行完毕，重复执行会覆盖用户配置的 h_align/v_align
+    // 'add_ui_controls_alignment.sql',  // Disabled: rerunning would overwrite user h_align/v_align settings.
     'gallery_init.sql',
     'migrations/add_ad_slot_portal_fields.sql',
     'add_security_questions.sql',
@@ -55,9 +55,9 @@ async function initializeDatabase() {
     'migrations/add_agents.sql',
     'migrations/add_agent_sessions.sql',
     'migrations/add_world_chat_log.sql',
-    'migrations/add_federation_nonce.sql',  // P5: 联邦传送 nonce 防重放 + transient session 表
-    'migrations/add_agent_push_tier.sql',   // P8 后续: 每个 Key Agent 独立推送档 + 删除能力
-    'migrations/add_world_objects_agent_description.sql',  // 🤖 AI 物体描述（observe 下发给 Agent）
+    'migrations/add_federation_nonce.sql',  // P5: federation nonce replay protection and transient sessions.
+    'migrations/add_agent_push_tier.sql',   // P8: per-key agent push tiers and deletion support.
+    'migrations/add_world_objects_agent_description.sql',  // AI object descriptions exposed through agent observation.
     'migrations/add_rooms.sql',
     'migrations/add_room_rejoin_grants.sql',
     'migrations/add_room_seats.sql',
@@ -71,7 +71,7 @@ async function initializeDatabase() {
     try {
       const migrationSQL = await fs.readFile(migrationPath, 'utf-8');
       await pool.query(migrationSQL);
-      console.log('迁移脚本已执行:', migFile);
+      console.log('Migration applied:', migFile);
     } catch (migErr) {
       if (migFile === 'migrations/add_rooms.sql' ||
           migFile === 'migrations/add_room_rejoin_grants.sql' ||
@@ -80,7 +80,7 @@ async function initializeDatabase() {
           migFile === 'migrations/add_account_room_character.sql' ||
           migFile === 'migrations/add_room_template_editor.sql' ||
           migFile === 'migrations/add_independent_room_seats.sql') throw migErr;
-      console.log('迁移脚本跳过（可能已执行或文件不存在）:', migFile, migErr.message);
+      console.log('Migration skipped (already applied, missing file or schema mismatch):', migFile, migErr.message);
     }
   }
   await require('../services/roomTemplateSeed').ensureRoomTemplates(pool);

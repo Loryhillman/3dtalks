@@ -3,28 +3,28 @@
  * 如需获取软件授权请联系：888@miduo100.com / 15660440944
  */
 /**
- * 画廊EXIF时间提取服务
- * 负责从照片中读取拍摄时间（EXIF DateTimeOriginal）
- * 如果EXIF不可用，则退回到文件修改时间
+ * Gallery EXIF date extraction.
+ * Read a photo capture date from EXIF DateTimeOriginal.
+ * Fall back to the file modification time when EXIF is unavailable.
  * 
- * 需要安装依赖: npm install exifr
+ * Optional dependency: npm install exifr
  */
 
 const fs = require('fs');
 const path = require('path');
 
-// 尝试加载exifr，如果未安装则使用文件修改时间
+// Load optional EXIF support; otherwise use file modification times.
 let exifr = null;
 try {
     exifr = require('exifr');
 } catch (e) {
-    console.warn('[galleryExifReader] exifr未安装，将使用文件修改时间。运行: npm install exifr');
+    console.warn('[galleryExifReader] Optional exifr dependency unavailable; using file modification times.');
 }
 
 /**
- * 获取单张照片的拍摄时间
- * @param {string} filePath - 文件完整路径
- * @returns {Promise<Date>} 拍摄时间
+ * Get the capture date for one photo.
+ * @param {string} filePath - Full file path.
+ * @returns {Promise<Date>} Capture date.
  */
 async function getPhotoDate(filePath) {
     try {
@@ -35,21 +35,21 @@ async function getPhotoDate(filePath) {
             }
         }
     } catch (err) {
-        // EXIF解析失败，降级使用文件修改时间
+        // EXIF parsing failed; fall back to the file modification time.
     }
 
-    // 降级：使用文件修改时间
+    // Fall back to the file modification time.
     try {
         const stat = await fs.promises.stat(filePath);
         return stat.mtime;
     } catch (err) {
-        return new Date(); // 最终降级
+        return new Date(); // Last fallback: current time.
     }
 }
 
 /**
- * 批量获取照片的拍摄时间
- * @param {Array<{filePath: string}>} files - 文件列表
+ * Get capture dates for a batch of photos.
+ * @param {Array<{filePath: string}>} files - Photo file records.
  * @returns {Promise<Array<{filePath: string, photoDate: Date}>>}
  */
 async function batchGetPhotoDates(files) {

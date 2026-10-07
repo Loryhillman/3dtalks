@@ -133,7 +133,7 @@ function handleUpgrade(request, socket, head) {
       wss.emit('connection', ws, request, result);
     });
   }).catch(err => {
-    console.error('[AgentWs] upgrade 鉴权异常:', err.message);
+    console.error('[AgentWs] Upgrade authentication failed:', err.message);
     try { socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n'); } catch (e) {}
     socket.destroy();
   });
@@ -368,7 +368,7 @@ async function handleAction(connectionId, state, payload) {
       // 移动类的 POSITION_UPDATE 广播由 movement service 的 publishPosition 触发（前端就此看到走路动画）
     }
   } catch (err) {
-    console.error(`[AgentWs] ACTION 异常: ${state.agent.name} action=${payload.action}`, err.message);
+    console.error(`[AgentWs] Action failed: ${state.agent.name} action=${payload.action}`, err.message);
     safeSendRaw(state.ws, { type: 'ACTION_REJECTED', payload: { requestId: payload.requestId, reason: '服务端处理异常', code: 'internal_error' } });
   }
 }
@@ -390,12 +390,12 @@ function safeSend(state, message, priority) {
   if (priority && !acquireToken(state, priority)) return;
   const ws = state.ws;
   if (ws.bufferedAmount > BACKPRESSURE_KILL) {
-    console.warn(`[AgentWs] 背压超限断开: ${state.agent.name} bufferedAmount=${ws.bufferedAmount}`);
+    console.warn(`[AgentWs] Disconnected due to excessive backpressure: ${state.agent.name} bufferedAmount=${ws.bufferedAmount}`);
     ws.close(1011, 'backpressure overflow');
     return;
   }
   if (ws.bufferedAmount > BACKPRESSURE_WARN) {
-    console.warn(`[AgentWs] 背压警告: ${state.agent.name} bufferedAmount=${ws.bufferedAmount}`);
+    console.warn(`[AgentWs] Backpressure warning: ${state.agent.name} bufferedAmount=${ws.bufferedAmount}`);
   }
   try { ws.send(JSON.stringify(message)); } catch (e) {}
 }
@@ -559,13 +559,13 @@ function startHeartbeat() {
       if (state.closed) continue;
       // 空闲超时：无操作超时即断开，presenceBridge.onDisconnect 会清 playerPositions 并广播 PLAYER_LEFT
       if (AGENT_IDLE_TIMEOUT_MS > 0 && now - state.lastActivityAt > AGENT_IDLE_TIMEOUT_MS) {
-        console.warn(`[AgentWs] 空闲超时断开(>${AGENT_IDLE_TIMEOUT_MS / 60000}min): ${state.agent.name}`);
+        console.warn(`[AgentWs] Disconnected after idle timeout (>${AGENT_IDLE_TIMEOUT_MS / 60000}min): ${state.agent.name}`);
         audit('ws_idle_timeout', { agent: state.agent.name, agentId: state.agent.id, connectionId: state.connectionId });
         try { state.ws.close(1001, 'idle timeout'); } catch (e) { try { state.ws.terminate(); } catch (e2) {} }
         continue;
       }
       if (now - state.lastPong > HEARTBEAT_TIMEOUT_MS) {
-        console.warn(`[AgentWs] 心跳超时断开: ${state.agent.name}`);
+        console.warn(`[AgentWs] Disconnected after heartbeat timeout: ${state.agent.name}`);
         try { state.ws.terminate(); } catch (e) {}
         continue;
       }
@@ -630,7 +630,7 @@ function start() {
   startRealtimeLoop();      // T5：realtime 10Hz 位置流
   startHeartbeat();
   installChatPatch();
-  console.log('[AgentWs] Agent WebSocket 服务已启动（standard 1Hz 聚合 / realtime 10Hz / 心跳 / CHAT 旁路）');
+  console.log('[AgentWs] Agent WebSocket started (standard 1Hz batches / realtime 10Hz / heartbeat / chat channel)');
 }
 
 // ==================== 工具 ====================

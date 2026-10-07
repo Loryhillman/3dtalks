@@ -2,16 +2,16 @@
  * 济宁米多信息科技有限公司 版权所有
  * 如需获取软件授权请联系：888@miduo100.com / 15660440944
  *
- * JWT 密钥自动修复模块
- * 作用：启动时检测 JWT_SECRET / ADMIN_JWT_SECRET 是否为弱密钥（默认占位符、空值、过短），
- *       若是则自动生成安全随机密钥并写回 .env 文件，实现"零配置安全部署"。
- * 使用：在 dotenv.config() 之后立即 require 并调用 autoFixSecrets()
+ * JWT secret initialization.
+ * Detect missing, placeholder or short JWT_SECRET / ADMIN_JWT_SECRET values.
+ *       Generate random replacements and persist them in .env.
+ * Call autoFixSecrets() after loading environment variables.
  */
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-// 已知的弱密钥/占位符模式（不区分大小写匹配）
+// Known weak secret and placeholder patterns (case insensitive).
 const WEAK_PATTERNS = [
   'your_secret_key_change_this',
   'your_admin_secret_key_change_this',
@@ -27,17 +27,17 @@ const WEAK_PATTERNS = [
   '123456'
 ];
 
-// 需要保护的密钥配置项
+// Protected secret keys.
 const PROTECTED_KEYS = ['JWT_SECRET', 'ADMIN_JWT_SECRET'];
 
 /**
- * 判断一个密钥值是否为弱密钥
- * @param {string} value 密钥值
+ * Check whether a secret is missing or weak.
+ * @param {string} value Secret value.
  * @returns {boolean}
  */
 function isWeakSecret(value) {
   if (!value || value.trim() === '') return true;
-  if (value.length < 16) return true; // 太短不安全
+  if (value.length < 16) return true; // Reject short values.
   const lower = value.toLowerCase();
   for (const pattern of WEAK_PATTERNS) {
     if (lower.includes(pattern)) return true;
@@ -46,7 +46,7 @@ function isWeakSecret(value) {
 }
 
 /**
- * 生成安全随机密钥（64位十六进制字符串）
+ * Generate a random secret as 64 hexadecimal characters.
  * @returns {string}
  */
 function generateSecureSecret() {
@@ -54,65 +54,65 @@ function generateSecureSecret() {
 }
 
 /**
- * 在 .env 内容中替换指定键的值；若键不存在则追加到末尾
- * @param {string} envContent .env 文件内容
- * @param {string} key 键名
- * @param {string} newValue 新值
- * @returns {string} 更新后的内容
+ * Replace a key in .env, appending it if absent.
+ * @param {string} envContent .env file content.
+ * @param {string} key Key name.
+ * @param {string} newValue New value.
+ * @returns {string} Updated content.
  */
 function replaceEnvValue(envContent, key, newValue) {
   const regex = new RegExp(`^${key}=.*$`, 'm');
   if (regex.test(envContent)) {
     return envContent.replace(regex, `${key}=${newValue}`);
   }
-  // 键不存在，追加到文件末尾
+  // Append keys that are absent from the file.
   const suffix = envContent.endsWith('\n') ? '' : '\n';
   return `${envContent}${suffix}${key}=${newValue}\n`;
 }
 
 /**
- * 自动检测并修复弱密钥
- * 在 dotenv.config() 之后调用
+ * Detect and replace weak secrets.
+ * Call after dotenv.config().
  */
 function autoFixSecrets() {
   const envPath = path.join(__dirname, '..', '..', '.env');
   const examplePath = path.join(__dirname, '..', '..', '.env.example');
 
-  // 找出所有弱密钥
+  // Find all weak secrets.
   const weakKeys = PROTECTED_KEYS.filter(key => isWeakSecret(process.env[key]));
-  if (weakKeys.length === 0) return; // 全部安全，直接返回
+  if (weakKeys.length === 0) return; // Existing values are valid.
 
-  // 读取 .env 内容；不存在则从 .env.example 创建
-  // 注意：读取后统一剥离 UTF-8 BOM（﻿），避免首行键名匹配失败
-  // （Windows 记事本、PowerShell Set-Content -Encoding UTF8 均可能写入 BOM）
+  // Read .env, falling back to .env.example.
+  // Strip a UTF-8 BOM so the first key can be matched.
+  // Windows editors and PowerShell may write a BOM.
   const stripBOM = (text) => (text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text);
   let envContent = '';
   if (fs.existsSync(envPath)) {
     try {
       envContent = stripBOM(fs.readFileSync(envPath, 'utf-8'));
     } catch (err) {
-      console.warn('[密钥修复] 无法读取 .env 文件:', err.message);
+      console.warn('[Secrets] Cannot read .env:', err.message);
     }
   }
   if (!envContent && fs.existsSync(examplePath)) {
     try {
       envContent = stripBOM(fs.readFileSync(examplePath, 'utf-8'));
     } catch (err) {
-      console.warn('[密钥修复] 无法读取 .env.example 文件:', err.message);
+      console.warn('[Secrets] Cannot read .env.example:', err.message);
     }
   }
 
-  // 为每个弱密钥生成新的随机值
+  // Generate a random replacement for each weak secret.
   const newSecrets = {};
   for (const key of weakKeys) {
     newSecrets[key] = generateSecureSecret();
-    process.env[key] = newSecrets[key]; // 立即在内存中生效
-    console.log(`[密钥修复] 检测到 ${key} 为弱密钥或缺失，已自动生成安全随机密钥`);
+    process.env[key] = newSecrets[key]; // Apply immediately in memory.
+    console.log(`[Secrets] ${key} was weak or missing; generated a random replacement.`);
   }
 
-  // 尝试写回 .env 文件
+  // Persist replacements in .env.
   if (!envContent) {
-    // 没有任何模板可用，手工构建最小配置
+    // Create a minimal configuration when no template exists.
     envContent = weakKeys.map(key => `${key}=${newSecrets[key]}`).join('\n') + '\n';
   } else {
     for (const key of weakKeys) {
@@ -122,13 +122,13 @@ function autoFixSecrets() {
 
   try {
     fs.writeFileSync(envPath, envContent, 'utf-8');
-    console.log('[密钥修复] .env 文件已自动更新，密钥已替换为安全随机值');
-    console.log('[密钥修复] 后续重启将直接使用新密钥，不会再触发此提示');
+    console.log('[Secrets] Updated .env with random secrets.');
+    console.log('[Secrets] Future restarts will reuse the saved secrets.');
   } catch (err) {
-    console.warn('[密钥修复] 无法写入 .env 文件（可能是只读权限），新密钥仅在本次运行中生效');
-    console.warn('[密钥修复] 请手动更新 .env 文件中的以下配置：');
+    console.warn('[Secrets] Cannot write .env; generated secrets are only valid for this process.');
+    console.warn('[Secrets] Update the following settings in .env:');
     for (const key of weakKeys) {
-      console.warn(`[密钥修复]   ${key}=${newSecrets[key]}`);
+      console.warn(`[Secrets]   ${key}=${newSecrets[key]}`);
     }
   }
 }

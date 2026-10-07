@@ -27,7 +27,7 @@ let centralConnector = null;
 // 检查必要的环境变量
 function checkEnvVariables() {
   if (!process.env.JWT_SECRET) {
-    console.error('❌ 缺少必要的环境变量: JWT_SECRET');
+    console.error('❌ Required environment variable missing: JWT_SECRET');
     throw new Error('缺少必要的环境变量: JWT_SECRET');
   }
 }
@@ -66,7 +66,7 @@ async function initFederation() {
            VALUES ($1, $2, NOW())`,
           ['federation_config', JSON.stringify(config)]
         );
-        console.log('✅ 联邦系统初始化完成，世界ID:', worldId);
+        console.log('✅ Federation initialized, world ID:', worldId);
 
         // 【首次部署赠送1个月订阅】
         try {
@@ -87,21 +87,21 @@ async function initFederation() {
                  VALUES ($1, 1, 0, 'free_trial', NOW(), $2, '首次部署赠送一个月')`,
                 [userId, expiresAt]
               );
-              console.log(`🎁 首次部署赠送1个月订阅: 用户ID=${userId}, 到期=${expiresAt.toISOString().split('T')[0]}`);
+              console.log(`🎁 Initial one-month subscription granted: user ID=${userId}, expires=${expiresAt.toISOString().split('T')[0]}`);
             }
           } else {
-            console.log('⚠️ 首次部署但无管理员用户，跳过赠送订阅');
+            console.log('⚠️ No administrator account found during initial deployment; subscription grant skipped');
           }
         } catch (subError) {
-          console.warn('⚠️ 赠送订阅失败（可能表未创建）:', subError.message);
+          console.warn('⚠️ Failed to grant initial subscription (schema may be missing):', subError.message);
         }
       } catch (dbError) {
-        console.error('❌ 保存联邦系统配置失败:', dbError);
+        console.error('❌ Failed to save federation configuration:', dbError);
         throw dbError;
       }
     } else {
       config = JSON.parse(configResult.rows[0].value);
-      console.log('✅ 联邦系统加载完成，世界ID:', config.worldId);
+      console.log('✅ Federation configuration loaded, world ID:', config.worldId);
     }
 
     // 创建联邦系统实例
@@ -122,7 +122,7 @@ async function initFederation() {
     return federationSystem;
 
   } catch (error) {
-    console.error('❌ 联邦系统初始化失败:', error);
+    console.error('❌ Federation initialization failed:', error);
     throw error;
   }
 }
@@ -148,9 +148,9 @@ async function loadTrustedWorlds() {
       );
     }
 
-    console.log(`✅ 已加载 ${result.rows.length} 个信任的世界`);
+    console.log(`✅ Loaded ${result.rows.length} trusted worlds`);
   } catch (error) {
-    console.error('加载信任世界列表失败:', error);
+    console.error('Failed to load trusted worlds:', error);
   }
 }
 
@@ -372,7 +372,7 @@ router.get('/character-templates/user/:userId', securityCheck, async (req, res) 
             templateName = nameResult.rows[0].name;
           }
         } catch (error) {
-          console.error('获取模板名称失败:', error);
+          console.error('Failed to load template name:', error);
         }
       }
       
@@ -475,7 +475,7 @@ router.post('/character-templates/switch', securityCheck, async (req, res) => {
               templateName = nameResult.rows[0].name;
             }
           } catch (error) {
-            console.error('获取模板名称失败:', error);
+            console.error('Failed to load template name:', error);
           }
         }
         
@@ -607,7 +607,7 @@ router.post('/handshake', securityCheck, async (req, res) => {
     // 注册资格检查：私网/非法 URL 立即拒绝（零网络 I/O），公网 URL 回拨验证
     const hsCheck = await checkRegistration(req.body);
     if (!hsCheck.allowed) {
-      console.warn(`⛔ [联邦] 握手请求被拒绝 (${hsCheck.code}): ${req.body.worldName} - ${req.body.worldUrl}`);
+      console.warn(`⛔ [Federation] Handshake rejected (${hsCheck.code}): ${req.body.worldName} - ${req.body.worldUrl}`);
       return res.json({ success: false, error: hsCheck.message, code: hsCheck.code });
     }
 
@@ -649,7 +649,7 @@ router.post('/trust', authenticateAdminToken, securityCheck, async (req, res) =>
             [targetWorld.worldId, targetWorld.worldName, targetWorld.worldUrl, targetWorld.publicKey]
           );
         } catch (dbError) {
-          console.error('❌ 保存信任世界失败:', dbError);
+          console.error('❌ Failed to save trusted world:', dbError);
           // 数据库错误不影响信任建立，继续返回成功
         }
       }
@@ -772,7 +772,7 @@ router.post('/teleport/receive', securityCheck, async (req, res) => {
       });
       localUser = provisioned.user;
     } catch (dbError) {
-      console.error('❌ 创建联邦用户失败:', dbError);
+      console.error('❌ Failed to create federation user:', dbError);
       return res.status(500).json({
         success: false,
         error: '创建用户失败'
@@ -780,7 +780,7 @@ router.post('/teleport/receive', securityCheck, async (req, res) => {
     }
 
     if (provisioned.renamed) {
-      console.warn(`⚠️ [联邦] 昵称「${provisioned.originalUsername}」已被本地用户占用，已为 ${user.email} 分配「${provisioned.finalUsername}」`);
+      console.warn(`⚠️ [Federation] Username "${provisioned.originalUsername}" is already used; assigned "${provisioned.finalUsername}" to ${user.email}`);
     }
 
     // 查询或创建对应角色（前端 initializeGame 必须有 characterId）
@@ -803,7 +803,7 @@ router.post('/teleport/receive', securityCheck, async (req, res) => {
         localCharacter = newCharResult.rows[0];
       }
     } catch (charError) {
-      console.error('❌ 查询/创建角色失败:', charError);
+      console.error('❌ Failed to find or create character:', charError);
       return res.status(500).json({ success: false, error: '角色初始化失败' });
     }
 
@@ -817,7 +817,7 @@ router.post('/teleport/receive', securityCheck, async (req, res) => {
       );
     } catch (appearanceError) {
       // 外观记录不影响登录本身，失败仅告警
-      console.warn('⚠️ [联邦] 创建角色外观记录失败（不影响传送登录）:', appearanceError.message);
+      console.warn('⚠️ [Federation] Failed to create character appearance; teleport login continues:', appearanceError.message);
     }
 
     // 生成本地JWT Token
@@ -836,7 +836,7 @@ router.post('/teleport/receive', securityCheck, async (req, res) => {
         [localUser.id, user.fromWorld.id, user.fromWorld.name, JSON.stringify(context)]
       );
     } catch (dbError) {
-      console.error('❌ 记录传送历史失败:', dbError);
+      console.error('❌ Failed to record teleport history:', dbError);
       // 传送历史记录失败不影响用户登录
     }
 
@@ -906,7 +906,7 @@ router.post('/import', authenticateAdminToken, securityCheck, async (req, res) =
         [config.worldId, config.worldName, config.worldUrl, config.publicKey]
       );
     } catch (dbError) {
-      console.error('❌ 保存信任世界失败:', dbError);
+      console.error('❌ Failed to save trusted world:', dbError);
       // 数据库错误不影响导入结果，继续返回成功
     }
 
@@ -940,11 +940,11 @@ router.post('/register-client', securityCheck, async (req, res) => {
     // 注册资格检查：私网/非法 URL 立即拒绝（零网络 I/O），公网 URL 回拨验证
     const regCheck = await checkRegistration(worldConfig);
     if (!regCheck.allowed) {
-      console.warn(`⛔ [联邦] 客户端注册被拒绝 (${regCheck.code}): ${worldConfig.worldName} - ${worldConfig.worldUrl}`);
+      console.warn(`⛔ [Federation] Client registration rejected (${regCheck.code}): ${worldConfig.worldName} - ${worldConfig.worldUrl}`);
       return res.json({ success: false, error: regCheck.message, code: regCheck.code });
     }
 
-    console.log('📝 收到客户端世界注册:', worldConfig.worldName);
+    console.log('📝 Received client world registration:', worldConfig.worldName);
 
     // 导入配置并建立信任
     const result = federationSystem.importConfig(worldConfig);
@@ -960,9 +960,9 @@ router.post('/register-client', securityCheck, async (req, res) => {
            SET world_name = $2, world_url = $3, public_key = $4, updated_at = NOW()`,
           [worldConfig.worldId, worldConfig.worldName, worldConfig.worldUrl, worldConfig.publicKey]
         );
-        console.log('✅ 客户端世界注册成功:', worldConfig.worldName);
+        console.log('✅ Client world registered:', worldConfig.worldName);
       } catch (dbError) {
-        console.error('❌ 保存客户端世界失败:', dbError);
+        console.error('❌ Failed to save client world:', dbError);
         // 数据库错误不影响注册结果，继续返回成功
       }
     }
@@ -1139,10 +1139,10 @@ router.post('/sync-user', securityCheck, async (req, res) => {
           }
         }
         
-        console.log('用户数据同步成功:', userId);
+        console.log('User data synchronized:', userId);
         
       } catch (dbError) {
-        console.error('同步用户数据到数据库失败:', dbError);
+        console.error('Failed to synchronize user data to the database:', dbError);
         // 数据库错误不影响同步结果，继续返回成功
       }
     }

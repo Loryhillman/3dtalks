@@ -35,9 +35,9 @@ class AutoTagService {
         return acc;
       }, {});
       
-      console.log('✅ 标签库加载完成:', Object.keys(this.tagLibrary).length, '个分类');
+      console.log('✅ Tag library loaded:', Object.keys(this.tagLibrary).length, 'categories');
     } catch (error) {
-      console.error('❌ 加载标签库失败:', error);
+      console.error('❌ Failed to load tag library:', error);
     }
   }
 
@@ -172,7 +172,7 @@ ${JSON.stringify(this.tagLibrary, null, 2)}
       return validTags;
 
     } catch (error) {
-      console.error('❌ AI标签生成失败，使用关键词方法:', error.message);
+      console.error('❌ AI tagging failed; falling back to keywords:', error.message);
       return this.generateKeywordBasedTags(modelName, description);
     }
   }
@@ -204,7 +204,7 @@ ${JSON.stringify(this.tagLibrary, null, 2)}
       return this.parseTagsFromAI(content);
 
     } catch (error) {
-      console.error('豆包标签生成失败:', error.message);
+      console.error('Doubao tagging failed:', error.message);
       throw error;
     }
   }
@@ -241,7 +241,7 @@ ${JSON.stringify(this.tagLibrary, null, 2)}
       return this.parseTagsFromAI(content);
 
     } catch (error) {
-      console.error('通义千问标签生成失败:', error.message);
+      console.error('Qwen tagging failed:', error.message);
       throw error;
     }
   }
@@ -264,7 +264,7 @@ ${JSON.stringify(this.tagLibrary, null, 2)}
       throw new Error('AI返回的不是数组');
       
     } catch (error) {
-      console.error('解析AI标签失败:', error.message);
+      console.error('Failed to parse AI tags:', error.message);
       // 尝试从文本中提取标签
       const matches = content.match(/["']([^"']+)["']/g);
       if (matches) {
@@ -454,7 +454,7 @@ ${JSON.stringify(this.tagLibrary, null, 2)}
       }
 
     } catch (error) {
-      console.error('❌ 批量标签生成失败:', error);
+      console.error('❌ Batch tagging failed:', error);
     }
 
     return results;
@@ -464,37 +464,37 @@ ${JSON.stringify(this.tagLibrary, null, 2)}
    * 自动为所有未打标签的模型添加标签
    */
   async autoTagAllModels() {
-    console.log('🏷️ 开始自动标签所有模型...');
+    console.log('🏷️ Starting automatic tagging for all models...');
 
     // 1. 几何体建筑
     const geometryResult = await pool.query(
       'SELECT id FROM geometry_buildings WHERE tags = \'{}\' OR tags IS NULL'
     );
-    console.log(`  发现 ${geometryResult.rows.length} 个未标签的几何体`);
+    console.log(`  Found ${geometryResult.rows.length} untagged geometry models`);
     
     const geometryIds = geometryResult.rows.map(r => r.id);
     const geometryResults = await this.batchTagModels('geometry', geometryIds);
-    console.log(`  ✅ 几何体标签完成: 成功 ${geometryResults.success}, 失败 ${geometryResults.failed}`);
+    console.log(`  ✅ Geometry tagging completed: ${geometryResults.success} succeeded, ${geometryResults.failed} failed`);
 
     // 2. 上传的模型
     const uploadedResult = await pool.query(
       'SELECT id FROM uploaded_models WHERE tags = \'{}\' OR tags IS NULL LIMIT 50'
     );
-    console.log(`  发现 ${uploadedResult.rows.length} 个未标签的上传模型`);
+    console.log(`  Found ${uploadedResult.rows.length} untagged uploaded models`);
     
     const uploadedIds = uploadedResult.rows.map(r => r.id);
     const uploadedResults = await this.batchTagModels('uploaded', uploadedIds);
-    console.log(`  ✅ 上传模型标签完成: 成功 ${uploadedResults.success}, 失败 ${uploadedResults.failed}`);
+    console.log(`  ✅ Uploaded model tagging completed: ${uploadedResults.success} succeeded, ${uploadedResults.failed} failed`);
 
     // 3. AI生成建筑
     const buildingResult = await pool.query(
       'SELECT id FROM generated_buildings WHERE (tags = \'{}\' OR tags IS NULL) AND status = \'completed\' LIMIT 50'
     );
-    console.log(`  发现 ${buildingResult.rows.length} 个未标签的AI建筑`);
+    console.log(`  Found ${buildingResult.rows.length} untagged AI buildings`);
     
     const buildingIds = buildingResult.rows.map(r => r.id);
     const buildingResults = await this.batchTagModels('building', buildingIds);
-    console.log(`  ✅ AI建筑标签完成: 成功 ${buildingResults.success}, 失败 ${buildingResults.failed}`);
+    console.log(`  ✅ AI building tagging completed: ${buildingResults.success} succeeded, ${buildingResults.failed} failed`);
 
     return {
       geometry: geometryResults,

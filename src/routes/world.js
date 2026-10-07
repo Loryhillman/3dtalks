@@ -153,7 +153,7 @@ router.get('/objects', async (req, res) => {
               obj.geometry_data = geometryResult.rows[0].geometry_data;
             }
           } catch (err) {
-            console.error('获取几何体数据失败:', err);
+            console.error('Failed to load geometry data:', err);
           }
         }
       }
@@ -179,7 +179,7 @@ router.get('/objects', async (req, res) => {
       }
     });
 
-    console.log(`🌍 世界对象: ${result.rows.length} 常规 + ${adSlotObjects.length} 广告位`);
+    console.log(`🌍 World objects: ${result.rows.length} regular + ${adSlotObjects.length} ad slots`);
 
     res.json({
       success: true,
@@ -285,7 +285,7 @@ router.post('/objects', async (req, res) => {
       agent_description
     ]);
 
-    console.log('✅ 世界对象已创建:', result.rows[0]);
+    console.log('✅ World object created:', result.rows[0]);
 
     res.json({
       success: true,
@@ -310,12 +310,12 @@ router.put('/objects/:id', async (req, res) => {
     const { id } = req.params;
     const { name, position_x, position_y, position_z, rotation_x, rotation_y, rotation_z, scale_x, scale_y, scale_z, video_props, visible, castShadow, receiveShadow, has_collision, custom_config, agent_description } = req.body;
 
-    console.log('📝 更新对象请求 - ID:', id, '类型:', typeof id);
+    console.log('📝 Object update requested - ID:', id, 'type:', typeof id);
 
     // 检测UUID格式ID - 尝试更新ad_slots等UUID主键表，否则存入transform_overrides
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
     if (isUUID) {
-      console.log('🔵 检测到UUID格式ID，尝试更新ad_slots/custom_npcs表...');
+      console.log('🔵 UUID object ID detected; checking ad_slots/custom_npcs...');
 
       // 尝试更新 ad_slots 表
       const adSlotUpdateFields = [];
@@ -350,11 +350,11 @@ router.put('/objects/:id', async (req, res) => {
             adSlotValues
           );
           if (adResult.rows.length > 0) {
-            console.log('✅ ad_slots 更新成功, ID:', id);
+            console.log('✅ ad_slots updated, ID:', id);
             return res.json({ success: true, object: adResult.rows[0], source: 'ad_slots' });
           }
         } catch (adErr) {
-          console.log('⚠️ ad_slots 更新失败:', adErr.message);
+          console.log('⚠️ Failed to update ad_slots:', adErr.message);
         }
 
         // 再尝试 custom_npcs
@@ -378,11 +378,11 @@ router.put('/objects/:id', async (req, res) => {
               npcValues
             );
             if (npcResult.rows.length > 0) {
-              console.log('✅ custom_npcs 更新成功, ID:', id);
+              console.log('✅ custom_npcs updated, ID:', id);
               return res.json({ success: true, object: npcResult.rows[0], source: 'custom_npcs' });
             }
           } catch (npcErr) {
-            console.log('⚠️ custom_npcs 更新失败:', npcErr.message);
+            console.log('⚠️ Failed to update custom_npcs:', npcErr.message);
           }
         }
       }
@@ -410,7 +410,7 @@ router.put('/objects/:id', async (req, res) => {
             portalValues
           );
           if (portalResult.rows.length > 0) {
-            console.log('✅ portals 更新成功, ID:', id);
+            console.log('✅ portals updated, ID:', id);
             // portals 表没有 rotation/scale 列，若有传入则同步写入 transform_overrides 供前端加载时恢复
             const needOverride = rotation_x !== undefined || rotation_y !== undefined || rotation_z !== undefined ||
                                  scale_x !== undefined || scale_y !== undefined || scale_z !== undefined;
@@ -430,18 +430,18 @@ router.put('/objects/:id', async (req, res) => {
                     scale_x || 1, scale_y || 1, scale_z || 1,
                     name || null]);
               } catch (ovErr) {
-                console.log('⚠️ portals 旋转/缩放写入 transform_overrides 失败:', ovErr.message);
+                console.log('⚠️ Failed to save portal rotation/scale in transform_overrides:', ovErr.message);
               }
             }
             return res.json({ success: true, object: portalResult.rows[0], source: 'portals' });
           }
         } catch (portalErr) {
-          console.log('⚠️ portals 更新失败:', portalErr.message);
+          console.log('⚠️ Failed to update portals:', portalErr.message);
         }
       }
 
       // UUID对象在已知表中都未找到，存入 transform_overrides 覆盖表
-      console.log('💡 UUID对象未在已知表中找到，存入transform_overrides...');
+      console.log('💡 UUID object not found in known tables; saving transform overrides...');
       try {
         const overrideResult = await query(`
           INSERT INTO object_transform_overrides (object_id, position_x, position_y, position_z, rotation_x, rotation_y, rotation_z, scale_x, scale_y, scale_z, object_name, updated_at)
@@ -457,11 +457,11 @@ router.put('/objects/:id', async (req, res) => {
             scale_x || 1, scale_y || 1, scale_z || 1,
             name || null]);
         if (overrideResult.rows.length > 0) {
-          console.log('✅ transform_overrides 保存成功, ID:', id);
+          console.log('✅ transform_overrides saved, ID:', id);
           return res.json({ success: true, override: overrideResult.rows[0], source: 'transform_overrides' });
         }
       } catch (overrideErr) {
-        console.log('⚠️ transform_overrides 保存失败:', overrideErr.message);
+        console.log('⚠️ Failed to save transform_overrides:', overrideErr.message);
       }
 
       return res.status(404).json({ success: false, error: 'UUID object not found in any table' });
@@ -469,14 +469,14 @@ router.put('/objects/:id', async (req, res) => {
 
     // 特殊处理出生点
     if (id === 'spawn_point') {
-      console.log('✅ 检测到出生点更新请求');
+      console.log('✅ Spawn point update requested');
       const spawnPointData = {
         position: { x: position_x, y: position_y, z: position_z },
         rotation: { x: rotation_x, y: rotation_y, z: rotation_z },
         scale: { x: scale_x, y: scale_y, z: scale_z }
       };
 
-      console.log('💾 保存出生点数据:', spawnPointData);
+      console.log('💾 Saving spawn point:', spawnPointData);
 
       // 保存到系统配置表
       await query(`
@@ -486,7 +486,7 @@ router.put('/objects/:id', async (req, res) => {
         DO UPDATE SET config_value = $1, updated_at = CURRENT_TIMESTAMP
       `, [JSON.stringify(spawnPointData)]);
 
-      console.log('✅ 出生点保存成功');
+      console.log('✅ Spawn point saved');
 
       return res.json({
         success: true,
@@ -502,7 +502,7 @@ router.put('/objects/:id', async (req, res) => {
     }
 
     // 普通对象的更新逻辑
-    console.log('📦 更新普通对象，ID:', id);
+    console.log('📦 Updating regular object, ID:', id);
     
     // 构建动态更新查询（支持 video_props 字段）
     const updateFields = [];
@@ -580,26 +580,26 @@ router.put('/objects/:id', async (req, res) => {
       RETURNING *
     `;
     
-    console.log('📝 更新SQL:', updateQuery);
-    console.log('📝 更新参数:', updateValues);
+    console.log('📝 Update SQL:', updateQuery);
+    console.log('📝 Update parameters:', updateValues);
 
     const result = await query(updateQuery, updateValues);
 
     if (result.rows.length === 0) {
-      console.log('❌ 对象未找到，ID:', id);
+      console.log('❌ Object not found, ID:', id);
       return res.status(404).json({
         success: false,
         error: 'Object not found'
       });
     }
 
-    console.log('✅ 对象更新成功');
+    console.log('✅ Object updated');
     res.json({
       success: true,
       object: result.rows[0]
     });
   } catch (error) {
-    console.error('❌ 更新对象错误:', error);
+    console.error('❌ Failed to update object:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to update world object',
@@ -832,9 +832,9 @@ router.get('/spawn-point', async (req, res) => {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log('✅ object_transform_overrides 表已就绪');
+    console.log('✅ object_transform_overrides table ready');
   } catch (e) {
-    console.error('❌ 创建 object_transform_overrides 表失败:', e.message);
+    console.error('❌ Failed to create object_transform_overrides:', e.message);
   }
 })();
 
@@ -844,7 +844,7 @@ router.get('/transform-overrides', async (req, res) => {
     const result = await query('SELECT * FROM object_transform_overrides');
     res.json({ success: true, overrides: result.rows });
   } catch (error) {
-    console.error('获取位置覆盖失败:', error);
+    console.error('Failed to load transform overrides:', error);
     res.status(500).json({ success: false, error: 'Failed to get transform overrides' });
   }
 });
@@ -871,7 +871,7 @@ router.put('/transform-overrides/:objectId', async (req, res) => {
 
     res.json({ success: true, override: result.rows[0] });
   } catch (error) {
-    console.error('保存位置覆盖失败:', error);
+    console.error('Failed to save transform overrides:', error);
     res.status(500).json({ success: false, error: 'Failed to save transform override' });
   }
 });
@@ -883,7 +883,7 @@ router.delete('/transform-overrides/:objectId', async (req, res) => {
     await query('DELETE FROM object_transform_overrides WHERE object_id = $1', [objectId]);
     res.json({ success: true });
   } catch (error) {
-    console.error('删除位置覆盖失败:', error);
+    console.error('Failed to delete transform overrides:', error);
     res.status(500).json({ success: false, error: 'Failed to delete transform override' });
   }
 });

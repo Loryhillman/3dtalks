@@ -18,11 +18,11 @@ require('./services/secretAutoFix').autoFixSecrets();
 
 // ==================== 启动前关键环境变量校验 ====================
 if (!process.env.JWT_SECRET) {
-  console.error('[FATAL] 缺少环境变量 JWT_SECRET，请在 .env 文件中配置');
+  console.error('[FATAL] JWT_SECRET is missing; configure persistent application secrets.');
   process.exit(1);
 }
 if (!process.env.ADMIN_JWT_SECRET) {
-  console.error('[FATAL] 缺少环境变量 ADMIN_JWT_SECRET，请在 .env 文件中配置');
+  console.error('[FATAL] ADMIN_JWT_SECRET is missing; configure persistent application secrets.');
   process.exit(1);
 }
 
@@ -199,8 +199,8 @@ app.get('/.well-known/virtual-world-agent.json', async (req, res) => {
     res.set('Cache-Control', 'public, max-age=60');  // 1 分钟缓存（agent_enabled 切换需 60s 热跟进）
     res.json(doc);
   } catch (error) {
-    console.error('[Agent] well-known 失败:', error);
-    res.status(500).json({ success: false, error: 'well-known 失败', code: 'WELLKNOWN_FAILED' });
+    console.error('[Agent] Discovery failed:', error);
+    res.status(500).json({ success: false, error: 'Discovery failed', code: 'WELLKNOWN_FAILED' });
   }
 });
 
@@ -256,7 +256,7 @@ app.get('/api/public/character-templates', async (req, res) => {
         [Array.from(allAnimIds)]
       );
       animLib.rows.forEach(a => { animUrlMap[a.id] = a.glb_url; });
-      console.log(`[public-templates] anim_set 解析: ${allAnimIds.size} 个ID → ${animLib.rows.length} 个有效动画`);
+      console.log(`[public-templates] Resolved anim_set: ${allAnimIds.size} IDs -> ${animLib.rows.length} available animations`);
     }
     
     // 解析 JSON 字段
@@ -272,7 +272,7 @@ app.get('/api/public/character-templates', async (req, res) => {
           try { return JSON.parse(v); } catch(e) { return {}; }
         };
         const baseWeaponConfig = _parseJsonField(tmpl.weapon_config);
-        if (tmpl.weapon_id) console.log(`[public-templates] 原始 weapon_id=${tmpl.weapon_id} weapon_lib_config 类型=${typeof tmpl.weapon_lib_config} 值=`, tmpl.weapon_lib_config);
+        if (tmpl.weapon_id) console.log(`[public-templates] weapon_id=${tmpl.weapon_id} weapon_lib_config type=${typeof tmpl.weapon_lib_config} value=`, tmpl.weapon_lib_config);
         if (tmpl.weapon_id && tmpl.weapon_lib_config) {
           const libConfig = _parseJsonField(tmpl.weapon_lib_config);
           parsed.weapon_config = Object.assign({}, baseWeaponConfig, libConfig, {
@@ -281,7 +281,7 @@ app.get('/api/public/character-templates', async (req, res) => {
             weapon_type: tmpl.weapon_type_from_lib || null,
             glb_url: tmpl.weapon_glb_url || null,
           });
-          console.log(`[public-templates] 模板 ${tmpl.name} weapon_config 合并结果:`, JSON.stringify(parsed.weapon_config));
+          console.log(`[public-templates] Template ${tmpl.name} merged weapon_config:`, JSON.stringify(parsed.weapon_config));
         } else {
           parsed.weapon_config = Object.keys(baseWeaponConfig).length ? baseWeaponConfig : null;
         }
@@ -319,12 +319,12 @@ app.get('/api/public/character-templates', async (req, res) => {
         // 清理内部字段
         delete parsed._animSet;
         if (animSetResolvedCount > 0) {
-          console.log(`[public-templates] 模板 ${tmpl.name}: anim_set 解析了 ${animSetResolvedCount} 个动画`);
+          console.log(`[public-templates] Template ${tmpl.name}: resolved ${animSetResolvedCount} animations from anim_set`);
         }
 
-        console.log(`[public-templates] 解析模板 ${tmpl.name} 成功:`, parsed.calibration_config);
+        console.log(`[public-templates] Parsed template ${tmpl.name}:`, parsed.calibration_config);
       } catch (error) {
-        console.error(`[public-templates] 解析模板 ${tmpl.name} 失败:`, error);
+        console.error(`[public-templates] Failed to parse template ${tmpl.name}:`, error);
       }
       return parsed;
     });
@@ -332,7 +332,7 @@ app.get('/api/public/character-templates', async (req, res) => {
     res.json({ templates });
   } catch (e) {
     console.error('[public-templates]', e);
-    res.status(500).json({ error: '获取模板列表失败' });
+    res.status(500).json({ error: 'Failed to list character templates' });
   }
 });
 
@@ -374,7 +374,7 @@ app.get('/api/public/character-templates/:id/skills', async (req, res) => {
     res.json({ skills: result.rows });
   } catch (e) {
     console.error('[public-skills]', e);
-    res.status(500).json({ error: '获取技能列表失败' });
+    res.status(500).json({ error: 'Failed to list skills' });
   }
 });
 
@@ -388,7 +388,7 @@ app.get('/api/public/character-templates/weapons', async (req, res) => {
     res.json({ weapons: result.rows });
   } catch (e) {
     console.error('[public-weapons]', e);
-    res.status(500).json({ error: '获取武器库失败' });
+    res.status(500).json({ error: 'Failed to list weapons' });
   }
 });
 
@@ -481,7 +481,7 @@ async function autoFixWorldUrl() {
     if (urlCheck.rows.length > 0) {
       const fedCfg = JSON.parse(urlCheck.rows[0].value);
       if (fedCfg.url_source === 'manual') {
-        console.log(`\n🔧 [自检] world_url 由管理员手动设置为 "${currentUrl}"，跳过自动修正\n`);
+        console.log(`\n🔧 [Startup] world_url was set by an administrator to "${currentUrl}"; keeping this value.\n`);
         return;
       }
     }
@@ -497,13 +497,13 @@ async function autoFixWorldUrl() {
     }
 
     const correctedUrl = `http://${serverIp}:${port}`;
-    console.log(`\n🔧 [自检] world_url 指向外部域名 "${hostname}"`);
-    console.log(`🔧 [自检] 自动修正为 "${correctedUrl}"\n`);
+    console.log(`\n🔧 [Startup] world_url points to an external hostname "${hostname}".`);
+    console.log(`🔧 [Startup] Updated world_url to "${correctedUrl}".\n`);
 
     // 修正 system_config
     await query(
       `INSERT INTO system_config (config_key, config_value, description, updated_at)
-       VALUES ('world_url', $1, '世界访问URL（部署自检自动修正）', NOW())
+       VALUES ('world_url', $1, 'World URL (updated during deployment validation)', NOW())
        ON CONFLICT (config_key) DO UPDATE SET config_value = $1, updated_at = NOW()`,
       [correctedUrl]
     );
@@ -520,12 +520,12 @@ async function autoFixWorldUrl() {
           `UPDATE world_config SET value = $1, updated_at = NOW() WHERE key = 'federation_config'`,
           [JSON.stringify(fedConfig)]
         );
-        console.log(`🔧 [自检] federation_config 中的 worldUrl 也已修正`);
+        console.log(`🔧 [Startup] Also updated worldUrl in federation_config.`);
       }
     }
 
   } catch (err) {
-    console.warn('[自检] world_url 自检失败（不影响启动）:', err.message);
+    console.warn('[Startup] world_url check failed; startup continues:', err.message);
   }
 }
 
@@ -545,7 +545,7 @@ async function start() {
     const PORT = process.env.PORT || 3000;
     const server = app.listen(PORT, async () => {
       console.log(`Server running on http://localhost:${PORT}`);
-      logger.ops('服务器已启动', { port: PORT, pid: process.pid });
+      logger.ops('Server started', { port: PORT, pid: process.pid });
       // 上传/保存请求可能较慢，避免服务端提前断开导致前端 "Failed to fetch"
       server.setTimeout(5 * 60 * 1000); // 5 分钟
       server.keepAliveTimeout = 65000;    // 略大于常见负载均衡 60s
@@ -554,19 +554,19 @@ async function start() {
       // 初始化联邦系统
       try {
         await initFederation();
-        console.log('✅ 联邦系统已启动');
+        console.log('✅ Federation initialized');
       } catch (error) {
-        console.error('❌ 联邦系统启动失败:', error);
+        console.error('❌ Federation initialization failed:', error);
       }
     });
 
     // 处理端口占用错误
     server.on('error', (error) => {
       if (error.code === 'EADDRINUSE') {
-        console.error(`\n❌ 端口 ${PORT} 已被占用!`);
-        console.error('\n请运行以下命令清理端口:');
+        console.error(`\n❌ Port ${PORT} is already in use.`);
+        console.error('\nIdentify the process using this port with:');
         console.error(`  netstat -ano | findstr :${PORT}`);
-        console.error('  taskkill /F /PID <进程ID>\n');
+        console.error('  taskkill /F /PID <PID>\n');
         process.exit(1);
       } else {
         throw error;
@@ -589,7 +589,7 @@ async function start() {
     try {
       require('./services/chatArchiveService').startArchiveLoop();
     } catch (e) {
-      console.warn('[Server] 聊天归档循环启动失败（不影响主服务）:', e.message);
+      console.warn('[Server] Chat archival loop failed to start; the main service continues:', e.message);
     }
   } catch (error) {
     console.error('Failed to start server:', error);

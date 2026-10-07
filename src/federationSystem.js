@@ -149,7 +149,7 @@ class AnimationAdaptation {
         if (boneMapping[boneName]) {
           newFrame[boneMapping[boneName]] = transform;
         } else {
-          console.warn(`骨骼 "${boneName}" 未找到映射，跳过动画数据`);
+          console.warn(`Bone "${boneName}" has no mapping; skipping animation data`);
         }
       });
       redirected.frames.push(newFrame);
@@ -357,7 +357,7 @@ class FederationSystem {
       trustedAt: new Date()
     });
     
-    console.log(`✅ 已信任世界: ${worldName} (${worldId})`);
+    console.log(`✅ Trusted world added: ${worldName} (${worldId})`);
   }
 
   /**
@@ -434,7 +434,7 @@ class FederationSystem {
         [user.id, this.worldId, this.worldName, targetWorldId, targetWorld.worldName, JSON.stringify(payload.context)]
       );
     } catch (error) {
-      console.error('记录传送历史失败:', error);
+      console.error('Failed to record teleport history:', error);
       // 数据库错误不影响Token生成
     }
 
@@ -568,7 +568,7 @@ class FederationSystem {
     for (const [worldId, world] of this.trustedWorlds) {
       try {
         const targetUrl = world.worldUrl.replace(/\/+$/, '');
-        console.log(`[URL广播] → ${world.worldName} (${targetUrl})`);
+        console.log(`[URL broadcast] → ${world.worldName} (${targetUrl})`);
 
         const response = await axios.post(
           `${targetUrl}/api/federation/handshake`,
@@ -589,14 +589,14 @@ class FederationSystem {
         });
 
         if (response.data.success) {
-          console.log(`[URL广播] → ${world.worldName}: ✅ 已更新`);
+          console.log(`[URL broadcast] → ${world.worldName}: ✅ Updated`);
         } else {
-          console.warn(`[URL广播] → ${world.worldName}: ❌ ${response.data.error}`);
+          console.warn(`[URL broadcast] → ${world.worldName}: ❌ ${response.data.error}`);
         }
 
       } catch (err) {
         results.push({ worldId, worldName: world.worldName, success: false, message: err.message });
-        console.warn(`[URL广播] → ${world.worldName}: ❌ ${err.message}`);
+        console.warn(`[URL broadcast] → ${world.worldName}: ❌ ${err.message}`);
       }
     }
 
@@ -663,7 +663,7 @@ class FederationSystem {
       return response.data;
 
     } catch (error) {
-      console.error('用户数据同步失败:', error);
+      console.error('User data synchronization failed:', error);
       return {
         success: false,
         error: error.message
@@ -712,7 +712,7 @@ class FederationSystem {
       return userData;
       
     } catch (error) {
-      console.error('获取用户数据失败:', error);
+      console.error('Failed to load user data:', error);
       throw error;
     }
   }
@@ -805,7 +805,7 @@ class FederationSystem {
       };
 
     } catch (error) {
-      console.error('获取角色模板资源引用失败:', error);
+      console.error('Failed to load character template resource references:', error);
       return {
         success: false,
         error: error.message
@@ -904,7 +904,7 @@ class FederationSystem {
       };
 
     } catch (error) {
-      console.error('接收角色模板资源引用失败:', error);
+      console.error('Failed to receive character template resource references:', error);
       return {
         success: false,
         error: error.message
@@ -990,7 +990,7 @@ class FederationSystem {
          resourceInfo.size, resourceInfo.format, resourceInfo.quality]
       );
     } catch (error) {
-      console.error(`存储资源引用失败 (${resourceType}):`, error);
+      console.error(`Failed to store resource reference (${resourceType}):`, error);
     }
   }
 
@@ -1024,7 +1024,7 @@ class FederationSystem {
       this.checkAllWorldsStatus();
     }, 30000);
     
-    console.log('✅ 世界状态监控已启动');
+    console.log('✅ World status monitoring started');
   }
 
   /**
@@ -1110,7 +1110,7 @@ class FederationSystem {
       this.cleanupRateLimits();
     }, 60000);
     
-    console.log('✅ 速率限制清理已启动');
+    console.log('✅ Rate limit cleanup started');
   }
 
   /**
@@ -1140,7 +1140,7 @@ class FederationSystem {
    */
   addIpToWhitelist(ip) {
     this.ipWhitelist.add(ip);
-    console.log(`✅ IP ${ip} 已添加到白名单`);
+    console.log(`✅ IP ${ip} added to allowlist`);
   }
 
   /**
@@ -1149,7 +1149,7 @@ class FederationSystem {
    */
   removeIpFromWhitelist(ip) {
     this.ipWhitelist.delete(ip);
-    console.log(`✅ IP ${ip} 已从白名单移除`);
+    console.log(`✅ IP ${ip} removed from allowlist`);
   }
 
   /**

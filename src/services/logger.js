@@ -1,23 +1,19 @@
 /**
- * logger.js — 日志三分流（P8 前置基建）
+ * Three logging channels with independent daily files and retention:
+ * access: JSONL HTTP requests, WebSocket connections and tickets (7 days).
+ * ops: readable startup, migration, agent, archival and error events (30 days).
+ * audit: JSONL authentication, agent keys and configuration changes (365 days).
  *
- * 三通道，各自独立文件、独立保留期、按天轮转：
- *   access.log  JSONL  HTTP 请求 / WS 连断 / 签票              保留 7 天
- *   ops.log     人读    启停 / 迁移 / Agent 生命周期 / 归档 / 错误  保留 30 天
- *   audit.log   JSONL  登录 / 创建停用 Agent / 发 Key / 改配置 / 拉黑  长期保留（365 天）
+ * Each write selects the current day's file without a rotation timer.
+ * One promise queue per channel serializes appends. Write failures are reported
+ * without interrupting application requests. Use this module for new log events.
  *
- * 设计要点：
- *   - 按天轮转不靠定时器：每次写入用当天日期算文件名，跨天自动新建文件（无需重启）。
- *   - 写入串行化：每通道一条 Promise 队列，避免并发 appendFile 交叉写坏行。
- *   - 写盘失败只 console.error，绝不抛异常拖垮业务（日志是旁路，不是关键路径）。
- *   - 黑名单原则：旧大文件里的 console.log 不迁移，只在新增/改造点使用本模块。
- *
- * 用法：
+ * Usage:
  *   const logger = require('./services/logger');
- *   logger.start();                       // 启动时一次
- *   app.use(logger.httpMiddleware());     // Express 访问日志（过滤 /health）
- *   logger.access({ kind:'ws', event:'connect', ... });
- *   logger.ops('Agent WS 服务已启动', { path: '/ws/agent' });
+ *   logger.start();
+ *   app.use(logger.httpMiddleware());
+ *   logger.access({ kind: 'ws', event: 'connect' });
+ *   logger.ops('Agent WebSocket started', { path: '/ws/agent' });
  *   logger.audit('session_issued', { agent: 'x', ip: '1.2.3.4' });
  */
 
@@ -66,7 +62,7 @@ function enqueue(channel, line) {
   const file = filePath(channel);
   queues[channel] = queues[channel]
     .then(() => fsp.appendFile(file, line + '\n', 'utf8'))
-    .catch((e) => { console.error(`[logger] 写入 ${channel} 失败:`, e.message); });
+    .catch((e) => { console.error(`[logger] Failed to write ${channel}:`, e.message); });
   return queues[channel];
 }
 

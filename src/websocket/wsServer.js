@@ -180,7 +180,7 @@ function warnUnregistered(connectionId, type) {
   const last = ghostWarnAt.get(connectionId) || 0;
   if (now - last < 30000) return;
   ghostWarnAt.set(connectionId, now);
-  console.warn(`[WS] ${type} 来自未登记连接（该连接未发 PLAYER_JOIN），已忽略: ${connectionId}`);
+  console.warn(`[WS] Ignored ${type} from an unregistered connection (PLAYER_JOIN not received): ${connectionId}`);
 }
 
 /**
@@ -230,9 +230,9 @@ function setupWebSocketServer(httpServer) {
                WHERE id = $2`,
               [JSON.stringify(playerData.position), playerData.characterId]
             );
-            console.log(`💾 保存玩家 ${playerData.characterName} 最后位置:`, playerData.position);
+            console.log(`💾 Saving last position for ${playerData.characterName}:`, playerData.position);
           } catch (error) {
-            console.error('保存玩家位置失败:', error);
+            console.error('Failed to save player position:', error);
           }
         }
         if (!supersededConnections.has(connectionId) &&
@@ -930,7 +930,7 @@ function handlePortalCreate(connectionId, payload) {
       playerPositions.get(connectionId)?.roomId !== MAIN_ROOM_ID) return;
   const { portalId, name, sourcePosition, targetPosition, portalType } = payload;
 
-  console.log(`🌀 传送门创建: ${name} (${portalType})`);
+  console.log(`🌀 Portal created: ${name} (${portalType})`);
 
   // 广播传送门创建事件给所有玩家
   broadcastToAll({
@@ -954,7 +954,7 @@ function handlePortalTeleport(connectionId, payload) {
       playerPositions.get(connectionId)?.roomId !== MAIN_ROOM_ID) return;
   const { characterId, portalId, fromPosition, toPosition } = payload;
 
-  console.log(`✨ 玩家传送: ${characterId} 通过传送门 ${portalId}`);
+  console.log(`✨ Player ${characterId} teleported through portal ${portalId}`);
 
   // 更新玩家位置
   if (playerPositions.has(connectionId)) {
@@ -1006,9 +1006,9 @@ async function handleRequestPortals(connectionId, ws) {
       },
     }));
 
-    console.log(`📋 发送传送门列表: ${result.rows.length} 个传送门`);
+    console.log(`📋 Sending portal list: ${result.rows.length} portals`);
   } catch (error) {
-    console.error('❌ 获取传送门列表失败:', error);
+    console.error('❌ Failed to list portals:', error);
     ws.send(JSON.stringify({
       type: 'ERROR',
       payload: {
