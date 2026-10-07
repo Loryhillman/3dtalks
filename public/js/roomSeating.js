@@ -123,13 +123,16 @@
   function build() {
     toolbar = document.createElement('div'); toolbar.style.cssText = 'position:fixed;top:85px;right:16px;z-index:12000;display:flex;gap:8px;flex-wrap:wrap;max-width:calc(100vw - 32px)';
     placesButton=button(t('places', 'Места'), () => pickerOpen ? closePicker() : openPicker(), toolbar);
+    placesButton.dataset.i18n='roomSeating.places';
     placesButton.id='room-places-toggle';placesButton.setAttribute('aria-expanded','false');placesButton.setAttribute('aria-controls','room-seat-picker');
-    button(t('leave', 'Выйти из комнаты'), () => WSClient.connected ? request('ROOM_LEAVE') : leaveLocal(), toolbar);
+    button(t('leave', 'Выйти из комнаты'), () => WSClient.connected ? request('ROOM_LEAVE') : leaveLocal(), toolbar).dataset.i18n='roomSeating.leave';
     document.body.append(toolbar);
     const capacityBadge = document.createElement('span');
-    capacityBadge.textContent = t('capacity', 'Лимит участников') + ': ' + room.capacity;
+    const capacityLabel=document.createElement('span');capacityLabel.dataset.i18n='roomSeating.capacity';capacityLabel.textContent=t('capacity','Лимит участников');
+    capacityBadge.append(capacityLabel, ': '+room.capacity);
     capacityBadge.style.cssText = 'background:#171e29;color:white;padding:8px;border-radius:6px';
     toolbar.append(capacityBadge);
+    window.MeetingUI?.enter(room, toolbar);
     const style=document.createElement('style');style.textContent=`
       #room-seat-picker{position:fixed;right:16px;top:145px;width:310px;max-height:calc(100dvh - 165px);overflow:auto;box-sizing:border-box;z-index:12001;padding:14px;background:#171e29ee;color:white;border:1px solid #65758a;border-radius:10px;font:14px system-ui}
       #room-seat-picker[hidden],#room-seat-picker [hidden],.room-seat-labels[hidden]{display:none!important}

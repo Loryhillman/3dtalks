@@ -1,0 +1,59 @@
+/* The shared game page presents only meeting controls in a room. */
+.meeting-session {
+  --meeting-top-edge: 110px;
+  --meeting-bottom-space: 88px;
+}
+.meeting-session :is(#health-bar,#monster-head-hud,#minimap,#btn-profile,#btn-inventory,#user-quick-actions,
+  #world-portal-btn,#portal-manager,#portal-manager-btn,#federation-teleport-btn,#federation-teleport-menu,#federation-overlay,
+  #inventory-page,#profile-page,#controls-hint,#debug-panel,#performance-monitor,#skill-hud,#skill-cd-tip,
+  #mobile-joystick,#mobile-jump-btn,#mobile-sprint-btn,#mobile-camera-toggle-btn,#mobile-turn-left-btn,#mobile-turn-right-btn,#chatBox,#voiceIndicator) {
+  display: none !important;
+}
+.meeting-session #meeting-toolbar {
+  position: fixed !important; top: max(12px,env(safe-area-inset-top)) !important;
+  left: 12px !important; right: 12px !important; max-width: none !important;
+  display: flex !important; align-items: center; flex-wrap: wrap !important; gap: 10px !important;
+  padding: 10px 12px; box-sizing: border-box; border: 1px solid #516074; border-radius: 10px;
+  background: #171e29ee; color: #f2f5fa; font: 14px system-ui; z-index: 12000 !important;
+}
+.meeting-identity { flex: 1 1 180px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.meeting-identity strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
+.meeting-session .meeting-capacity { padding: 0 !important; background: transparent !important; color: #bac7d8 !important; font-size: 12px; }
+.meeting-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.meeting-session .meeting-actions button { min-height: 44px; padding: 8px 12px !important; font: 14px system-ui !important; }
+.meeting-session #btn-language { position: static !important; width: 44px !important; height: 44px !important; padding: 0 !important; border: 1px solid #718198 !important; border-radius: 6px !important; color: white !important; background: #26354a !important; box-shadow: none !important; }
+.meeting-session #meeting-footer {
+  position: fixed; left: 50%; bottom: max(12px,env(safe-area-inset-bottom)); transform: translateX(-50%);
+  display: flex; align-items: stretch; gap: 8px; width: min(760px,calc(100% - 24px)); box-sizing: border-box; z-index: 12000;
+}
+.meeting-session #nearby-chat-wrap {
+  display: flex !important;
+  position: static !important; transform: none !important; flex: 1 1 0; min-width: 0; min-height: 52px;
+  margin: 0 !important; padding: 6px 10px !important; border-radius: 10px !important; box-sizing: border-box;
+  background: #171e29ee !important; border-color: #516074 !important;
+}
+.meeting-session #nearby-chat-input { flex: 1 1 0; min-width: 0 !important; max-width: none !important; width: 100% !important; font-size: 16px !important; }
+.meeting-session #nearby-chat-send { flex-shrink: 0; min-height: 36px; padding: 4px 10px !important; }
+.meeting-session #skill-voice-btn {
+  position: relative !important; inset: auto !important; transform: none !important;
+  flex: 0 0 64px; width: 64px !important; height: auto !important; min-height: 52px; margin: 0 !important;
+  border-radius: 10px !important; box-sizing: border-box; align-self: stretch;
+}
+.meeting-session #skill-voice-btn .sv-label { font: 11px system-ui; }
+.meeting-session #room-seat-picker {
+  top: var(--meeting-top-edge) !important; bottom: auto !important; right: 12px !important; left: auto !important;
+  width: min(340px,calc(100vw - 24px)) !important;
+  max-height: max(0px,calc(100dvh - var(--meeting-top-edge) - var(--meeting-bottom-space))) !important;
+  margin: 0 !important; overflow: auto;
+}
+@media (max-width: 600px) {
+  .meeting-identity { flex-basis: 100%; }
+  .meeting-actions { width: 100%; }
+  .meeting-session .meeting-actions button { flex: 1 1 auto; }
+  .meeting-session #btn-language { flex: 0 0 44px; }
+  .meeting-session #nearby-chat-counter { display: none !important; }
+  .meeting-session #room-seat-picker { left: 12px !important; right: 12px !important; width: auto !important; }
+}
+@media (max-height: 420px) and (min-width: 601px) {
+  .meeting-session #meeting-toolbar { padding: 6px 10px; }
+}

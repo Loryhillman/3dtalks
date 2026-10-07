@@ -5,6 +5,7 @@
 // UI Management
 class UI {
   static updateHealthBar(current, max) {
+    if (window.MeetingUI?.active) return;
     const percentage = (current / max) * 100;
     const fillElement = document.getElementById('healthFill');
     fillElement.style.width = percentage + '%';
@@ -86,6 +87,7 @@ class UI {
   }
 
   static updateMinimap(playerPosition, monsters, shops) {
+    if (window.MeetingUI?.active) return;
     const canvas = document.getElementById('minimap');
     if (!canvas) return; // 如果minimap元素不存在，直接返回
     const ctx = canvas.getContext('2d');

@@ -5337,6 +5337,11 @@
     "limit": "最多100个座位",
     "readOnly": "此房间不可编辑"
   },
+  "meetingUi": {
+    "communication": "聊天和麦克风",
+    "controls": "房间控制",
+    "language": "切换语言"
+  },
   "roomSeating": {
     "capacity": "参与人数上限",
     "screen": "屏幕 / 投影仪",

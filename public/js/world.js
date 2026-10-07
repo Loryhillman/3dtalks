@@ -1914,7 +1914,7 @@ class World {
     characterGroup.add(rightLegGroup);
     
     // 右手武器：仅当 weaponConfig 有效（非 null 且为对象）时才创建
-    const hasWeapon = (typeof weaponConfig === 'object' && weaponConfig !== null);
+    const hasWeapon = !window.MeetingUI?.active && (typeof weaponConfig === 'object' && weaponConfig !== null);
     const _wCfg = hasWeapon ? weaponConfig : {};
     let laserSwordGroup = null;
     let blade = null, glow = null, swordLight = null;

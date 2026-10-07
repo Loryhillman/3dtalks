@@ -25,10 +25,10 @@ class SkillHUD {
 
   init() {
     this._injectStyles();
-    this._createContainer();
+    if (!window.MeetingUI?.active) this._createContainer();
     this._createVoiceButton();
     // 初始渲染空槽位（5个）
-    this.renderSlots({});
+    if (!window.MeetingUI?.active) this.renderSlots({});
     if (window.i18n?.onLocaleChange) {
       window.i18n.onLocaleChange(() => this.refreshTranslations());
     }
@@ -287,6 +287,7 @@ class SkillHUD {
   // ─── 渲染技能槽位 ──────────────────────────────────────────────
 
   renderSlots(slots) {
+    if (window.MeetingUI?.active) return;
     // 先取消所有正在运行的冷却动画RAF，避免内存泄漏
     Object.keys(this.cooldownTimers).forEach(id => {
       cancelAnimationFrame(this.cooldownTimers[id]);

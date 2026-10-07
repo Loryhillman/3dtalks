@@ -5337,6 +5337,11 @@
     "limit": "Maximum 100 seats",
     "readOnly": "This room is read-only"
   },
+  "meetingUi": {
+    "communication": "Chat and microphone",
+    "controls": "Room controls",
+    "language": "Change language"
+  },
   "roomSeating": {
     "capacity": "Participant limit",
     "screen": "Screen / projector",
