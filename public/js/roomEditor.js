@@ -36,12 +36,15 @@
     });
     if (selectedSeat < 0 && transform.object?.userData.seatIndex !== undefined) transform.detach();
   }
-  window.addEventListener('room-seat-preview',event=>{seatPreview=event.detail.seats;selectedSeat=event.detail.selected;renderSeatPreview();});
+  window.addEventListener('room-seat-preview',event=>{seatPreview=event.detail.seats;selectedSeat=event.detail.selected;renderSeatPreview();updateSelection();});
   window.addEventListener('room-seat-selected',event=>{
     if (busy || preview) return;
     action(async()=>{
-      await applyCurrent(); selected=null; objectDirty=false;showPanel('seats');transform.detach();
+      await applyCurrent(); selected=null; objectDirty=false;
+      document.getElementById('edit-form').hidden=true;
+      updateSelection();showPanel('seats');transform.detach();
       selectedSeat=event.detail;
+      updateSelection();
       if (selectedSeat>=0 && room.status==='draft') {transform.setMode('translate');transform.attach(seatMarkers.get(selectedSeat));}
     });
   });
@@ -52,7 +55,7 @@
   });
   let room;
   let selected;
-  let generation = 0;
+
   const tr = (key, fallback) => {
     const value = window.i18n?.t('roomEditor.' + key);
     return value && value !== 'roomEditor.' + key ? value : fallback;
@@ -100,10 +103,11 @@
       message.textContent = tr('modelUploading', 'Загружаем модель…');
       try {
         const model = await RoomModelUpload.upload(file);
+        if (template) template.models.push(model);
         addModelOption(model);
         document.getElementById('model-id').value = model.id;
         document.getElementById('model-name').value = model.name;
-        message.textContent = tr('modelUploaded', 'Модель загружена. Нажмите «Добавить в центр», чтобы разместить её.');
+        message.textContent = tr('modelUploaded', 'Модель загружена. Нажмите «Добавить предмет», чтобы разместить её.');
       } finally { event.target.value = ''; }
     });
   });
@@ -132,6 +136,8 @@
     updateTemplateStatus();
   });
   scene.add(transform.getHelper ? transform.getHelper() : transform);
+  const selectionBox = new THREE.BoxHelper(new THREE.Group(), 0xffcc66);
+  selectionBox.visible = false; scene.add(selectionBox);
   scene.add(new THREE.HemisphereLight(0xffffff, 0x748090, 2));
   const grid = new THREE.GridHelper(40, 40, 0x64748b, 0x394657);
   grid.position.y = -0.01;
@@ -156,6 +162,7 @@
   function frame() {
     requestAnimationFrame(frame);
     orbit.update();
+    if (selectionBox.visible) selectionBox.update();
     renderer.render(scene, camera);
     seatLabels.update(camera,renderer.domElement,seatPreview.map((seat,index)=>({id:index,label:seat.label,
       position:RoomSeatCoordinates.world(seat,window.RoomEditorObjects.get(seat.object_id)).position,
@@ -189,6 +196,7 @@
     if (!selected || !objectDirty) return;
     const data = await api(`/objects/${selected.id}`, { method: 'PATCH', body: JSON.stringify(currentBody()) });
     Object.assign(selected, data.object || {});
+    updateSelection();
     objectDirty = false;
   }
   function updateTemplateStatus() {
@@ -201,36 +209,82 @@
   async function action(fn) {
     if (busy) return;
     busy = true; document.body.classList.add('saving');
+    const controls = [...document.querySelectorAll('button')];
+    const disabled = controls.map(control => control.disabled);
+    controls.forEach(control => { control.disabled = true; });
+    document.body.setAttribute('aria-busy', 'true');
+    const panels = [...document.querySelectorAll('aside,main,#editor-header')];
+    const inert = panels.map(panel => panel.inert);
+    panels.forEach(panel => { panel.inert = true; });
     try { await fn(); } catch (error) { message.textContent = error.message; }
-    finally { busy = false; document.body.classList.remove('saving'); updateTemplateStatus(); }
+    finally {
+      controls.forEach((control, index) => { if (control.isConnected) control.disabled = disabled[index]; });
+      panels.forEach((panel, index) => { panel.inert = inert[index]; });
+      busy = false; document.body.classList.remove('saving'); document.body.setAttribute('aria-busy', 'false');
+      updateTemplateStatus(); updateSelection();
+    }
   }
 
+  function updateSelection() {
+    const group = objects.get(selected?.id)?.group;
+    selectionBox.visible = !!group && !preview && selectionMode === 'objects';
+    if (group) selectionBox.setFromObject(group);
+    document.querySelectorAll('#object-list .item').forEach(button =>
+      button.classList.toggle('selected', Number(button.dataset.id) === selected?.id));
+    if (selected) {
+      const label = `${selected.name} (#${selected.id})`;
+      document.getElementById('selected-name').textContent = label;
+      const button = document.querySelector(`#object-list [data-id="${selected.id}"]`);
+      if (button) button.textContent = label;
+    }
+    document.getElementById('deselect').disabled = !selected && selectedSeat < 0;
+    document.getElementById('placement-beside').disabled = !selected;
+    if (!selected) document.getElementById('add-placement').value = 'center';
+    document.getElementById('selection-empty').hidden = !!selected;
+  }
+  function selectObject(object) {
+    selected = object || null;
+    transform.detach();
+    document.getElementById('edit-form').hidden = !selected || room.status !== 'draft';
+    if (selected) {
+      if (!preview && selectionMode === 'objects' && room.status === 'draft') transform.attach(objects.get(selected.id).group);
+      document.getElementById('selected-name').textContent = `${selected.name} (#${selected.id})`;
+      document.getElementById('object-name').value = selected.name || '';
+      document.getElementById('object-collision').checked = selected.has_collision === true;
+      syncPositionFields();
+    }
+    updateSelection();
+  }
+  async function clearSelection() {
+    await applyCurrent();
+    window.RoomSeatEditor?.deselect();
+    selectedSeat = -1; selectObject(null); renderSeatPreview();
+  }
   async function choose(object) {
     if (busy || preview || selected?.id === object.id) return;
-    if(object.is_room_shell){showPanel('room');return;}
-    try { window.RoomSeatEditor?.deselect(); } catch(error) {message.textContent=error.message;return;}
-    if (objectDirty) {
-      if (template) { try { await applyCurrent(); } catch (error) { message.textContent = error.message; return; } }
-      else if (!confirm(tr('discardTransform', 'Отменить несохранённые изменения предмета?'))) return;
-    }
-    objectDirty = false;
-    showPanel('objects');
-    selected = object;
-    const group = objects.get(object.id)?.group;
-    if (!group) return;
-    transform.detach();
-    if (room.status === 'draft') transform.attach(group);
-    document.getElementById('edit-form').hidden = room.status !== 'draft';
-    document.getElementById('selected-name').textContent = `${object.name} (#${object.id})`;
-    document.getElementById('object-name').value = object.name || '';
-    document.getElementById('object-collision').checked = object.has_collision === true;
-    syncPositionFields();
-    document.querySelectorAll('.item').forEach(button =>
-      button.classList.toggle('selected', Number(button.dataset.id) === object.id));
+    return action(async () => {
+      await applyCurrent();
+      window.RoomSeatEditor?.deselect();
+      if (object.is_room_shell) { selectObject(null); showPanel('room'); return; }
+      showPanel('objects'); selectObject(objects.get(object.id)?.data);
+    });
   }
-
+  document.getElementById('deselect').addEventListener('click', () => action(clearSelection));
+  window.addEventListener('keydown', event => {
+    if (event.key !== 'Escape' || busy || manipulating || preview || event.target.closest?.('input,textarea,select,[contenteditable="true"]')) return;
+    event.preventDefault(); action(clearSelection);
+  });
+  let pointerDown;
+  renderer.domElement.addEventListener('pointerdown', event => {
+    if (event.button === 0) pointerDown = { x: event.clientX, y: event.clientY, id: event.pointerId, moved: false };
+  });
+  renderer.domElement.addEventListener('pointermove', event => {
+    if (pointerDown && Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y) > 5) pointerDown.moved = true;
+  });
+  renderer.domElement.addEventListener('pointercancel', () => { pointerDown = null; });
   renderer.domElement.addEventListener('pointerup', event => {
-    if (busy || preview || manipulating || !orbit.enabled || event.button !== 0) return;
+    const down = pointerDown; pointerDown = null;
+    if (!down || down.id !== event.pointerId || down.moved || Math.hypot(event.clientX-down.x,event.clientY-down.y)>5 || busy || preview || manipulating || !orbit.enabled || event.button !== 0) return;
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.set((event.clientX - rect.left) / rect.width * 2 - 1,
       -(event.clientY - rect.top) / rect.height * 2 + 1);
@@ -238,7 +292,7 @@
     const seatHits=raycaster.intersectObjects([...seatMarkers.values()],true);
     if(seatHits.length){let node=seatHits[0].object;while(node&&node.userData.seatIndex===undefined)node=node.parent;
       if(node && selectionMode==='seats'){window.dispatchEvent(new CustomEvent('room-seat-picked',{detail:node.userData.seatIndex}));return;}}
-    if(selectionMode==='seats')return;
+    if(selectionMode==='seats'){action(clearSelection);return;}
     const hits = raycaster.intersectObjects([...objects.values()].map(entry => entry.group), true);
     for (const hit of hits) {
       let node = hit.object;
@@ -253,9 +307,10 @@
         if(selectionMode!=='room')return;
       }
     }
+    if (selectionMode !== 'room') action(clearSelection);
   });
 
-  function visualFor(object, token) {
+  function visualFor(object) {
     const group = new THREE.Group();
     group.userData.roomObjectId = object.id;
     group.position.set(object.position_x || 0, object.position_y || 0, object.position_z || 0);
@@ -268,8 +323,9 @@
         new THREE.MeshStandardMaterial({ color: 0x5b9dca, wireframe: true }));
       group.add(placeholder);
       decoderReady.then(() => loader.load(object.model_path, gltf => {
-        if (token !== generation) return;
+        if (objects.get(object.id)?.group !== group) { disposeGroup(gltf.scene); return; }
         group.remove(placeholder);
+        disposeGroup(placeholder);
         group.add(gltf.scene);
       }, undefined, () => { message.textContent = `${tr('modelLoadError', 'Не загрузилась модель')}: ${object.model_path}`; }))
         .catch(error => { message.textContent = error.message; });
@@ -281,26 +337,37 @@
     objects.set(object.id, { data: object, group });
   }
 
-  async function loadObjects() {
+  function disposeGroup(group) {
+    group.traverse(node => { node.geometry?.dispose();
+      for (const material of Array.isArray(node.material) ? node.material : [node.material]) if (material) {
+        for (const value of Object.values(material)) if (value?.isTexture) value.dispose();
+        material.dispose();
+      }
+    });
+  }
+  const visualSignature = object => JSON.stringify([object.type, object.model_path, object.geometry_data]);
+  async function loadObjects(selectId = selected?.id) {
     await window.RoomEnvelopeEditor?.flush();
     const data = await api('/objects');
-    generation++;
-    transform.detach();
-    selected = null;
-    objectDirty = false;
-    document.getElementById('edit-form').hidden = true;
-    for (const entry of objects.values()) {
-      scene.remove(entry.group);
-      entry.group.traverse(node => { node.geometry?.dispose();
-        const materials = Array.isArray(node.material) ? node.material : [node.material];
-        for (const m of materials) if (m) { for (const value of Object.values(m)) if (value?.isTexture) value.dispose(); m.dispose(); }
-      });
+    const ids = new Set(data.objects.map(object => object.id));
+    for (const [key, entry] of objects) if (!ids.has(key)) {
+      if (transform.object === entry.group) transform.detach();
+      scene.remove(entry.group); disposeGroup(entry.group); objects.delete(key);
     }
-    objects.clear();
+    for (const object of data.objects) {
+      const entry = objects.get(object.id);
+      if (entry && visualSignature(entry.data) === visualSignature(object)) {
+        Object.assign(entry.data, object);
+        for (const prefix of ['position','rotation','scale']) entry.group[prefix].set(...['x','y','z'].map(a => object[prefix+'_'+a] ?? (prefix==='scale'?1:0)));
+      } else {
+        if (entry) { transform.detach(); scene.remove(entry.group); disposeGroup(entry.group); objects.delete(object.id); }
+        visualFor(object);
+      }
+    }
+    objectDirty = false;
     const list = document.getElementById('object-list');
     list.replaceChildren();
     for (const object of data.objects) {
-      visualFor(object, generation);
       if(object.is_room_shell)continue;
       const button = document.createElement('button');
       button.className = 'item';
@@ -311,6 +378,7 @@
       button.addEventListener('dblclick', async () => {await choose(object);focusObject(object.id);});
       list.append(button);
     }
+    selectObject(objects.get(selectId)?.data);
     renderSeatPreview();filterElements();
     window.dispatchEvent(new CustomEvent('room-editor-loaded', { detail: { room, objects: data.objects } }));
   }
@@ -341,7 +409,7 @@
         addModelOption(model);
       }
       await loadObjects();
-      updateTemplateStatus();
+      updateTemplateStatus(); updateSelection();
     } catch (error) {
       message.textContent = error.message;
     }
@@ -371,13 +439,14 @@
     document.getElementById('seat-properties').hidden=panel!=='seats';
     document.getElementById('show-objects').setAttribute('aria-pressed',String(panel==='objects'));
     document.getElementById('show-seats').setAttribute('aria-pressed',String(panel==='seats'));
-    transform.detach();
+    transform.detach(); updateSelection();
     if(!preview && room?.status==='draft') {
       if(panel==='objects' && selected)transform.attach(objects.get(selected.id).group);
       if(panel==='seats' && selectedSeat>=0){transform.setMode('translate');transform.attach(seatMarkers.get(selectedSeat));}
     }
   }
-  document.getElementById('show-room').addEventListener('click',()=>showPanel('room'));
+  const switchPanel = panel => action(async () => { await applyCurrent(); window.RoomSeatEditor?.flush(); showPanel(panel); });
+  document.getElementById('show-room').addEventListener('click',()=>switchPanel('room'));
   window.addEventListener('room-envelope-selected',()=>showPanel('room'));
   window.addEventListener('room-envelope-preview',event=>{
     const entry=objects.get(event.detail.id);if(!entry)return;
@@ -386,17 +455,18 @@
     entry.data.room_envelope=event.detail.envelope;
     renderSeatPreview();
   });
-  document.getElementById('show-objects').addEventListener('click',()=>showPanel('objects'));
-  document.getElementById('show-seats').addEventListener('click',()=>showPanel('seats'));
+  document.getElementById('show-objects').addEventListener('click',()=>switchPanel('objects'));
+  document.getElementById('show-seats').addEventListener('click',()=>switchPanel('seats'));
   document.getElementById('rotate-mode').addEventListener('click', () => transform.setMode('rotate'));
   document.getElementById('scale-mode').addEventListener('click', () => {if(transform.object?.userData.seatIndex===undefined)transform.setMode('scale');});
-  document.getElementById('preview-mode').addEventListener('click', () => {
+  document.getElementById('preview-mode').addEventListener('click', () => action(async () => {
+    await applyCurrent(); window.RoomSeatEditor?.flush();
     preview = !preview; grid.visible = !preview;
     transform.detach();
-    if (!preview && selected && room.status === 'draft') transform.attach(objects.get(selected.id).group);
+    showPanel(selectionMode);
     renderSeatPreview();
     document.getElementById('preview-mode').textContent = preview ? tr('backToEditing', 'Вернуться к редактированию') : tr('preview', 'Предпросмотр');
-  });
+  }));
   document.getElementById('edit-form').addEventListener('input', () => {
     if (!selected) return;
     objectDirty = true;
@@ -410,49 +480,54 @@
     window.RoomSeatEditor?.refresh();
     updateTemplateStatus();
   });
-  document.getElementById('add-form').addEventListener('submit', async event => {
+  function placement() {
+    if (document.getElementById('add-placement').value !== 'beside' || !selected) return { x: 0, y: 0, z: 0 };
+    const group = objects.get(selected.id).group;
+    const bounds = new THREE.Box3().setFromObject(group);
+    return { x: Math.max(bounds.max.x, group.position.x) + .5, y: group.position.y, z: group.position.z };
+  }
+  document.getElementById('add-form').addEventListener('submit', event => {
     event.preventDefault();
-    try {
-      if (template) { await applyCurrent(); await window.RoomSeatEditor?.save(); }
-      await api('/objects', { method: 'POST', body: JSON.stringify({
+    action(async () => {
+      await applyCurrent(); await window.RoomSeatEditor?.save();
+      const position = placement();
+      const data = await api('/objects', { method: 'POST', body: JSON.stringify({
         model_id: Number(document.getElementById('model-id').value),
         name: document.getElementById('model-name').value,
-        position_x: 0, position_y: 0, position_z: 0,
+        position_x: position.x, position_y: position.y, position_z: position.z,
         rotation_x: 0, rotation_y: 0, rotation_z: 0,
         scale_x: 1, scale_y: 1, scale_z: 1, has_collision: true
       }) });
       document.getElementById('model-name').value = '';
-      await loadObjects();
+      document.getElementById('element-search').value = '';
+      showPanel('objects');
+      await loadObjects(data.object.id);
       message.textContent = tr('added', 'Предмет добавлен');
-    } catch (error) { message.textContent = error.message; }
+    });
   });
-  document.getElementById('edit-form').addEventListener('submit', async event => {
+  document.getElementById('edit-form').addEventListener('submit', event => {
     event.preventDefault();
-    if (!selected) return;
-    try {
-      objectDirty = true;
-      await applyCurrent();
+    action(async () => {
+      if (!selected) return;
+      objectDirty = true; await applyCurrent(); await window.RoomSeatEditor?.save();
       await loadObjects();
       message.textContent = template ? tr('appliedDraft', 'Изменения применены. Сохраните черновик') : tr('saved', 'Положение сохранено');
-    } catch (error) { message.textContent = error.message; }
+    });
   });
-  document.getElementById('delete-object').addEventListener('click', async () => {
+  document.getElementById('delete-object').addEventListener('click', () => action(async () => {
     if (!selected || !confirm(tr('confirmDelete', 'Удалить этот предмет?'))) return;
-    try {
-      await applyCurrent();
-      await window.RoomSeatEditor?.save();
-      const attached=window.RoomSeatEditor?.attached(selected.id)||[];
-      let seats='delete';
-      if(attached.length){
-        seats=prompt(tr('deleteSeatsChoice','У предмета есть места. Введите 1 — оставить места отдельно, 2 — удалить вместе с предметом.'),'1');
-        if(seats!=='1'&&seats!=='2')return;
-        seats=seats==='1'?'keep':'delete';
-      }
-      await api(`/objects/${selected.id}`, { method: 'DELETE', body:JSON.stringify({seats}) });
-      await loadObjects();
-      message.textContent = tr('deleted', 'Предмет удалён');
-    } catch (error) { message.textContent = error.message; }
-  });
+    await applyCurrent(); await window.RoomSeatEditor?.save();
+    const attached=window.RoomSeatEditor?.attached(selected.id)||[];
+    let seats='delete';
+    if(attached.length){
+      seats=prompt(tr('deleteSeatsChoice','У предмета есть места. Введите 1 — оставить места отдельно, 2 — удалить вместе с предметом.'),'1');
+      if(seats!=='1'&&seats!=='2')return;
+      seats=seats==='1'?'keep':'delete';
+    }
+    await api(`/objects/${selected.id}`, { method: 'DELETE', body:JSON.stringify({seats}) });
+    await loadObjects(null);
+    message.textContent = tr('deleted', 'Предмет удалён');
+  }));
   document.getElementById('template-name').addEventListener('input', event => {
     if (template) { template.draft.name = event.target.value; template.changed(); }
   });
@@ -476,7 +551,10 @@
   }));
   document.getElementById('copy-object').addEventListener('click', () => action(async () => {
     if (!selected) return;
-    await prepareTemplate(); await api(`/objects/${selected.id}/copy`, { method: 'POST' }); await loadObjects();
+    await prepareTemplate(); const data = await api(`/objects/${selected.id}/copy`, { method: 'POST' });
+    document.getElementById('element-search').value = '';
+    await loadObjects(data.object?.id);
+    message.textContent = tr('copiedObject', 'Копия создана и выбрана');
   }));
   window.addEventListener('beforeunload', event => {
     if (objectDirty || template?.dirty) { event.preventDefault(); event.returnValue = ''; }

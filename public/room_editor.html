@@ -51,12 +51,13 @@
     <h2 data-i18n="roomEditor.addModel">Добавить модель</h2>
     <section id="model-upload-panel" hidden>
       <label><span data-i18n="roomEditor.uploadFile">Загрузить GLB с компьютера</span><input id="model-upload-file" type="file" accept=".glb"></label>
-      <p data-i18n="roomEditor.uploadHint">До 100 МБ. После загрузки модель будет выбрана в списке. Нажмите «Добавить в центр», чтобы разместить её.</p>
+      <p data-i18n="roomEditor.uploadHint">До 100 МБ. После загрузки модель будет выбрана в списке. Нажмите «Добавить предмет», чтобы разместить её.</p>
     </section>
     <form id="add-form">
       <label><span data-i18n="roomEditor.model">Модель</span><select id="model-id" required></select></label>
       <label><span data-i18n="roomEditor.name">Название</span><input id="model-name" required maxlength="120"></label>
-      <button type="submit" data-i18n="roomEditor.addCenter">Добавить в центр</button>
+      <label><span data-i18n="roomEditor.addPlacement">Куда добавить</span><select id="add-placement"><option value="center" data-i18n="roomEditor.placementCenter">В центр комнаты — X: 0, Y: 0, Z: 0</option><option id="placement-beside" value="beside" disabled data-i18n="roomEditor.placementBeside">Рядом с выбранным предметом, по оси X</option></select></label>
+      <button type="submit" data-i18n="roomEditor.addObject">Добавить предмет</button>
     </form>
     <h2 data-i18n="roomEditor.objects">Предметы</h2>
     <div id="object-list"></div>
@@ -73,7 +74,7 @@
     </section>
 
   </aside>
-  <main><div id="viewport"></div><div id="toolbar"><button id="move-mode" type="button" data-i18n="roomEditor.move">Перемещение</button><button id="rotate-mode" type="button" data-i18n="roomEditor.rotate">Поворот</button><button id="scale-mode" type="button" data-i18n="roomEditor.scale">Масштаб</button><button id="preview-mode" type="button" data-i18n="roomEditor.preview">Предпросмотр</button></div></main>
+  <main><div id="viewport"></div><div id="toolbar"><button id="move-mode" type="button" data-i18n="roomEditor.move">Перемещение</button><button id="rotate-mode" type="button" data-i18n="roomEditor.rotate">Поворот</button><button id="scale-mode" type="button" data-i18n="roomEditor.scale">Масштаб</button><button id="deselect" type="button" disabled data-i18n="roomEditor.deselect">Снять выделение (Esc)</button><button id="preview-mode" type="button" data-i18n="roomEditor.preview">Предпросмотр</button></div></main>
   <aside id="properties-panel">
     <h2 data-i18n="roomEditor.properties">Свойства выбранного элемента</h2>
     <section id="room-properties" hidden>
@@ -109,7 +110,7 @@
       </form>
       <p id="room-envelope-message" role="status"></p>
     </section>
-    <section id="object-properties">    <form id="edit-form" hidden>
+    <section id="object-properties"><p id="selection-empty" data-i18n="roomEditor.selectionEmpty">Выберите предмет в списке или в комнате. Esc снимает выделение.</p><form id="edit-form" hidden>
       <h2 id="selected-name"></h2>
       <label id="object-name-label" hidden><span data-i18n="roomEditor.name">Название</span><input id="object-name" maxlength="120"></label>
       <div class="coords"><label>X<input id="pos-x" type="number" step="any" required></label><label>Y<input id="pos-y" type="number" step="any" required></label><label>Z<input id="pos-z" type="number" step="any" required></label></div>
@@ -152,6 +153,6 @@
   <script src="js/roomTemplateSession.js?v=3"></script>
   <script src="js/roomSeatEditor.js?v=5"></script>
   <script src="js/roomModelUpload.js?v=1"></script>
-  <script src="js/roomEditor.js?v=7"></script>
+  <script src="js/roomEditor.js?v=9"></script>
 </body>
 </html>
