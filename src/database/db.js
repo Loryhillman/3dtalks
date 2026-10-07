@@ -45,6 +45,7 @@ async function initializeDatabase() {
     'migrations/add_system_config.sql',
     'migrations/add_default_language.sql',
     'migrations/add_ui_control_layout.sql',
+    'migrations/add_uploaded_model_display_name.sql',
     'migrations/add_user_subscriptions.sql',
     'migrations/add_payment_reference.sql',
     'migrations/add_world_id_to_subscriptions.sql',
@@ -78,6 +79,7 @@ async function initializeDatabase() {
     } catch (migErr) {
       if (migFile === 'migrations/add_default_language.sql' ||
           migFile === 'migrations/add_ui_control_layout.sql' ||
+          migFile === 'migrations/add_uploaded_model_display_name.sql' ||
           migFile === 'migrations/add_rooms.sql' ||
           migFile === 'migrations/add_room_rejoin_grants.sql' ||
           migFile === 'migrations/add_room_seats.sql' ||

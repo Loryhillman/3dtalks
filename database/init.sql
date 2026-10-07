@@ -240,6 +240,7 @@ CREATE TABLE IF NOT EXISTS uploaded_models (
   id SERIAL PRIMARY KEY,
   file_name VARCHAR(255) NOT NULL,
   saved_file_name VARCHAR(255) NOT NULL,
+  display_name VARCHAR(255),
   path VARCHAR(500) NOT NULL,
   file_type VARCHAR(10) NOT NULL,
   file_size BIGINT NOT NULL,

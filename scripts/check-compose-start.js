@@ -42,6 +42,7 @@ let started=false;
  async function api(path,body,token){const response=await fetch(base+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},...(body?{body:JSON.stringify(body)}:{})});const data=await response.json();assert(response.ok,path+' returned '+response.status);return data;}
  await ready();
  const admin=await api('/api/admin-auth/login',{username:env.ADMIN_USERNAME,password});assert(admin.token);
+ const library=await api('/api/admin/rooms/models',null,admin.token);assert(Array.isArray(library.models));
  const {questions}=await api('/api/auth/security-questions');
  const user=await api('/api/auth/register',{username:'fixture-user',email:'fixture@example.invalid',password,securityQuestionId:questions[0].id,securityAnswer:'fixture'});
  const created=await api('/api/my/rooms',{name:'Fresh meeting',capacity:6,request_key:randomUUID()},user.token);

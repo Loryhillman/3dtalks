@@ -17,7 +17,9 @@ COPY scripts/ ./scripts/
 COPY package.json ./
 
 # 创建上传相关目录并设置权限
-RUN mkdir -p uploads .local-state && chown -R node:node /app
+RUN mkdir -p uploads .local-state public/uploads/media public/models/uploaded \
+    public/generated public/uploaded public/scenes public/gallery_content \
+    && chown -R node:node /app
 
 # 非 root 用户运行
 USER node

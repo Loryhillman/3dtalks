@@ -5384,6 +5384,7 @@
     "archived": "Archived",
     "copy": "Copy invitation",
     "copied": "Link copied",
+    "copyFailed": "Could not copy the link. Check your browser clipboard permissions.",
     "rename": "Rename",
     "openAction": "Open entry",
     "closeAction": "Close entry",

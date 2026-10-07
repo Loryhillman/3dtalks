@@ -5384,6 +5384,7 @@
     "archived": "已归档",
     "copy": "复制邀请",
     "copied": "链接已复制",
+    "copyFailed": "无法复制链接。请检查浏览器的剪贴板权限。",
     "rename": "重命名",
     "openAction": "开放进入",
     "closeAction": "关闭入口",

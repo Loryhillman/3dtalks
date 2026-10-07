@@ -65,3 +65,12 @@ docker compose up -d --build
 
 `docker compose down` сохраняет данные. **Не выполняйте `docker compose down -v`**
 для рабочей установки. Резервируйте базу, тома с файлами и `.env` отдельно.
+
+Если после переноса файлов появляется `EACCES: permission denied` для папок
+загрузок, восстановите владельца файлов в существующих томах:
+
+```bash
+docker compose exec --user root app chown -R node:node /app/uploads /app/public/uploads /app/public/models /app/public/generated /app/public/uploaded /app/public/scenes /app/public/gallery_content
+```
+
+Команда предназначена для серверной установки без `compose.dev.yaml`.

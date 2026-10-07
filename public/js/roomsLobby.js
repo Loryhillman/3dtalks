@@ -46,6 +46,31 @@
     element.addEventListener('click', () => action(handler)); parent.append(element);
   }
   function invitationUrl(room) { return location.origin + '/join/' + encodeURIComponent(room.slug); }
+  async function copyInvitation(url) {
+    if (navigator.clipboard?.writeText) {
+      try { await navigator.clipboard.writeText(url); return; } catch (_) { /* Try the HTTP-compatible path. */ }
+    }
+    const previousFocus = document.activeElement;
+    const selection = window.getSelection?.();
+    const ranges = selection ? Array.from({ length: selection.rangeCount }, (_, i) => selection.getRangeAt(i).cloneRange()) : [];
+    const field = document.createElement('textarea');
+    field.value = url;
+    field.readOnly = true;
+    field.style.cssText = 'position:fixed;left:0;top:0;opacity:0;pointer-events:none;font-size:16px';
+    document.body.append(field);
+    try {
+      field.focus({ preventScroll: true });
+      field.select();
+      field.setSelectionRange(0, url.length);
+      if (!document.execCommand('copy')) throw new Error(t('copyFailed'));
+    } catch (_) {
+      throw new Error(t('copyFailed'));
+    } finally {
+      field.remove();
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+      if (selection) { selection.removeAllRanges(); ranges.forEach(range => selection.addRange(range)); }
+    }
+  }
   async function mutate(room, verb, body = {}, method = 'POST') {
     await api('/api/my/rooms/' + room.id + (verb ? '/' + verb : ''), {
       method, body: JSON.stringify({ revision: room.revision, ...body })
@@ -78,9 +103,8 @@
       const actions = document.createElement('div'); actions.className = 'actions'; card.append(actions);
       if (room.status === 'open') { const link = document.createElement('a'); link.textContent = t('enter'); link.href = '/play?room=' + encodeURIComponent(room.slug); actions.append(link); }
       button(actions, 'copy', async () => {
-        const url = invitationUrl(room);
-        if (navigator.clipboard?.writeText) { try { await navigator.clipboard.writeText(url); message(t('copied')); return; } catch (_) {} }
-        message(url);
+        await copyInvitation(invitationUrl(room));
+        message(t('copied'));
       });
       button(actions, 'rename', async () => { const name = prompt(t('name'), room.name); if (name !== null) await mutate(room, '', { name }, 'PATCH'); });
       if (room.status === 'draft' || (room.status === 'closed' && !room.allow_rejoin)) {

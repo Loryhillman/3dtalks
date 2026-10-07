@@ -3,9 +3,10 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const { webcrypto } = require('node:crypto');
 const nodes = new Map();
-function node() { return { hidden: false, isConnected: true, children: [], dataset: {},
+function node() { return { hidden: false, isConnected: true, children: [], dataset: {}, style: {},
   append(...items) { this.children.push(...items); }, replaceChildren() { this.children = []; },
   addEventListener(event, fn) { this['on' + event] = fn; }, querySelectorAll() { return []; },
+  focus() {}, select() {}, setSelectionRange() {}, remove() { this.isConnected = false; },
   reset() {}, elements: {} }; }
 const $ = id => { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); };
 for (const key of ['password','securityAnswer','securityQuestionId']) $('auth-form').elements[key] = { value: '', append() {} };
@@ -14,9 +15,11 @@ $('join').elements = { link: { value: 'https://evil.example/join/one' } };
 const data = new Map([['token','test-token'], ['userId','user'], ['characterId','character']]);
 const storage = map => ({ getItem: k => map.get(k) ?? null, setItem: (k,v) => map.set(k,v), removeItem: k => map.delete(k) });
 const requests = [], navigation = [], session = new Map();
-let failCreate = true;
+let failCreate = true, copyAllowed = true, copiedText;
+const body = node();
 const context = { console, URL, Uint8Array, crypto: webcrypto, localStorage: storage(data), sessionStorage: storage(session),
- document: { documentElement: {}, getElementById: $, createElement: node, querySelectorAll: () => [] },
+ document: { documentElement: {}, body, getElementById: $, createElement: node, querySelectorAll: () => [],
+   execCommand(command) { assert.equal(command, 'copy'); copiedText = body.children.at(-1).value; return copyAllowed; } },
  location: { pathname: '/rooms', origin: 'http://local', assign: url => navigation.push(url), reload() {} },
  navigator: {}, prompt: () => null, confirm: () => false,
  window: { addEventListener() {}, i18n: { init: async () => {}, currentLocale: 'ru-RU', tp: key => key, t: key => key } },
@@ -32,6 +35,22 @@ const settle = () => new Promise(resolve => setImmediate(resolve));
   await settle();
   assert.equal($('cabinet').hidden, false);
   assert.equal($('rooms').children[0].children[0].textContent, '<img onerror=bad>', 'names are text, not HTML');
+  const copyButton = $('rooms').children[0].children.at(-1).children.find(child => child.textContent === 'roomsLobby.copy');
+  copyButton.onclick(); await settle();
+  assert.equal(copiedText, 'http://local/join/room-one', 'HTTP fallback copies the actual invitation');
+  assert.equal($('message').textContent, 'roomsLobby.copied');
+  assert.equal(body.children.at(-1).isConnected, false, 'temporary field is removed');
+  context.navigator.clipboard = { async writeText() { throw new Error('Permission denied'); } };
+  copyButton.onclick(); await settle();
+  assert.equal($('message').textContent, 'roomsLobby.copied', 'clipboard rejection falls back to browser copy');
+  copyAllowed = false;
+  copyButton.onclick(); await settle();
+  assert.equal($('message').textContent, 'roomsLobby.copyFailed', 'failed copying is reported without displaying the URL');
+  let modernCopy;
+  context.navigator.clipboard.writeText = async text => { modernCopy = text; };
+  copyButton.onclick(); await settle();
+  assert.equal(modernCopy, 'http://local/join/room-one');
+  assert.equal($('message').textContent, 'roomsLobby.copied');
   $('create').onsubmit({ preventDefault() {}, target: $('create') }); await settle();
   assert.equal(session.size, 1, 'uncertain request keeps idempotency key');
   $('create').onsubmit({ preventDefault() {}, target: $('create') }); await settle();
