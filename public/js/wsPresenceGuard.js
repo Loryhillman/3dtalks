@@ -68,7 +68,7 @@
   // ─────────── 1. 缓存身份信息（PLAYER_JOIN / MODEL_UPDATE） ───────────
   var origSend = WS.send.bind(WS);
   WS.send = function (message) {
-    if (WS.sessionReplaced) return;
+    if (WS.roomEnded || WS.sessionReplaced) return;
     try {
       if (message && message.type === 'PLAYER_JOIN' && message.payload) {
         st.join = copy(message.payload);
@@ -98,7 +98,7 @@
   // onopen 里调用的是 this.flushMessageQueue()，包装它即可覆盖首次连接与所有重连
   var origFlush = WS.flushMessageQueue.bind(WS);
   WS.flushMessageQueue = function () {
-    if (WS.sessionReplaced) { WS.messageQueue.length = 0; return; }
+    if (WS.roomEnded || WS.sessionReplaced) { WS.messageQueue.length = 0; return; }
     if (st.join && openState() === OPEN) {
       try {
         var payload = copy(st.join);
@@ -119,7 +119,7 @@
   // ─────────── 3. 无限重连（原实现 5 次后永久放弃） ───────────
   function doConnect() {
     st.retryTimer = null;
-    if (WS.sessionReplaced) return;
+    if (WS.roomEnded || WS.sessionReplaced) return;
     if (WS.connected && openState() === OPEN) { st.attempts = 0; return; }
     st.inFlight = true;
     WS.connect(CONFIG.WS_URL).then(function () {
@@ -157,7 +157,7 @@
   function probe() { st.probes++; WS.send({ type: 'PING', payload: { t: Date.now() } }); }
 
   function forceReconnect(why) {
-    if (WS.sessionReplaced) return;
+    if (WS.roomEnded || WS.sessionReplaced) return;
     console.warn('[WSGuard] 强制重连：' + why);
     try { WS.connected = false; } catch (e) {}
     try { if (WS.ws) WS.ws.close(); } catch (e) {}
@@ -165,7 +165,7 @@
   }
 
   setInterval(function () {
-    if (WS.sessionReplaced) return;
+    if (WS.roomEnded || WS.sessionReplaced) return;
     // 兜底：未连接且没有任何重连计划 → 补一次（无论之前因何中断）
     if (!WS.connected) {
       // 旧 socket 的 onclose 晚到会把新连接误标为断开（websocket.js 的 connected 是类级
@@ -193,7 +193,7 @@
 
   // 回到前台 / 网络恢复：立刻补一次判断（后台期间看门狗被浏览器节流）
   document.addEventListener('visibilitychange', function () {
-    if (WS.sessionReplaced) return;
+    if (WS.roomEnded || WS.sessionReplaced) return;
     if (document.hidden || !WS.connected) return;
     var silence = Date.now() - st.lastIn;
     if (st.probeSupported === true && silence > SILENCE_LIMIT) {

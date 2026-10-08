@@ -65,10 +65,37 @@ let browser;
  const forbidden=apiCalls.filter(call=>/^\/api\/(federation|world\/ground-config|ui-controls|config\/(lod-enabled|weather)|shop|skills|monsters|inventory|public\/character-templates|model-guard)/.test(call.url));
  assert.deepEqual(forbidden,[],'room startup and RPG shortcuts must not call legacy APIs');
  assert.deepEqual(await page.evaluate(()=>legacyReads),[],'meeting does not read legacy character settings');
- assert(scripts.every(url=>!/(legacyAvatarSession|federationUI|worldLod|worldGroundSync|skillManager|skillHUD|portalManager|bone-physics|gaussianSplat|buildingManager|skyManager|agentPositionSmoother)/.test(url)),'legacy scripts must not be requested');
+ assert(scripts.every(url=>!/(main\.js|legacyAvatarSession|federationUI|worldLod|worldGroundSync|skillManager|skillHUD|portalManager|bone-physics|gaussianSplat|buildingManager|skyManager|agentPositionSmoother)/.test(url)),'legacy scripts must not be requested');
  const join=await page.evaluate(()=>sent.find(message=>message.type==='PLAYER_JOIN').payload);assert.deepEqual(Object.keys(join).sort(),['characterId','position','roomSlug','token']);
  assert.deepEqual(dialogs,[],'room startup must not display browser dialogs');assert.deepEqual(errors,[]);
  const state=await page.evaluate(()=>({weather:gameWorld._weather,recognition:!!window.voiceManagerInstance,avatar:player.worldObject.userData.accountAvatarConfig?.headType,movementControls:!!document.getElementById('mobile-joystick'),hudSettings:!!window.uiControlManager?.initialized,chat:!!document.getElementById('nearby-chat-input'),mic:!!document.getElementById('skill-voice-btn')}));
  assert.deepEqual(state,{weather:'clear',recognition:false,avatar:'sphere',movementControls:false,hudSettings:false,chat:true,mic:true});
+ // Camera drag works independently of the legacy input handlers.
+ const before = await page.evaluate(() => MOUSE.targetRotationY);
+ await page.mouse.move(180, 300);await page.mouse.down();
+ await page.mouse.move(200, 315);await page.mouse.move(225, 330);await page.mouse.up();
+ assert.notEqual(await page.evaluate(() => MOUSE.targetRotationY), before);
+ assert.equal(await page.evaluate(() => MOUSE.isDragging), false);
+ // Touch must rotate the view without invoking inherited attack animation.
+ const touch = await page.evaluate(() => {
+  let attacks = 0;gameWorld.triggerAttackAnimation = () => attacks++;
+  const canvas = document.getElementById('canvas'), before = MOUSE.targetRotationY;
+  // Synthetic pointers cannot be captured; the real mouse path above checks capture.
+  const capture = canvas.setPointerCapture;canvas.setPointerCapture = () => {};
+  for (const [type, x] of [['pointerdown', 120], ['pointermove', 145], ['pointerup', 145]]) {
+   canvas.dispatchEvent(new PointerEvent(type, {pointerId:42,pointerType:'touch',isPrimary:true,clientX:x,clientY:250,bubbles:true}));
+  }
+  canvas.setPointerCapture = capture;
+  return {rotated:MOUSE.targetRotationY!==before,dragging:MOUSE.isDragging,attacks};
+ });
+ assert.deepEqual(touch,{rotated:true,dragging:false,attacks:0});
+ await page.keyboard.down('w');
+ assert.equal(await page.evaluate(() => KEYS.w), false, 'meetings do not activate free movement');
+ await page.keyboard.up('w');
+ const stoppedFrame = await page.evaluate(() => { MeetingMain.stop(); return gameWorld.frameCount; });
+ await page.waitForTimeout(200);
+ assert.equal(await page.evaluate(() => gameWorld.frameCount), stoppedFrame, 'stopped startup releases its rendering loop');
+ assert.equal(await page.evaluate(() => gameWorld.generatedBuildings.size), 0);
+ assert.deepEqual(errors, []);
  console.log('Complete meeting page: real startup, legacy APIs disabled, RPG shortcuts inert, chat/microphone retained, no dialogs or JS errors OK');
 })().catch(e=>{console.error(e);console.error('Requests:',apiCalls);process.exitCode=1;}).finally(async()=>{await browser?.close();await new Promise(r=>server.close(r));});

@@ -15,7 +15,7 @@ try {
   assert.equal((await run('/play', { room: 'main' })).redirect, '/rooms');
   assert.equal((await run('/play', { room: '//evil.example' })).redirect, '/rooms');
   const meeting = (await run('/play', { room: 'meeting-one' })).html;
-  assert(meeting.includes('roomAvatarSession.js')); assert(!meeting.includes('data-world-only'));
+  assert(meeting.includes('roomAvatarSession.js')); assert(meeting.includes('meetingMain.js')); assert(!/src="js\/main\.js/.test(meeting)); assert(!meeting.includes('data-world-only'));
   assert(!meeting.includes('js/federationUI.js')); assert(!meeting.includes('js/legacyAvatarSession.js'));
   routes.clear(); process.env.APP_MODE = 'legacy'; registerRoomPages(app);
   assert.equal(routes.has('/'), false, 'legacy root preserved');

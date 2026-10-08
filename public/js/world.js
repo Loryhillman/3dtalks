@@ -282,7 +282,8 @@ class World {
 
     
     // 异步加载AI生成的建筑（不阻塞初始化）
-    setTimeout(() => {
+    this._buildingLoadTimer = setTimeout(() => {
+      if (this._renderStopped) return;
       this.loadGeneratedBuildings().catch(err => {
         console.error('加载生成建筑失败:', err);
       });
@@ -7813,8 +7814,15 @@ class World {
     }
   }
 
+  stopRendering() {
+    this._renderStopped = true;
+    cancelAnimationFrame(this._animationFrame);
+    clearTimeout(this._buildingLoadTimer);
+  }
+
   animate() {
-    requestAnimationFrame(() => this.animate());
+    if (this._renderStopped) return;
+    this._animationFrame = requestAnimationFrame(() => this.animate());
 
     // 使用真实帧间隔，限制最大值防止卡顿后跳变
     const now = performance.now();
