@@ -4720,6 +4720,7 @@ class World {
    * 加载AI生成的建筑模型
    */
   async loadGeneratedBuildings() {
+    if (window.ACTIVE_ROOM) return this.getRoomScene().enter(window.ACTIVE_ROOM.slug);
     try {
       // 防止重复加载
       if (this.isLoadingBuildings) {
@@ -4738,19 +4739,7 @@ class World {
       // 只获取世界对象，不需要获取hunyuan3d/buildings，因为世界对象已经包含了所有已放置的建筑
       // P1: 空间分页——按玩家位置增量拉取，替代一次性全量（返回结构完全兼容）
       let worldObjects;
-      if (window.ACTIVE_ROOM) {
-        const response = await fetch('/api/rooms/' + encodeURIComponent(window.ACTIVE_ROOM.slug) +
-          '/objects?characterId=' + encodeURIComponent(localStorage.getItem('characterId') || ''), {
-          headers: { Authorization: 'Bearer ' + localStorage.getItem('token') }
-        });
-        worldObjects = await response.json();
-        if (!response.ok || !worldObjects.success) throw new Error('Room objects unavailable');
-        await this.loadRoomScene(worldObjects.objects);
-        this.isLoadingBuildings = false;
-        this.updateLoadingStatus(1, 1);
-        window.RoomSeating?.sceneReady();
-        return;
-      } else if (window.WorldSpatialManager) {
+      if (window.WorldSpatialManager) {
         if (!this._spatialMgr) {
           this._spatialMgr = new window.WorldSpatialManager(this);
         }
@@ -7251,35 +7240,17 @@ class World {
   /**
    * 添加几何体建筑到场景
    */
-  async loadRoomScene(objects) {
-    if (!Array.isArray(objects) || !objects.length) throw new Error('Room scene is empty');
-    this.allWorldObjects = [];
-    this.loadingQueue = [];
-    for (const object of objects) {
-      if (this.loadedObjects.has(object.id)) continue;
-      if (object.type === 'geometry_building') {
-        const geometry = typeof object.geometry_data === 'string' ? JSON.parse(object.geometry_data) : object.geometry_data;
-        if (!geometry?.components?.length) throw new Error(`Room geometry missing: ${object.id}`);
-        const group = GeometryRenderer.renderFromComponents(geometry.components, THREE);
-        group.position.set(object.position_x ?? 0, object.position_y ?? 0, object.position_z ?? 0);
-        group.rotation.set(object.rotation_x ?? 0, object.rotation_y ?? 0, object.rotation_z ?? 0);
-        group.scale.set(object.scale_x ?? 1, object.scale_y ?? 1, object.scale_z ?? 1);
-        group.userData.worldObjectId = object.id;
-        group.userData.componentCollision = true;
-        this.scene.add(group);
-        group.updateMatrixWorld(true);
-        this.generatedBuildings.set(object.id, { model: group, data: object, isGeometry: true });
-        if (object.has_collision) this.collisionObjects.push(...GeometryRenderer.buildCollisionObjects(group, object, THREE));
-      } else if (object.type === 'uploaded_model') {
-        await this.addUploadedModel(object);
-        if (!this.generatedBuildings.has(object.id) || this.generatedBuildings.get(object.id).isPlaceholder) {
-          throw new Error(`Room model unavailable: ${object.id}`);
-        }
-      } else {
-        throw new Error(`Unsupported room object: ${object.type}`);
-      }
-      this.loadedObjects.add(object.id);
-    }
+  getRoomScene() {
+    if (!this._roomScene) this._roomScene = new window.RoomScene(this);
+    return this._roomScene;
+  }
+
+  loadRoomScene(objects) {
+    return this.getRoomScene().load(objects);
+  }
+
+  clearRoomScene() {
+    this._roomScene?.clear();
   }
 
   async addGeometryBuilding(worldObject) {
