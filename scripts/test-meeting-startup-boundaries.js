@@ -19,7 +19,7 @@ function fixture() {
     MeetingInput:{attach:()=>()=>{}},UI:{hideLoadingScreen(){},addChatMessage(){}},CONFIG:{WS_URL:'ws://fixture'},
     WSClient:{messageQueue:[],connect:async()=>{calls.connects++;},send:message=>calls.sent.push(message)},
     World:class {constructor(){calls.worlds++;}getSpawnPosition(){return{x:0,y:1,z:0};}clearRoomScene(){calls.clear++;}stopRendering(){calls.renderStopped++;}},
-    Player:class {constructor(){calls.players++;this.position={set(){}};this.worldObject={};}},
+    MeetingPlayer:class {constructor(){calls.players++;this.position={set(){}};this.worldObject={};}},
     addEventListener:(name,handler)=>{events[name]=handler;}
   };
   context.window=context;vm.createContext(context);vm.runInContext(script,context);

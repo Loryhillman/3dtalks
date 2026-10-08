@@ -12,6 +12,7 @@ function worldText(key, params) {
 class World {
   constructor(canvas) {
     this.canvas = canvas;
+    this.isMeeting = Boolean(window.MeetingUI?.active);
     this.scene = new THREE.Scene();
     
     // 计算FOV，使用水平FOV限制法（防止超宽屏变形）
@@ -116,8 +117,10 @@ class World {
     
     // 技能系统
 
-    this.objLoader = new THREE.OBJLoader(); // OBJ模型加载器
-    this.mtlLoader = new THREE.MTLLoader(); // MTL材质加载器
+    if (!this.isMeeting) {
+      this.objLoader = new THREE.OBJLoader();
+      this.mtlLoader = new THREE.MTLLoader();
+    }
     
     // 加载优化
     this.baseLoadDistance = 200; // 基础加载距离
@@ -191,7 +194,7 @@ class World {
     
     // 预加载核心资源
     this.preloadedResources = new Map();
-    this.preloadCoreResources();
+    if (!this.isMeeting) this.preloadCoreResources();
     
     // 加载状态管理
     this.loadingStatus = {
@@ -238,7 +241,7 @@ class World {
     // Web Worker
     this.worker = null;
     this.workerCallbacks = new Map();
-    this.initWorker();
+    if (!this.isMeeting) this.initWorker();
 
     // 优先级队列和消息队列（addToPriorityQueue / handleBatchData 依赖）
     this.priorityQueue = [];
@@ -267,7 +270,7 @@ class World {
     this.warmupShaders();
 
     // 初始化对象池
-    this.initObjectPools();
+    if (!this.isMeeting) this.initObjectPools();
 
     // Handle window resize
     window.addEventListener('resize', () => this.onWindowResize());
@@ -7846,7 +7849,11 @@ class World {
       // 玩家物理+摄像机更新（必须在渲染前完成，确保视锥体剔除使用最新相机矩阵）
       playerRef.update(delta, this.camera);
       // 调试面板更新
-      this._updateDebugPanel(playerRef);
+      if (!this.isMeeting) this._updateDebugPanel(playerRef);
+    }
+    if (this.isMeeting) {
+      window.MeetingFrame.update(this, delta, now);
+      return;
     }
     // 技能系统更新
     if (window.skillsManager) window.skillsManager.update();

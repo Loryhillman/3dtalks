@@ -1,5 +1,5 @@
 // Uses the production meeting page renderer. HTTP/WS data are fixtures; the
-// remaining browser scripts and World/Player constructors run without replacement.
+// remaining browser scripts and World/MeetingPlayer constructors run without replacement.
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs/promises'),path=require('node:path');
 const {chromium}=require('playwright');const root=path.resolve(__dirname,'../public');
 const {renderMeetingPage}=require('../src/services/meetingPage');
@@ -54,7 +54,18 @@ let browser;
   }
   window.WebSocket=Socket;
  });
- await page.goto('http://127.0.0.1:'+server.address().port+'/play?room=fixture');
+ await page.addInitScript(() => {
+  window.legacyWork = [];
+  document.addEventListener('DOMContentLoaded', () => {
+   for (const name of ['initWorker', 'initObjectPools', 'preloadCoreResources', 'updateObjectLoading',
+    'updateLOD', 'updateFrustumCulling', 'optimizeGeometryProcessing', 'cleanupMemory', 'adjustLoadStrategy',
+    'updateParticles', 'updatePortals', '_updateWeatherParticles', '_updateDebugPanel']) {
+    const original = World.prototype[name];
+    World.prototype[name] = function (...args) { legacyWork.push(name); return original.apply(this, args); };
+   }
+  });
+ });
+ await page.goto('http://127.0.0.1:' +server.address().port+'/play?room=fixture');
  await page.waitForFunction(()=>window.gameWorld&&window.RoomSeating?.active&&window.sent?.some(m=>m.type==='PLAYER_JOIN'),{timeout:15000});
  await page.waitForFunction(()=>window.gameWorld?.loadedObjects.has(3));
  assert.equal(await page.evaluate(()=>gameWorld.generatedBuildings.size),3,'room geometry and uploaded GLB render with the lean script set');
@@ -64,8 +75,13 @@ let browser;
  await page.waitForTimeout(150);
  const forbidden=apiCalls.filter(call=>/^\/api\/(federation|world\/ground-config|ui-controls|config\/(lod-enabled|weather)|shop|skills|monsters|inventory|public\/character-templates|model-guard)/.test(call.url));
  assert.deepEqual(forbidden,[],'room startup and RPG shortcuts must not call legacy APIs');
+ assert.deepEqual(await page.evaluate(()=>legacyWork),[], 'meeting frames and constructor never execute global-world subsystems');
+ assert.equal(await page.evaluate(() => player.constructor.name), 'MeetingPlayer');
+ assert.equal(await page.evaluate(() => 'combatState' in player || 'health' in player), false);
+ assert.equal(await page.evaluate(() => gameWorld.worker), null);
+ assert.deepEqual(await page.evaluate(() => Object.values(gameWorld.objectPools).map(pool => pool.length)), [0,0]);
  assert.deepEqual(await page.evaluate(()=>legacyReads),[],'meeting does not read legacy character settings');
- assert(scripts.every(url=>!/(main\.js|legacyAvatarSession|federationUI|worldLod|worldGroundSync|skillManager|skillHUD|portalManager|bone-physics|gaussianSplat|buildingManager|skyManager|agentPositionSmoother)/.test(url)),'legacy scripts must not be requested');
+ assert(scripts.every(url=>!/(main\.js|player\.js|modelCacheDB|model-detector|entitySleepManager|lightPool|preloadSweeper|loadFacing|geometryBatcher|gltfWorkerClient|worldObjectBounds|placeholderField|worldTextureOptimizer|worldLoadingOptimizer|capsuleCollision|OBJLoader|MTLLoader|legacyAvatarSession|federationUI|worldLod|worldGroundSync|skillManager|skillHUD|portalManager|bone-physics|gaussianSplat|buildingManager|skyManager|agentPositionSmoother)/.test(url)),'legacy scripts must not be requested');
  const join=await page.evaluate(()=>sent.find(message=>message.type==='PLAYER_JOIN').payload);assert.deepEqual(Object.keys(join).sort(),['characterId','position','roomSlug','token']);
  assert.deepEqual(dialogs,[],'room startup must not display browser dialogs');assert.deepEqual(errors,[]);
  const state=await page.evaluate(()=>({weather:gameWorld._weather,recognition:!!window.voiceManagerInstance,avatar:player.worldObject.userData.accountAvatarConfig?.headType,movementControls:!!document.getElementById('mobile-joystick'),hudSettings:!!window.uiControlManager?.initialized,chat:!!document.getElementById('nearby-chat-input'),mic:!!document.getElementById('skill-voice-btn')}));

@@ -97,7 +97,7 @@
     const saved = data.room.status === 'closed' ? data.room.resume_position : null;
     if (saved && ['x', 'y', 'z'].every(axis => typeof saved[axis] === 'number' &&
       Number.isFinite(saved[axis]) && Math.abs(saved[axis]) <= 10000)) position = saved;
-    const participant = new Player(world, GAME_STATE.characterId, characterData);
+    const participant = new window.MeetingPlayer(world, GAME_STATE.characterId, characterData);
     window.player = participant;
     participant.position.set(position.x, position.y, position.z);
     window.UserAvatarRenderer?.apply(participant.worldObject, accountAvatar);
