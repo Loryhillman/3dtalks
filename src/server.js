@@ -100,28 +100,11 @@ const adminRoutes = require('./routes/admin');
 const adminAuthRoutes = require('./routes/adminAuth');
 const adminMaintenanceRoutes = require('./routes/adminMaintenance');
 const modelLodRoutes = require('./routes/modelLod');  // 模型 LOD 三版方案（管理后台）
-const tripoRoutes = require('./routes/tripo');
-const aiAssistantRoutes = require('./routes/aiAssistant');
-const geometryBuildingRoutes = require('./routes/geometryBuilding');
-const aiSceneGeneratorRoutes = require('./routes/aiSceneGenerator');
 const uploadedModelsRoutes = require('./routes/uploadedModels');
-const uploadedModelMetaRoutes = require('./routes/uploadedModelMeta');  // 🤖 上传模型 AI 描述端点
-const aiProvidersRoutes = require('./routes/aiProviders');
-const tagsRoutes = require('./routes/tags');
 const configRoutes = require('./routes/config');
-const { router: uiControlsRouter, ensureDefaultControls } = require('./routes/uiControls');
-const mediaRoutes = require('./routes/media');
-const threeDgsRoutes = require('./routes/threeDgs');
-const aiFactoryRoutes = require('./routes/aiFactory');
-const galleryRoutes = require('./routes/gallery');
-const modelGuardRoutes = require('./routes/modelGuard');
-const threejsCodeBlocksRoutes = require('./routes/threejsCodeBlocks');
-const threejsImportRoutes = require('./routes/threejsImport');
 const securityQuestionsRoutes = require('./routes/securityQuestions');
-const subscriptionRoutes = require('./routes/subscription');
 const adminRoomsRoutes = require('./routes/adminRooms');
 const roomsRoutes = require('./routes/rooms');
-const skyRoutes = require('./routes/sky');
 const worldIntegrations = require('./services/worldIntegrations');
 
 app.use('/api/auth', authRoutes);
@@ -131,33 +114,16 @@ app.use('/api/my/avatar', require('./routes/userAvatar'));
 worldIntegrations.registerLegacyGameRoutes(app);
 app.use('/api/admin-auth', adminAuthRoutes);  // 管理员认证路由
 app.use('/api/admin', adminRoutes);  // 管理后台路由（需要管理员认证）
-// Until game/editor/WebSocket isolation is complete, rooms remain hidden.
+// Room routes use dedicated authorization and template services.
 if (process.env.ROOMS_ENABLED === 'true') app.use('/api/admin/rooms', adminRoomsRoutes);
 if (process.env.ROOMS_ENABLED === 'true') app.use('/api/rooms', roomsRoutes);
 if (process.env.ROOMS_ENABLED === 'true') app.use('/api/my/rooms', require('./routes/userRooms'));
 app.use('/api/admin/maintenance', adminMaintenanceRoutes);  // 维护工具路由
 app.use('/api/admin/model-lod', modelLodRoutes);  // 模型 LOD 管理路由（需管理员认证）
-app.use('/api/tripo', tripoRoutes);  // Tripo AI 3D生成路由
-app.use('/api/ai', aiAssistantRoutes);  // AI助手路由
-app.use('/api/ai-providers', aiProvidersRoutes);  // AI提供商配置路由
-app.use('/api/geometry-building', geometryBuildingRoutes);  // 几何体建筑路由
 worldIntegrations.registerWorldIntegrations(app);
-app.use('/api/ai-scene', aiSceneGeneratorRoutes);  // AI场景生成路由
-app.use('/api/ui-controls', uiControlsRouter);  // UI控件路由（包含公开接口和管理员接口）
+worldIntegrations.registerLegacyToolRoutes(app);
 app.use('/api', uploadedModelsRoutes);  // 上传模型路由
-app.use('/api', uploadedModelMetaRoutes);  // 🤖 上传模型 AI 描述端点（独立小模块）
-app.use('/api/tags', tagsRoutes);  // 标签管理路由
 app.use('/api/config', configRoutes);  // 配置管理路由
-app.use('/api/media', mediaRoutes);  // 媒体图片上传路由
-app.use('/api/three-dgs', threeDgsRoutes);  // 3D高斯泼溅场景公开只读列表路由
-app.use('/api/ai-factory', aiFactoryRoutes);  // AI动作工厂路由
-app.use('/api/gallery', galleryRoutes);  // 画廊系统路由
-app.use('/api/model-guard', modelGuardRoutes);  // 远程模型守卫路由（公开读）
-app.use('/api/admin/model-guard', modelGuardRoutes);  // 远程模型守卫管理接口（PUT 需管理员鉴权）
-app.use('/api/threejs-blocks', threejsCodeBlocksRoutes);  // Three.js 代码库路由（公开读，写需管理员）
-app.use('/api/threejs-blocks', threejsImportRoutes);    // Three.js URL导入路由（管理员）
-app.use('/api/subscription', subscriptionRoutes);  // 订阅管理路由
-app.use('/api/sky', skyRoutes.router);  // 天空库路由（列表公开读，上传/删除需管理员）
 // 公开模板接口：普通用户 Token 可访问（access_level=public 的激活模板）
 app.get('/api/public/character-templates', async (req, res) => {
   const { query } = require('./database/db');
@@ -490,7 +456,7 @@ async function start() {
       if (!isDatabaseInitialized()) await initializeDatabase();
       console.log('Database initialized');
       if (!worldIntegrations.isRoomsMode()) {
-        await ensureDefaultControls();
+        await require('./routes/uiControls').ensureDefaultControls();
         await autoFixWorldUrl();
       }
     } catch (dbError) {

@@ -5,6 +5,8 @@
 const express = require('express');
 const router = express.Router();
 const aiProviderService = require('../services/aiProviderService');
+const { authenticateAdminToken } = require('../middleware/adminAuth');
+router.use(authenticateAdminToken);
 
 /**
  * 获取所有AI提供商
@@ -64,7 +66,7 @@ router.post('/providers/:id/config', async (req, res) => {
   try {
     const providerId = parseInt(req.params.id);
     const configs = req.body.configs || {};
-    const userId = req.user?.id;
+    const userId = req.adminUser.id;
     const ipAddress = req.ip;
     
     const results = await aiProviderService.setProviderConfigs(providerId, configs, userId, ipAddress);
@@ -92,7 +94,7 @@ router.post('/providers/:id/toggle', async (req, res) => {
   try {
     const providerId = parseInt(req.params.id);
     const enabled = req.body.enabled;
-    const userId = req.user?.id;
+    const userId = req.adminUser.id;
     const ipAddress = req.ip;
     
     const result = await aiProviderService.toggleProvider(providerId, enabled, userId, ipAddress);
@@ -113,7 +115,7 @@ router.post('/providers/:id/toggle', async (req, res) => {
 router.post('/providers/:id/set-default', async (req, res) => {
   try {
     const providerId = parseInt(req.params.id);
-    const userId = req.user?.id;
+    const userId = req.adminUser.id;
     const ipAddress = req.ip;
     
     const result = await aiProviderService.setDefaultProvider(providerId, userId, ipAddress);
@@ -134,7 +136,7 @@ router.post('/providers/:id/set-default', async (req, res) => {
 router.post('/providers', async (req, res) => {
   try {
     const providerData = req.body;
-    const userId = req.user?.id;
+    const userId = req.adminUser.id;
     const ipAddress = req.ip;
     
     const result = await aiProviderService.addCustomProvider(providerData, userId, ipAddress);

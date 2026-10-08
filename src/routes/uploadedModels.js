@@ -15,6 +15,18 @@ const { decimateIfNeeded } = require('../services/modelDecimate');
 const { generateLodVariants } = require('../services/modelLod');
 const { authenticateAdminToken } = require('../middleware/adminAuth');
 
+// Run before Multer or any database/file work. Room editing has its own endpoint.
+router.use((req, res, next) => {
+  if (/^\/admin\/rooms\/models\/upload\/?$/i.test(req.path)) return next();
+  if (!/^\/(upload-model|upload-models-batch|uploaded-models)(\/|$)/i.test(req.path)) return next();
+  if (process.env.APP_MODE === 'rooms') {
+    return res.status(404).json({ success: false, code: 'FEATURE_UNAVAILABLE',
+      error: 'This feature is unavailable in rooms mode' });
+  }
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  return authenticateAdminToken(req, res, next);
+});
+
 // 配置文件上传
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
