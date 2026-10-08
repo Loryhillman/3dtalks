@@ -96,7 +96,6 @@ const { initializeDatabase, isDatabaseInitialized, query } = require('./database
 // Routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
-const adminRoutes = require('./routes/admin');
 const adminAuthRoutes = require('./routes/adminAuth');
 const adminMaintenanceRoutes = require('./routes/adminMaintenance');
 const modelLodRoutes = require('./routes/modelLod');  // 模型 LOD 三版方案（管理后台）
@@ -113,7 +112,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/my/avatar', require('./routes/userAvatar'));
 worldIntegrations.registerLegacyGameRoutes(app);
 app.use('/api/admin-auth', adminAuthRoutes);  // 管理员认证路由
-app.use('/api/admin', adminRoutes);  // 管理后台路由（需要管理员认证）
+if (worldIntegrations.isRoomsMode()) app.use('/api/admin/users', require('./routes/adminRoomUsers'));
+worldIntegrations.registerLegacyAdminRoutes(app);
 // Room routes use dedicated authorization and template services.
 if (process.env.ROOMS_ENABLED === 'true') app.use('/api/admin/rooms', adminRoomsRoutes);
 if (process.env.ROOMS_ENABLED === 'true') app.use('/api/rooms', roomsRoutes);

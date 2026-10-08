@@ -11,6 +11,7 @@ window.RoomModelUpload = {
       method: 'POST', headers: { Authorization: 'Bearer ' + localStorage.getItem('adminToken') }, body
     });
     const data = await response.json().catch(() => ({}));
+    if ([401, 403].includes(response.status)) window.RoomAdmin?.expire();
     if (!response.ok || !data.success || !data.model?.id) {
       const translated = data.errorKey && window.i18n.t(data.errorKey);
       throw new Error(translated && translated !== data.errorKey ? translated : tr('modelUploadFailed'));

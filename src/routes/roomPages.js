@@ -11,6 +11,7 @@ function registerRoomPages(app) {
     return page('index.html')(req, res);
   });
   if (roomsMode) {
+    for (const url of ['/admin', '/admin.html', '/admin_rooms.html']) app.get(url, page('admin_rooms.html'));
     for (const url of ['/', '/index.html']) app.get(url, (req, res) => {
       if (typeof req.query.room === 'string' && /^[a-z0-9-]{3,80}$/.test(req.query.room) && req.query.room !== 'main') return res.redirect('/join/' + encodeURIComponent(req.query.room));
       return page('rooms.html')(req, res);

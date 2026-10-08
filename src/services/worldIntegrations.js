@@ -32,6 +32,13 @@ function registerLegacyToolRoutes(app, load = require) {
   if (isRoomsMode()) app.use('/api/uploaded-models', unavailable);
   else app.use('/api', load('../routes/uploadedModelMeta'));
 }
+function registerLegacyAdminRoutes(app, load = require) {
+  if (!isRoomsMode()) return app.use('/api/admin', load('../routes/admin'));
+  for (const resource of ['users', 'characters', 'portals', 'worlds', 'portal-logs',
+    'stats', 'federation-stats', 'plots', 'config', '3dgs']) {
+    app.use('/api/admin/' + resource, unavailable);
+  }
+}
 function registerLegacyGameRoutes(app, load = require) {
   if (isRoomsMode()) {
     for (const prefix of ['/api/world', '/api/public/character-templates', ...legacyGameRoutes.map(([prefix]) => prefix)]) app.use(prefix, unavailable);
@@ -83,4 +90,4 @@ function startWorldBackgroundServices(load = require) {
     catch (error) { console.warn(`[World] ${name} failed to start:`, error.message); }
   }
 }
-module.exports = { isRoomsMode, registerLegacyGameRoutes, registerLegacyToolRoutes, registerWorldIntegrations, initializeWorldFederation, startWorldBackgroundServices };
+module.exports = { isRoomsMode, registerLegacyGameRoutes, registerLegacyToolRoutes, registerLegacyAdminRoutes, registerWorldIntegrations, initializeWorldFederation, startWorldBackgroundServices };

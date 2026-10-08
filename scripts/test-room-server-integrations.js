@@ -8,10 +8,10 @@ async function close(){await new Promise(r=>server.close(r));server=null;}
 (async()=>{
  process.env.APP_MODE='rooms';let imports=0;
  const neverLoad=()=>{imports++;throw Error('An optional world module must not load in rooms mode');};
- const app=express();integrations.registerWorldIntegrations(app,neverLoad);integrations.registerLegacyGameRoutes(app,neverLoad);integrations.registerLegacyToolRoutes(app,neverLoad);
+ const app=express();integrations.registerWorldIntegrations(app,neverLoad);integrations.registerLegacyGameRoutes(app,neverLoad);integrations.registerLegacyToolRoutes(app,neverLoad);integrations.registerLegacyAdminRoutes(app,neverLoad);
  await integrations.initializeWorldFederation(neverLoad);integrations.startWorldBackgroundServices(neverLoad);
  const base=await serve(app);
- for(const route of ['/api/world/objects','/api/shop','/api/plot','/api/skills','/api/monster','/api/portal','/api/inventory','/api/npc','/api/custom-npc','/api/character-templates','/api/public/character-templates','/api/federation/info','/api/federation/teleport','/api/agent/v1/session','/api/agent/federation/handoff','/.well-known/virtual-world-agent.json','/api/tripo/text-to-model','/api/ai-providers/providers/1?include_sensitive=true','/api/ai-scene/generate-scene','/api/media/upload','/api/media/videos/1','/api/gallery','/api/three-dgs','/api/ai-factory','/api/model-guard','/api/admin/model-guard','/api/threejs-blocks','/api/subscription','/api/ui-controls','/api/sky','/api/tags','/api/uploaded-models/1']){
+ for(const route of ['/api/world/objects','/api/shop','/api/plot','/api/skills','/api/monster','/api/portal','/api/inventory','/api/npc','/api/custom-npc','/api/character-templates','/api/public/character-templates','/api/federation/info','/api/federation/teleport','/api/agent/v1/session','/api/agent/federation/handoff','/.well-known/virtual-world-agent.json','/api/tripo/text-to-model','/api/ai-providers/providers/1?include_sensitive=true','/api/ai-scene/generate-scene','/api/media/upload','/api/media/videos/1','/api/gallery','/api/three-dgs','/api/ai-factory','/api/model-guard','/api/admin/model-guard','/api/threejs-blocks','/api/subscription','/api/ui-controls','/api/sky','/api/tags','/api/uploaded-models/1','/api/admin/portals','/api/admin/worlds','/api/admin/config','/api/admin/characters/1/stats','/api/admin/3dgs/scenes','/api/admin/users/1/role']){
   for(const method of ['GET','POST','PUT','PATCH','DELETE']){const response=await fetch(base+route,{method});assert.equal(response.status,404);assert.equal((await response.json()).code,'FEATURE_UNAVAILABLE');}
  }
  assert.equal(imports,0,'disabled HTTP routes and services do not import legacy modules');await close();
@@ -26,7 +26,7 @@ async function close(){await new Promise(r=>server.close(r));server=null;}
   if(name==='./chatArchiveService')return {startArchiveLoop:()=>calls.push('archive started')};
   return router;
  };
- const legacy=express();integrations.registerWorldIntegrations(legacy,load);integrations.registerLegacyGameRoutes(legacy,load);integrations.registerLegacyToolRoutes(legacy,load);await integrations.initializeWorldFederation(load);integrations.startWorldBackgroundServices(load);
+ const legacy=express();integrations.registerWorldIntegrations(legacy,load);integrations.registerLegacyGameRoutes(legacy,load);integrations.registerLegacyToolRoutes(legacy,load);integrations.registerLegacyAdminRoutes(legacy,load);await integrations.initializeWorldFederation(load);integrations.startWorldBackgroundServices(load);
  const legacyBase=await serve(legacy);assert.equal((await fetch(legacyBase+'/api/federation/info')).status,200);assert.equal((await fetch(legacyBase+'/api/world/objects')).status,200);assert.equal((await fetch(legacyBase+'/api/npc')).status,200);assert.deepEqual(await(await fetch(legacyBase+'/.well-known/virtual-world-agent.json')).json(),{enabled:true});
  for(const label of ['federation started','agent started','archive started'])assert(calls.includes(label));await close();
  // Verify protocol routing: disabled agent sockets must never fall through to

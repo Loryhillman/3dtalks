@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title data-i18n="roomAdminShell.title">Room administration</title>
+  <link rel="stylesheet" href="/css/roomAdmin.css">
+  <script src="/i18n/i18n.js" defer></script>
+  <script src="/js/adminRooms.js?v=5" defer></script>
+  <script src="/js/roomModelUpload.js" defer></script>
+  <script src="/js/roomAdmin.js" defer></script>
+</head>
+<body data-room-admin="true">
+  <header>
+    <h1 data-i18n="roomAdminShell.title">Room administration</h1>
+    <span id="admin-name"></span>
+    <label><span data-i18n="roomAdminShell.language">Interface language</span>
+      <select id="admin-locale"><option value="en-US">English</option><option value="ru-RU">Русский</option><option value="zh-CN">中文</option></select>
+    </label>
+    <a href="/rooms" data-i18n="roomAdminShell.lobby">User dashboard</a>
+    <button id="admin-logout" type="button" data-i18n="roomAdminShell.logout">Sign out</button>
+  </header>
+  <p id="admin-message" role="status" aria-live="polite"></p>
+  <button id="admin-retry" type="button" hidden data-i18n="roomAdminShell.retry">Retry</button>
+  <div id="admin-app" hidden>
+    <nav aria-label="Administration">
+      <button id="rooms-admin-tab" type="button" data-panel="rooms" aria-pressed="true" data-i18n="roomAdminShell.rooms">Rooms and templates</button>
+      <button type="button" data-panel="models" aria-pressed="false" data-i18n="roomAdminShell.models">Model library</button>
+      <button type="button" data-panel="users" aria-pressed="false" data-i18n="roomAdminShell.users">Users</button>
+      <button type="button" data-panel="settings" aria-pressed="false" data-i18n="roomAdminShell.settings">Settings</button>
+    </nav>
+    <main>
+      <section id="panel-rooms">
+        <div class="section-heading"><h2 data-i18n="roomsAdmin.title">Meeting rooms</h2><button id="refresh-rooms" type="button" data-i18n="roomAdminShell.refresh">Refresh</button></div>
+        <p data-i18n="roomAdminShell.createHint">Create a draft, edit its layout, then open it to participants.</p>
+        <form id="room-create-form" class="form-row">
+          <label><span data-i18n="roomsAdmin.name">Name</span><input id="room-create-name" required maxlength="120"></label>
+          <label><span data-i18n="roomsAdmin.slug">Address</span><input id="room-create-slug" required pattern="[a-z0-9][a-z0-9-]*[a-z0-9]" minlength="3" maxlength="80"></label>
+          <label><span data-i18n="roomsAdmin.capacity">Participant limit</span><input id="room-create-capacity" type="number" min="1" max="100" value="6" required></label>
+          <label><span data-i18n="roomsAdmin.template">Template</span><select id="room-create-template" required></select></label>
+          <button type="submit" data-i18n="roomsAdmin.create">Create draft</button>
+        </form>
+        <p id="room-create-message" role="status"></p>
+        <h3 data-i18n="roomsAdmin.templatesTitle">Room templates</h3>
+        <p data-i18n="roomsAdmin.templatesHint">Publish a template for creating new rooms.</p>
+        <div id="room-template-list"></div>
+        <div id="rooms-admin-list" class="table-scroll"></div>
+        <div id="rooms-object-editor" style="display:none">
+          <h3 id="rooms-editor-title"></h3>
+          <form id="room-object-form" class="form-row">
+            <label><span data-i18n="roomsAdmin.model">Model</span><select id="room-object-model" required></select></label>
+            <label><span data-i18n="roomsAdmin.name">Name</span><input id="room-object-name" required maxlength="120"></label>
+            <label>X<input id="room-object-x" type="number" step="any" value="0" required></label>
+            <label>Y<input id="room-object-y" type="number" step="any" value="0" required></label>
+            <label>Z<input id="room-object-z" type="number" step="any" value="0" required></label>
+            <button type="submit" data-i18n="roomsAdmin.addObject">Add object</button>
+          </form>
+          <p id="room-object-message" role="status"></p><div id="room-object-list" class="table-scroll"></div>
+        </div>
+      </section>
+      <section id="panel-models" hidden>
+        <div class="section-heading"><h2 data-i18n="roomAdminShell.models">Model library</h2><button id="refresh-models" type="button" data-i18n="roomAdminShell.refresh">Refresh</button></div>
+        <p data-i18n="roomAdminShell.modelsHint">Upload furniture as GLB. Place and preview it in the room template editor.</p>
+        <form id="model-upload-form" class="form-row"><label><span data-i18n="roomAdminShell.file">GLB file, up to 100 MB</span><input id="model-file" type="file" accept=".glb" required></label><button type="submit" data-i18n="roomAdminShell.upload">Upload model</button></form>
+        <div id="admin-models" class="table-scroll"></div>
+      </section>
+      <section id="panel-users" hidden>
+        <div class="section-heading"><h2 data-i18n="roomAdminShell.users">Users</h2><button id="refresh-users" type="button" data-i18n="roomAdminShell.refresh">Refresh</button></div>
+        <div id="admin-users" class="table-scroll"></div><button id="users-more" type="button" hidden data-i18n="roomAdminShell.more">Load more</button>
+      </section>
+      <section id="panel-settings" hidden>
+        <h2 data-i18n="roomAdminShell.settings">Settings</h2>
+        <form id="profile-form"><h3 data-i18n="roomAdminShell.profile">Administrator profile</h3><label><span data-i18n="roomAdminShell.fullName">Display name</span><input id="profile-name" maxlength="120" required></label><label><span data-i18n="roomAdminShell.email">Email</span><input id="profile-email" type="email" maxlength="254"></label><button type="submit" data-i18n="roomAdminShell.save">Save</button></form>
+        <form id="password-form"><h3 data-i18n="roomAdminShell.password">Change password</h3><label><span data-i18n="roomAdminShell.currentPassword">Current password</span><input id="password-current" type="password" autocomplete="current-password" required></label><label><span data-i18n="roomAdminShell.newPassword">New password</span><input id="password-new" type="password" autocomplete="new-password" minlength="8" required></label><label><span data-i18n="roomAdminShell.confirmPassword">Confirm password</span><input id="password-confirm" type="password" autocomplete="new-password" minlength="8" required></label><button type="submit" data-i18n="roomAdminShell.save">Save</button></form>
+        <form id="language-form"><h3 data-i18n="roomAdminShell.defaultLanguage">Language for new visitors</h3><label><span data-i18n="roomAdminShell.language">Language</span><select id="default-language"><option value="en-US">English</option><option value="ru-RU">Русский</option><option value="zh-CN">中文</option></select></label><button type="submit" data-i18n="roomAdminShell.save">Save</button></form>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

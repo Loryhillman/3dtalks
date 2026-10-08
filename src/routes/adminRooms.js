@@ -68,9 +68,9 @@ router.get('/', async (_req, res) => {
       SELECT r.*, u.username AS owner_name, count(o.id)::int AS object_count
       FROM rooms r LEFT JOIN users u ON u.id=r.owner_user_id
       LEFT JOIN world_objects o ON o.room_id = r.id
-      WHERE r.deleted_at IS NULL
+      WHERE r.deleted_at IS NULL AND ($1::boolean = false OR r.slug <> 'main')
       GROUP BY r.id, u.username ORDER BY r.created_at DESC
-    `);
+    `, [process.env.APP_MODE === 'rooms']);
     res.json({ success: true, rooms: rows });
   } catch (error) {
     console.error('[adminRooms] list:', error);

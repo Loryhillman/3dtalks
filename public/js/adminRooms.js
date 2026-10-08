@@ -16,6 +16,7 @@
       headers: { ...auth(), ...(options.headers || {}) }
     });
     const data = await response.json().catch(() => ({}));
+    if ([401, 403].includes(response.status)) window.RoomAdmin?.expire();
     if (!response.ok || !data.success) {
       const key = data.code && 'roomsLobby.' + data.code;
       const translated = key && window.i18n?.t(key);
@@ -175,7 +176,7 @@
         end.style.marginLeft = '6px';
         end.textContent = t('endRoom', 'Завершить встречу');
         end.addEventListener('click', async () => {
-          if (!confirm(t('confirmEnd', 'Завершить встречу и вернуть игроков в основной мир?'))) return;
+          if (!confirm(t('confirmEnd', 'Завершить встречу и отключить всех участников?'))) return;
           end.disabled = true;
           try {
             await request(`/${room.id}/end`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: room.revision }) });
@@ -325,6 +326,7 @@
   }
 
   async function init() {
+    if (ready) return;
     const tab = document.getElementById('rooms-admin-tab');
     const form = document.getElementById('room-create-form');
     if (!tab || !form || !localStorage.getItem('adminToken')) return;
@@ -333,7 +335,8 @@
       fillTemplates(data.templates || []);
       ready = true;
       tab.style.display = '';
-    } catch (_) {
+    } catch (error) {
+      if (document.body.dataset.roomAdmin) throw error;
       // The feature flag is off; the unfinished UI stays hidden.
       return;
     }
@@ -402,7 +405,12 @@
     });
   }
 
-  window.AdminRooms = { load };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else init();
+  window.AdminRooms = { init, load, async invalidateModels() {
+    modelsLoaded = false;
+    if (selectedRoom?.status === 'draft') await selectRoom(selectedRoom);
+  } };
+  if (!document.body.dataset.roomAdmin) {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+  }
 })();
