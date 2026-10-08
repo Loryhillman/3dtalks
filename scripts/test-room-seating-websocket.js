@@ -25,7 +25,13 @@ class Socket extends EventEmitter {
   close(code) { this.code = code; this.readyState = 3; this.emit('close'); }
   ping() {}
 }
-class Server extends EventEmitter { clients = new Set(); }
+class Server extends EventEmitter {
+  clients = new Set();
+  constructor(options) {
+    super();
+    assert.equal(options.maxPayload, require('../src/websocket/roomSocketPolicy').LIMITS.packetBytes);
+  }
+}
 const original = Module._load;
 Module._load = function(request, parent, isMain) {
   if (parent?.filename.endsWith(path.join('websocket', 'wsServer.js'))) {

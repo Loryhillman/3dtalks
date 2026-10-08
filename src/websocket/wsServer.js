@@ -9,6 +9,7 @@ const voiceRelay = require('./voiceRelay');
 const jwt = require('jsonwebtoken');
 const { MAIN_ROOM_ID } = require('../services/roomScope');
 const { runRoomOperation } = require('../services/roomOperationQueue');
+const { LIMITS: ROOM_SOCKET_LIMITS, protectRoomSocket } = require('./roomSocketPolicy');
 
 let wss = null;
 
@@ -190,9 +191,19 @@ function warnUnregistered(connectionId, type) {
 function setupWebSocketServer(httpServer) {
   try {
     // noServer 模式：upgrade 由 upgradeRouter 分发（/ws/agent→agent，其余→人类兜底）
-    wss = new WebSocket.Server({ noServer: true });
+    const roomsMode = process.env.APP_MODE === 'rooms';
+    wss = new WebSocket.Server({ noServer: true,
+      ...(roomsMode ? { maxPayload: ROOM_SOCKET_LIMITS.packetBytes } : {}) });
 
     wss.on('connection', (ws) => {
+      if (roomsMode && (wss.clients.size > ROOM_SOCKET_LIMITS.connections ||
+          activeConnections.size >= ROOM_SOCKET_LIMITS.connections ||
+          activeConnections.size - playerPositions.size >= ROOM_SOCKET_LIMITS.pendingConnections)) {
+        // Do not retain rejected sockets for another close-handshake timeout.
+        ws.on('error', () => {});
+        ws.terminate();
+        return;
+      }
       const connectionId = uuidv4();
       activeConnections.set(connectionId, ws);
 
@@ -202,14 +213,21 @@ function setupWebSocketServer(httpServer) {
 
       console.log(`Client connected: ${connectionId}`);
 
-      ws.on('message', (message) => {
+      const dispatch = data => {
         try {
-          const data = JSON.parse(message);
           handleMessage(connectionId, ws, data);
         } catch (error) {
           console.error('WebSocket message error:', error);
         }
-      });
+      };
+      if (roomsMode) {
+        protectRoomSocket(ws, { isJoined: () => playerPositions.has(connectionId), onMessage: dispatch });
+      } else {
+        ws.on('message', message => {
+          try { dispatch(JSON.parse(message)); }
+          catch (error) { console.error('WebSocket message error:', error); }
+        });
+      }
 
       ws.on('close', async () => {
         // 保存用户最后位置（下线时停留在当前位置）
