@@ -331,6 +331,7 @@
   }
 
   function scanNow() {
+    if (window.MeetingUI?.active) return;
     var world = findWorld();
     if (!world || !world.generatedBuildings || !world.scene) return;
     var M = window.WorldInstanceMerger;
@@ -534,6 +535,7 @@
   }
 
   function boot() {
+    if (window.MeetingUI?.active) return;
     if (findWorld()) {
       booted = true;
       hookReveal();

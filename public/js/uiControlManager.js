@@ -88,6 +88,7 @@ class UIControlManager {
    * 初始化并加载配置
    */
   async init() {
+    if (window.MeetingUI?.active) return;
     try {
       console.log(`[UIControlManager] 初始化，平台: ${this.platform}`);
       this.initVRDetection();

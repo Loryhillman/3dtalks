@@ -435,7 +435,7 @@ function handleMessage(connectionId, ws, data) {
       // P4：异步写入聊天记录（不阻塞广播，失败仅日志，chat_log_enabled=false 时跳过）
       const _senderRef = sender;
       const _msgRef = text;
-      Promise.resolve().then(() => {
+      if (process.env.APP_MODE !== 'rooms' && (sender?.roomId || MAIN_ROOM_ID) === MAIN_ROOM_ID) Promise.resolve().then(() => {
         try {
           const chatLogService = require('../agent/chatLogService');
           return chatLogService.insertLog({
@@ -717,6 +717,15 @@ async function handlePlayerJoin(connectionId, ws, payload) {
       isSelfContainedBundle: isSelfContainedBundle === true,
     },
   });
+
+  if (roomId !== MAIN_ROOM_ID) {
+    if (ws.readyState !== WebSocket.OPEN || playerPositions.get(connectionId)?.roomId !== roomId) return;
+    ws.send(JSON.stringify({ type: 'WORLD_STATE', payload: {
+      players: [...playerPositions.values()].filter(player => (player.roomId || MAIN_ROOM_ID) === roomId),
+      weather: null, timestamp: new Date()
+    } }));
+    return;
+  }
 
   // Send current world state to new player (含已在线玩家的 glbUrl 和当前天气)
   // 异步读取当前天气配置

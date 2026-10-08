@@ -36,6 +36,7 @@ const PortalManager = {
    * 初始化传送门管理器
    */
   init() {
+    if (window.MeetingUI?.active) return;
     if (window.i18n) window.i18n.onLocaleChange(() => {
       const manager = document.getElementById('portal-manager');
       if (manager && manager.style.display !== 'none') this.loadPortalsList();

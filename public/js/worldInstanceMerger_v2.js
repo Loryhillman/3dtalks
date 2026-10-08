@@ -398,6 +398,7 @@
 
   // ===== 快照 diff 主循环 =====
   function scanAndMerge() {
+    if (window.MeetingUI?.active) return;
     const world = findWorld();
     if (!world || !world.generatedBuildings || !world.scene) return;
     if (!enabled) return;
@@ -775,6 +776,7 @@
   }
 
   function boot() {
+    if (window.MeetingUI?.active) return;
     if (findWorld()) {
       startTimer();
       startCull();

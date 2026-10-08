@@ -8,6 +8,7 @@
  */
 (function () {
     'use strict';
+    if (window.MeetingUI?.active) return;
 
     const GROUND_API = '/api/world/ground-config';
 

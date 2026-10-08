@@ -276,7 +276,7 @@ class World {
     this.animate();
 
     // 初始化广告位点击交互
-    this.initAdSlotInteraction();
+    if (!window.MeetingUI?.active) this.initAdSlotInteraction();
     
     // 初始化技能系统
 
@@ -295,7 +295,7 @@ class World {
     // 自定义天空（天空库）挂载：未启用时行为与以往完全一致
     if (window.SkyManager) {
       SkyManager.attach(this.scene, this.renderer);
-      SkyManager.fetchFallback();
+      if (!window.MeetingUI?.active) SkyManager.fetchFallback();
     }
     // Background - 默认晴天蓝天
     this.scene.background = window.SkyManager
@@ -317,6 +317,7 @@ class World {
    * @param {{intensity?:number, wind?:number}} opts  intensity 0-100, wind 0-100
    */
   setWeather(type, opts = {}) {
+    if (window.MeetingUI?.active) return;
     const intensity = Math.min(100, Math.max(0, opts.intensity ?? 50)) / 100; // 0~1
     const wind      = Math.min(100, Math.max(0, opts.wind      ?? 20)) / 100;
 

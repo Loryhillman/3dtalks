@@ -4,7 +4,6 @@
  */
 const express = require('express');
 const router = express.Router();
-const { v4: uuidv4 } = require('uuid');
 const { query } = require('../database/db');
 const { authenticateToken } = require('../middleware/auth');
 
@@ -32,6 +31,10 @@ router.get('/character/:characterId', async (req, res) => {
       'SELECT * FROM character_appearance WHERE character_id = $1',
       [characterId]
     );
+
+    if (process.env.APP_MODE === 'rooms') {
+      return res.json({ character, appearance: appearanceResult.rows[0] || {}, equipment: [], skills: [] });
+    }
 
     // Get equipment
     const equipmentResult = await query(

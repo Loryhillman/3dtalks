@@ -63,6 +63,7 @@
   }
 
   async function fetchEnabled() {
+    if (window.MeetingUI?.active) return false;
     if (_fetched) return _enabled;
     _fetched = true;
     try {

@@ -7,6 +7,7 @@ let nextId = 0;
 let moves = 0;
 let claim;
 let rejectAdmission = false;
+let weatherQueries = 0, agentLogImports = 0;
 const savedAvatar = {version:1,mode:'standard',headType:'cube',bodyColor:'#224466',headColor:'#ffaa99'};
 const pose = { position: { x: 4, y: 1, z: 2 }, orientation: { x: 0, y: 0, z: 0, w: 1 } };
 const service = {
@@ -31,8 +32,11 @@ Module._load = function(request, parent, isMain) {
     if (request === 'ws') return { Server, OPEN: 1 };
     if (request === 'uuid') return { v4: () => String(++nextId) };
     if (request === 'jsonwebtoken') return { verify: () => ({ userId: 'user' }) };
-    if (request === '../database/db') return { pool: {}, query: async sql => ({ rows:
-      sql.includes('SELECT avatar_config') ? [{avatar_config:savedAvatar}] : sql.includes('c.id=u.room_character_id') ? [{ id: 'character' }] : sql.includes('FROM rooms r JOIN characters') ? [{ id: roomId, status: 'open', seating_mode: 'seated', capacity: 0 }] : [] }) };
+    if (request === '../agent/chatLogService') { agentLogImports++; return { insertLog() {} }; }
+    if (request === '../database/db') return { pool: {}, query: async sql => {
+      if (sql.includes('world_weather')) weatherQueries++;
+      return { rows:
+      sql.includes('SELECT avatar_config') ? [{avatar_config:savedAvatar}] : sql.includes('c.id=u.room_character_id') ? [{ id: 'character' }] : sql.includes('FROM rooms r JOIN characters') ? [{ id: roomId, status: 'open', seating_mode: 'seated', capacity: 0 }] : [] }; } };
     if (request === '../services/roomSeats') return { createRoomSeatService: () => service };
     if (request === './voiceRelay') return { init() {}, ensureDefaultConfig() {}, handleDisconnect() {} };
   }
@@ -59,6 +63,11 @@ function join(ws) { send(ws, 'PLAYER_JOIN', { roomSlug: 'meeting', characterId: 
     assert.deepEqual(first.sent.find(m=>m.type==='WORLD_STATE').payload.players[0].avatarConfig,savedAvatar,'late-join snapshot includes avatar');
     send(first,'MODEL_UPDATE',{glbUrl:'https://untrusted.invalid/replacement.glb'});
     assert.equal(presence.glbUrl,null,'legacy model updates cannot bypass account avatar validation');
+    assert.equal(first.sent.find(m=>m.type==='WORLD_STATE').payload.weather,null);
+    assert.equal(weatherQueries,0,'room admission does not read global weather');
+    send(first,'CHAT',{message:'Meeting message'});await tick();
+    assert(first.sent.some(m=>m.type==='CHAT'&&m.payload.message==='Meeting message'),'room chat is still delivered');
+    assert.equal(agentLogImports,0,'room chat is not imported into the legacy AI log');
     send(first, 'POSITION_UPDATE', { position: { x: 99, y: 99, z: 99 } });
     send(first, 'SKILL_CAST', {});
     assert.deepEqual([...server.getPlayerPositions().values()][0].position, pose.position);

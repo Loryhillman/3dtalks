@@ -523,7 +523,7 @@ class WSClient {
     });
 
     // 同步天气（新玩家加入时）
-    if (weather && gameWorld && gameWorld.setWeather) {
+    if (!window.MeetingUI?.active && weather && gameWorld && gameWorld.setWeather) {
       console.log('🌤️ 服务器发送的天气:', weather);
       gameWorld.setWeather(weather.type || 'clear', weather);
       // 同步前端天气按钮高亮
@@ -533,6 +533,7 @@ class WSClient {
   }
 
   static handleWeatherChange(payload) {
+    if (window.MeetingUI?.active) return;
     if (!gameWorld || !gameWorld.setWeather) return;
     gameWorld.setWeather(payload.type || 'clear', payload);
     // 同步前端天气按钮高亮

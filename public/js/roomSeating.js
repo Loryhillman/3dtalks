@@ -134,7 +134,7 @@
     toolbar.append(capacityBadge);
     window.MeetingUI?.enter(room, toolbar);
     window.addEventListener?.('avatar-load-error', event => {
-      if (event.detail.group !== window.player?.characterGroup) return;
+      if (event.detail.group !== window.player?.worldObject) return;
       let message = document.getElementById('room-avatar-error');
       if (!message) { message = document.createElement('p'); message.id = 'room-avatar-error'; message.setAttribute('role', 'alert'); message.style.cssText = 'margin:8px 0 0;font-size:12px;color:#ffd595'; toolbar.append(message); }
       message.textContent = window.i18n.t('avatar.roomLoadFailed');

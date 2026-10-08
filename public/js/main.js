@@ -67,6 +67,7 @@ if (typeof window !== 'undefined') {
 
 // Update debug panel every 100ms（接入 BgThrottle：页面后台时冻结）
 (function () {
+  if (window.MeetingUI?.active) return;
   const debugFn = () => {
     updateDebugPanel();
     debugUpdateCounter++;
@@ -747,7 +748,7 @@ async function initializeGame() {
     // 此时 localStorage 里的 selectedTemplateWeaponConfig 已是最新，再创建 Player
     player = new Player(gameWorld, GAME_STATE.characterId, characterData, _finalGlbUrl || selectedGlbUrl);
 
-    if (accountAvatar) window.UserAvatarRenderer?.apply(player.characterGroup, accountAvatar);
+    if (accountAvatar) window.UserAvatarRenderer?.apply(player.worldObject, accountAvatar);
 
     // Set player initial position to spawn point
     player.position.set(spawnPosition.x, spawnPosition.y, spawnPosition.z);
@@ -763,7 +764,7 @@ async function initializeGame() {
     // 注意：不再进世界自动开麦（隐私问题），语音技能识别由 V 键手动开关；
     // 🎤 按钮由 voiceChat.js（附近语音对讲 PTT）接管
     try {
-      voiceManager = new VoiceManager(player);
+      if (!window.MeetingUI?.active) voiceManager = new VoiceManager(player);
       window.voiceManagerInstance = voiceManager; // 供 V 键语音识别开关使用
     } catch (voiceErr) {
       console.warn('[main] 语音管理器初始化失败:', voiceErr.message);
@@ -966,6 +967,7 @@ async function loadPortals() {
 }
 
 function startUIUpdates() {
+  if (window.MeetingUI?.active) return;
   // Update minimap every 500ms（接入 BgThrottle：页面后台时冻结）
   const minimapFn = () => {
     if (player && gameWorld) {
@@ -1235,6 +1237,7 @@ function setupKeyboardShortcuts() {
   });
 
   document.addEventListener('keydown', (e) => {
+    if (window.MeetingUI?.active || e.target?.closest?.('input,textarea,select,[contenteditable]')) return;
     // V key to toggle voice
     if (e.key === 'v' || e.key === 'V') {
       if (voiceManager) {
@@ -2838,6 +2841,7 @@ function showItemDetail(item) {
 
 // 在页面加载完成后初始化
 window.addEventListener('load', () => {
+  if (window.MeetingUI?.active) return;
   // 延迟初始化，确保其他组件已加载
   setTimeout(() => {
     initializeUserQuickActions();

@@ -31,6 +31,11 @@ function handleUpgrade(request, socket, head) {
   }
 
   if (pathname === AGENT_WS_PATH) {
+    if (process.env.APP_MODE === 'rooms') {
+      try { socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'); } catch (_) {}
+      socket.destroy();
+      return;
+    }
     try {
       const agentWs = require('./agentWsServer');
       agentWs.handleUpgrade(request, socket, head);

@@ -43,6 +43,7 @@ class MobileControls {
   }
   
   init() {
+    if (window.MeetingUI?.active) return;
     console.log('📱 初始化移动端控制');
     this.createJoystick();
     this.createButtons();
@@ -499,6 +500,7 @@ class MobileControls {
 let mobileControls = null;
 
 window.addEventListener('load', () => {
+  if (window.MeetingUI?.active) return;
   mobileControls = new MobileControls();
   
   // 监听窗口大小变化，动态显示/隐藏控制

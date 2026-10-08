@@ -7,6 +7,12 @@
  * 实现用户在不同虚拟世界之间传送
  */
 
+function isFederationMeetingPage() {
+  const requestedRoom = new URLSearchParams(location.search).get('room');
+  return window.MeetingUI?.active || location.pathname === '/play' ||
+    !!requestedRoom && requestedRoom !== 'main';
+}
+
 class FederationUI {
   constructor() {
     this.connectedWorlds = [];
@@ -50,7 +56,10 @@ class FederationUI {
     }
     
     // 显示错误提示
-    alert(window.i18n.tp('federationUi.actionFailed', { action: contextName, message: errorMessage }));
+    if (isFederationMeetingPage()) return;
+    const key = 'federationUi.actionFailed';
+    const translated = window.i18n?.tp(key, { action: contextName, message: errorMessage });
+    alert(translated && translated !== key ? translated : `${contextName} failed: ${errorMessage}`);
   }
 
   /**
@@ -77,6 +86,8 @@ class FederationUI {
   }
 
   async init() {
+    // Meeting rooms do not use world federation or cross-world teleportation.
+    if (isFederationMeetingPage()) return;
     // 获取当前世界信息
     await this.loadCurrentWorldInfo();
     
@@ -817,11 +828,13 @@ class FederationUI {
 // 全局实例
 let federationUI;
 
+function initializeFederationUI() {
+  if (!isFederationMeetingPage()) federationUI = new FederationUI();
+}
+
 // 在页面加载完成后初始化
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    federationUI = new FederationUI();
-  });
+  document.addEventListener('DOMContentLoaded', initializeFederationUI);
 } else {
-  federationUI = new FederationUI();
+  initializeFederationUI();
 }

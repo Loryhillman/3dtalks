@@ -96,14 +96,6 @@ const { initializeDatabase, isDatabaseInitialized, query } = require('./database
 // Routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
-const worldRoutes = require('./routes/world');
-const worldLockRoutes = require('./routes/worldLock');
-const worldGroundRoutes = require('./routes/worldGround');
-const shopRoutes = require('./routes/shop');
-const plotRoutes = require('./routes/plot');
-const skillRoutes = require('./routes/skills');
-const monsterRoutes = require('./routes/monster');
-const portalRoutes = require('./routes/portal');
 const adminRoutes = require('./routes/admin');
 const adminAuthRoutes = require('./routes/adminAuth');
 const adminMaintenanceRoutes = require('./routes/adminMaintenance');
@@ -111,18 +103,12 @@ const modelLodRoutes = require('./routes/modelLod');  // 模型 LOD 三版方案
 const tripoRoutes = require('./routes/tripo');
 const aiAssistantRoutes = require('./routes/aiAssistant');
 const geometryBuildingRoutes = require('./routes/geometryBuilding');
-const { router: federationRouter, initFederation } = require('./routes/federation');
-const federationTrustRoutes = require('./routes/federationTrust');
 const aiSceneGeneratorRoutes = require('./routes/aiSceneGenerator');
 const uploadedModelsRoutes = require('./routes/uploadedModels');
 const uploadedModelMetaRoutes = require('./routes/uploadedModelMeta');  // 🤖 上传模型 AI 描述端点
 const aiProvidersRoutes = require('./routes/aiProviders');
 const tagsRoutes = require('./routes/tags');
 const configRoutes = require('./routes/config');
-const characterTemplatesRoutes = require('./routes/characterTemplates');
-const inventoryRoutes = require('./routes/inventory');
-const npcRoutes = require('./routes/npc');
-const customNpcRoutes = require('./routes/customNpc');
 const { router: uiControlsRouter, ensureDefaultControls } = require('./routes/uiControls');
 const mediaRoutes = require('./routes/media');
 const threeDgsRoutes = require('./routes/threeDgs');
@@ -133,27 +119,16 @@ const threejsCodeBlocksRoutes = require('./routes/threejsCodeBlocks');
 const threejsImportRoutes = require('./routes/threejsImport');
 const securityQuestionsRoutes = require('./routes/securityQuestions');
 const subscriptionRoutes = require('./routes/subscription');
-const worldSpatialRoutes = require('./routes/worldSpatial');
 const adminRoomsRoutes = require('./routes/adminRooms');
 const roomsRoutes = require('./routes/rooms');
 const skyRoutes = require('./routes/sky');
-const { worldWriteGuard } = require('./middleware/worldWriteGuard');
-const agentApiRoutes = require('./routes/agent');  // AI Agent 接入 API（/api/agent/v1）
+const worldIntegrations = require('./services/worldIntegrations');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', securityQuestionsRoutes);  // 安全问题管理（需管理员认证）
 app.use('/api/users', userRoutes);
 app.use('/api/my/avatar', require('./routes/userAvatar'));
-app.use('/api/world/spatial', worldSpatialRoutes);
-// 世界内容写操作仅管理员可用（GET 在守卫内部放行，联邦跨域读取不受影响）
-app.use('/api/world', worldWriteGuard, worldRoutes);
-app.use('/api/world', worldWriteGuard, worldLockRoutes);
-app.use('/api/world', worldWriteGuard, worldGroundRoutes);
-app.use('/api/shop', shopRoutes);
-app.use('/api/plot', plotRoutes);
-app.use('/api/skills', skillRoutes);
-app.use('/api/monster', monsterRoutes);
-app.use('/api/portal', portalRoutes);
+worldIntegrations.registerLegacyGameRoutes(app);
 app.use('/api/admin-auth', adminAuthRoutes);  // 管理员认证路由
 app.use('/api/admin', adminRoutes);  // 管理后台路由（需要管理员认证）
 // Until game/editor/WebSocket isolation is complete, rooms remain hidden.
@@ -166,18 +141,13 @@ app.use('/api/tripo', tripoRoutes);  // Tripo AI 3D生成路由
 app.use('/api/ai', aiAssistantRoutes);  // AI助手路由
 app.use('/api/ai-providers', aiProvidersRoutes);  // AI提供商配置路由
 app.use('/api/geometry-building', geometryBuildingRoutes);  // 几何体建筑路由
-app.use('/api/federation', federationRouter);  // 联邦系统路由
-app.use('/api/federation', federationTrustRoutes);  // 联邦信任审批路由（开关/待审批请求）
+worldIntegrations.registerWorldIntegrations(app);
 app.use('/api/ai-scene', aiSceneGeneratorRoutes);  // AI场景生成路由
 app.use('/api/ui-controls', uiControlsRouter);  // UI控件路由（包含公开接口和管理员接口）
 app.use('/api', uploadedModelsRoutes);  // 上传模型路由
 app.use('/api', uploadedModelMetaRoutes);  // 🤖 上传模型 AI 描述端点（独立小模块）
 app.use('/api/tags', tagsRoutes);  // 标签管理路由
 app.use('/api/config', configRoutes);  // 配置管理路由
-app.use('/api/character-templates', characterTemplatesRoutes);  // 角色模板路由（管理员）
-app.use('/api/inventory', inventoryRoutes);  // 背包/奖励池/掉落物路由
-app.use('/api/npc', npcRoutes);  // NPC管理路由
-app.use('/api/custom-npc', customNpcRoutes);  // 定制NPC路由
 app.use('/api/media', mediaRoutes);  // 媒体图片上传路由
 app.use('/api/three-dgs', threeDgsRoutes);  // 3D高斯泼溅场景公开只读列表路由
 app.use('/api/ai-factory', aiFactoryRoutes);  // AI动作工厂路由
@@ -188,23 +158,6 @@ app.use('/api/threejs-blocks', threejsCodeBlocksRoutes);  // Three.js 代码库�
 app.use('/api/threejs-blocks', threejsImportRoutes);    // Three.js URL导入路由（管理员）
 app.use('/api/subscription', subscriptionRoutes);  // 订阅管理路由
 app.use('/api/sky', skyRoutes.router);  // 天空库路由（列表公开读，上传/删除需管理员）
-app.use('/api/agent/v1', agentApiRoutes);  // AI Agent 接入 API（独立 JWT 体系）
-app.use('/api/agent/federation', require('./routes/agentFederation'));  // P5: Agent 联邦传送接收端（公开端点，handoffToken 鉴权）
-
-// P6: AI Agent 自动发现入口（公开无鉴权，RFC 8615 风格 .well-known）
-// 仅凭域名即可发现本世界是否开放 AI Agent 接入、API base、WS 端点、能力清单等
-const { buildWellKnown } = require('./routes/agent/meta');
-app.get('/.well-known/virtual-world-agent.json', async (req, res) => {
-  try {
-    const doc = await buildWellKnown(req);
-    res.set('Cache-Control', 'public, max-age=60');  // 1 分钟缓存（agent_enabled 切换需 60s 热跟进）
-    res.json(doc);
-  } catch (error) {
-    console.error('[Agent] Discovery failed:', error);
-    res.status(500).json({ success: false, error: 'Discovery failed', code: 'WELLKNOWN_FAILED' });
-  }
-});
-
 // 公开模板接口：普通用户 Token 可访问（access_level=public 的激活模板）
 app.get('/api/public/character-templates', async (req, res) => {
   const { query } = require('./database/db');
@@ -536,8 +489,10 @@ async function start() {
     try {
       if (!isDatabaseInitialized()) await initializeDatabase();
       console.log('Database initialized');
-      await ensureDefaultControls();
-      await autoFixWorldUrl();  // 自检修正 world_url（导入他人数据库后自动修正）
+      if (!worldIntegrations.isRoomsMode()) {
+        await ensureDefaultControls();
+        await autoFixWorldUrl();
+      }
     } catch (dbError) {
       if (process.env.ROOMS_ENABLED === 'true') throw dbError;
       console.warn('Database initialization failed, continuing without database:', dbError.message);
@@ -554,8 +509,7 @@ async function start() {
       
       // 初始化联邦系统
       try {
-        await initFederation();
-        console.log('✅ Federation initialized');
+        await worldIntegrations.initializeWorldFederation();
       } catch (error) {
         console.error('❌ Federation initialization failed:', error);
       }
@@ -581,17 +535,13 @@ async function start() {
       const { setupWebSocketServer } = require('./websocket/wsServer');
       setupWebSocketServer(server);                       // 创建人类 wss（noServer）
       server.on('upgrade', require('./websocket/upgradeRouter'));  // 路由分发
-      require('./websocket/agentWsServer').start();        // 启动 Agent WS（推送/心跳/CHAT 旁路）
+
     } catch (wsError) {
       console.warn('WebSocket server setup failed, continuing without WebSocket:', wsError.message);
     }
 
-    // P4：聊天记录每日归档循环（每小时检查一次 upload_hour；远端关闭时立即 return）
-    try {
-      require('./services/chatArchiveService').startArchiveLoop();
-    } catch (e) {
-      console.warn('[Server] Chat archival loop failed to start; the main service continues:', e.message);
-    }
+    worldIntegrations.startWorldBackgroundServices();
+
   } catch (error) {
     require('./services/startupConfig').logStartupError(error);
     process.exit(1);
