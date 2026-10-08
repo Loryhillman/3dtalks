@@ -1,15 +1,18 @@
 /* Account avatars use their own loader, independent of legacy RPG templates. */
 (() => {
   function dispose(root) {
-    const textures=new Set(),skeletons=new Set();
+    const textures=new Set(),skeletons=new Set(),geometries=new Set(),materials=new Set();
     root?.traverse(node=>{
-      node.geometry?.dispose();
+      // THREE.Sprite geometry is shared by all sprites, including other participants.
+      if(node.geometry && !node.isSprite)geometries.add(node.geometry);
       if(node.skeleton)skeletons.add(node.skeleton);
       for(const material of [].concat(node.material||[])){
         for(const value of Object.values(material))if(value?.isTexture)textures.add(value);
-        material.dispose();
+        materials.add(material);
       }
     });
+    geometries.forEach(geometry=>geometry.dispose());
+    materials.forEach(material=>material.dispose());
     textures.forEach(texture=>texture.dispose());
     skeletons.forEach(skeleton=>skeleton.dispose());
   }

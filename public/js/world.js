@@ -1773,7 +1773,17 @@ class World {
     return maxHeight;
   }
 
+  getMeetingParticipants() {
+    if (!this._meetingParticipants) this._meetingParticipants = new window.MeetingParticipants(this);
+    return this._meetingParticipants;
+  }
+
+  clearMeetingParticipants() {
+    this._meetingParticipants?.clear();
+  }
+
   removePlayer(characterId) {
+    if (this.isMeeting) return this.getMeetingParticipants().remove(characterId);
     const playerData = this.players.get(characterId);
     if (playerData && playerData.group) {
       // 清理骨骼物理实例
@@ -1800,8 +1810,9 @@ class World {
   }
 
   addPlayer(characterId, characterName, position = { x: 0, y: 0, z: 0 }, isLoggedIn = true, glbUrl = null, weaponConfig = null, boneMapConfig = null, weaponSocketConfig = null, calibrationConfig = null, avatarConfig = null) {
+    if (this.isMeeting) return this.getMeetingParticipants().add(characterId, characterName, position, avatarConfig);
     this.removePlayer(characterId);
-    
+
     const {characterGroup,body,head,leftArmGroup,rightArmGroup,leftLegGroup,rightLegGroup,leftElbowGroup,rightElbowGroup,leftKneeGroup,rightKneeGroup} = window.AvatarBase.create(isLoggedIn);
 
     // 右手武器：仅当 weaponConfig 有效（非 null 且为对象）时才创建
@@ -2850,6 +2861,7 @@ class World {
 
   // Update player name
   updatePlayerName(characterId, newName) {
+    if (this.isMeeting) return this.getMeetingParticipants().rename(characterId, newName);
     const playerData = this.players.get(characterId);
     if (playerData) {
       // Update stored name

@@ -195,6 +195,7 @@
         for (const p of payload.players || []) if (p.seat) apply(p.characterId, p.seat);
       } else if (type === 'PLAYER_JOINED' && payload.seat) apply(payload.characterId, payload.seat);
     },
+    removeParticipant(characterId) { looks.delete(characterId); },
     updateLocal(player, camera) {
       if (!seat) return;
       if (!pickerOpen && typeof MOUSE !== 'undefined' && MOUSE.isDragging) player.targetRotationY = MOUSE.targetRotationY;

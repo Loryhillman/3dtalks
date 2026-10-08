@@ -33,6 +33,9 @@ class VoiceChatManager {
     this.recordStartTime = 0;
     this.audioCtx = null;
     this.probeTimer = null;
+    this.recordingTimer = null;
+    this.playbackSources = new Set();
+    this.disposed = false;
     this.lastSentAt = 0;
     this._styleInjected = false;
 
@@ -46,11 +49,12 @@ class VoiceChatManager {
   // ─── 录音（按下/松开由 skillHUD 🎤 按钮驱动） ───────────────────
 
   async startTalk() {
+    if (this.disposed) return;
     if (this.disabled) {
       UI.addChatMessage(voiceT('system', '系统'), voiceT('crowdedUnavailable', '当前附近人数较多，语音不可用，请使用文字聊天'));
       return;
     }
-    if (this.wantRecording || this.recording) return;
+    if (this.wantRecording || this.recording || this.recorder) return;
     if (typeof WSClient === 'undefined' || !WSClient.isConnected()) {
       UI.addChatMessage(voiceT('system', '系统'), voiceT('networkUnavailable', '网络未连接，语音不可用'));
       return;
@@ -71,6 +75,7 @@ class VoiceChatManager {
         });
       }
     } catch (error) {
+      if (this.disposed) return;
       console.warn('[VoiceChat] 麦克风获取失败:', error.name);
       this.wantRecording = false;
       this._setDisabled(true);
@@ -96,7 +101,7 @@ class VoiceChatManager {
     this.recorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) this.chunks.push(e.data);
     };
-    this.recorder.onstop = () => this._onRecordStop();
+    this.recorder.onstop = () => { this.recorder = null; this._onRecordStop(); };
 
     this.recorder.start(250);
     this.recording = true;
@@ -105,12 +110,13 @@ class VoiceChatManager {
     WSClient.send({ type: 'VOICE_START', payload: {} });
     this._setRecordingUI(true);
     // 最长 60s 自动截断
-    setTimeout(() => {
+    this.recordingTimer = setTimeout(() => {
       if (this.recording) this.stopTalk();
     }, this.MAX_DURATION_MS + 500);
   }
 
   stopTalk() {
+    clearTimeout(this.recordingTimer); this.recordingTimer = null;
     if (!this.wantRecording && !this.recording) return;
     this.wantRecording = false;
     if (this.recording && this.recorder && this.recorder.state !== 'inactive') {
@@ -123,11 +129,13 @@ class VoiceChatManager {
   }
 
   _onRecordStop() {
+    clearTimeout(this.recordingTimer); this.recordingTimer = null;
     const durationMs = Date.now() - this.recordStartTime;
     const chunks = this.chunks;
     this.chunks = [];
     this._releaseStream(); // 释放麦克风（隐私优先：不说话时麦克风灯熄灭）
 
+    if (this.disposed) return;
     if (durationMs < this.MIN_DURATION_MS) {
       UI.addChatMessage(voiceT('system', '系统'), voiceT('tooShort', '说话时间太短，已取消'));
       return;
@@ -142,6 +150,7 @@ class VoiceChatManager {
 
     const reader = new FileReader();
     reader.onload = () => {
+      if (this.disposed || !WSClient.isConnected()) return;
       const dataUrl = reader.result || '';
       const base64 = dataUrl.split(',')[1] || '';
       if (!base64) return;
@@ -172,7 +181,7 @@ class VoiceChatManager {
   // ─── 播放（接收端，按距离衰减） ────────────────────────────────
 
   async playVoiceMessage(payload) {
-    if (this.muted) return;
+    if (this.disposed || this.muted) return;
     const { characterId, audio, durationMs } = payload;
     if (!audio || characterId === (window.GAME_STATE && GAME_STATE.characterId)) return;
 
@@ -190,18 +199,23 @@ class VoiceChatManager {
 
     try {
       this.audioCtx = this.audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-      if (this.audioCtx.state === 'suspended') await this.audioCtx.resume();
+      const audioCtx = this.audioCtx;
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      if (this.disposed) return;
 
       const raw = atob(audio);
       const bytes = new Uint8Array(raw.length);
       for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-      const buffer = await this.audioCtx.decodeAudioData(bytes.buffer);
+      const buffer = await audioCtx.decodeAudioData(bytes.buffer);
 
-      const source = this.audioCtx.createBufferSource();
+      if (this.disposed) return;
+      const source = audioCtx.createBufferSource();
       source.buffer = buffer;
-      const gain = this.audioCtx.createGain();
+      const gain = audioCtx.createGain();
       gain.gain.value = volume;
-      source.connect(gain).connect(this.audioCtx.destination);
+      source.connect(gain).connect(audioCtx.destination);
+      this.playbackSources.add(source);
+      source.onended = () => { this.playbackSources.delete(source); source.disconnect(); gain.disconnect(); };
       source.start();
     } catch (error) {
       console.warn('[VoiceChat] 播放失败:', error.message);
@@ -211,6 +225,7 @@ class VoiceChatManager {
   // ─── 服务端消息入口（websocket.js 分发） ──────────────────────
 
   handleServerMessage(type, payload) {
+    if (this.disposed) return;
     switch (type) {
       case 'VOICE_DENIED':
         this._setDisabled(true);
@@ -236,6 +251,7 @@ class VoiceChatManager {
   }
 
   _startProbe() {
+    if (this.disposed) return;
     this._stopProbe();
     this.probeTimer = setInterval(() => {
       if (typeof WSClient !== 'undefined' && WSClient.isConnected()) {
@@ -246,6 +262,30 @@ class VoiceChatManager {
 
   _stopProbe() {
     if (this.probeTimer) { clearInterval(this.probeTimer); this.probeTimer = null; }
+  }
+
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.wantRecording = false;
+    this.recording = false;
+    clearTimeout(this.recordingTimer); this.recordingTimer = null;
+    this._stopProbe();
+    if (this.recorder) {
+      this.recorder.onstop = null;
+      this.recorder.ondataavailable = null;
+      if (this.recorder.state !== 'inactive') { try { this.recorder.stop(); } catch (_) {} }
+      this.recorder = null;
+    }
+    this.chunks = [];
+    this._releaseStream();
+    for (const source of this.playbackSources) { try { source.stop(); } catch (_) {} }
+    this.playbackSources.clear();
+    if (this.audioCtx) {
+      this.audioCtx.close().catch(error => console.warn('[VoiceChat] Audio context close failed:', error.message));
+      this.audioCtx = null;
+    }
+    this._setRecordingUI(false);
   }
 
   // ─── UI 状态 ──────────────────────────────────────────────────

@@ -35,12 +35,15 @@
     stopped = true;
     controller.abort();
     removeInput?.();
+    window.voiceChat?.dispose();
     if (typeof WSClient !== 'undefined') {
       WSClient.roomEnded = true;
       WSClient.messageQueue.length = 0;
       WSClient.ws?.close();
     }
+    window.WSPresenceGuard?.stop();
     window.gameWorld?.clearRoomScene();
+    window.gameWorld?.clearMeetingParticipants();
     window.gameWorld?.stopRendering();
   }
   function login() {

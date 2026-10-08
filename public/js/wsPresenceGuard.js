@@ -164,7 +164,7 @@
     WS.attemptReconnect();
   }
 
-  setInterval(function () {
+  var watchdogTimer = setInterval(function () {
     if (WS.roomEnded || WS.sessionReplaced) return;
     // 兜底：未连接且没有任何重连计划 → 补一次（无论之前因何中断）
     if (!WS.connected) {
@@ -231,6 +231,12 @@
   };
 
   window.WSPresenceGuard = {
+    stop: function () {
+      clearInterval(watchdogTimer);
+      clearTimeout(st.retryTimer);
+      st.retryTimer = null;
+      st.join = null;
+    },
     _probe: probe,   // 供诊断/验收手动触发一次探活
     _diag: function () {
       return {
