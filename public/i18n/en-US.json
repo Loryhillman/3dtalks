@@ -5341,7 +5341,9 @@
     "communication": "Chat and microphone",
     "controls": "Room controls",
     "language": "Change language",
-    "holdToTalk": "Hold to talk. Release to send. You can also hold Space or Enter when this button is focused."
+    "holdToTalk": "Hold to talk. Release to send. You can also hold Space or Enter when this button is focused.",
+    "participantJoined": "{{name}} joined the room",
+    "participantLeft": "{{name}} left the room"
   },
   "roomSeating": {
     "capacity": "Participant limit",

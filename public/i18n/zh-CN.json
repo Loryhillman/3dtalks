@@ -5341,7 +5341,9 @@
     "communication": "聊天和麦克风",
     "controls": "房间控制",
     "language": "切换语言",
-    "holdToTalk": "按住说话，松开发送。按钮获得焦点时，也可以按住空格键或回车键。"
+    "holdToTalk": "按住说话，松开发送。按钮获得焦点时，也可以按住空格键或回车键。",
+    "participantJoined": "{{name}} 进入了房间",
+    "participantLeft": "{{name}} 离开了房间"
   },
   "roomSeating": {
     "capacity": "参与人数上限",

@@ -47,7 +47,7 @@ let browser;
    constructor(){setTimeout(()=>{this.readyState=1;this.onopen?.({});},0);}
    send(text){const message=JSON.parse(text);sent.push(message);if(message.type==='PLAYER_JOIN')setTimeout(()=>{
     this.onmessage?.({data:JSON.stringify({type:'ROOM_SEAT_ASSIGNED',payload:{roomId:'fixture-room',seat:{id:'one',position:{x:0,y:1,z:0},orientation:{x:0,y:0,z:0,w:1}}}})});
-    this.onmessage?.({data:JSON.stringify({type:'WORLD_STATE',payload:{players:[],weather:{type:'storm',intensity:100}}})});
+    this.onmessage?.({data:JSON.stringify({type:'WORLD_STATE',payload:{players:[{characterId:'peer',characterName:'Peer',position:{x:3,y:1,z:0},avatarConfig:{mode:'standard',headType:'cube',headColor:'#ffaa99',bodyColor:'#4a90e2',headScale:1,headOffset:0,headYaw:0},seat:{id:'two',position:{x:3,y:1,z:0},orientation:{x:0,y:0,z:0,w:1}},glbUrl:'/legacy-missing.glb',weaponConfig:{type:'sword'},animUrls:{idle:'/legacy-idle.glb'}}],weather:{type:'storm',intensity:100}}})});
    },0);}
    close(){this.readyState=3;}
    addEventListener(){}
@@ -68,6 +68,8 @@ let browser;
  await page.goto('http://127.0.0.1:' +server.address().port+'/play?room=fixture');
  await page.waitForFunction(()=>window.gameWorld&&window.RoomSeating?.active&&window.sent?.some(m=>m.type==='PLAYER_JOIN'),{timeout:15000});
  await page.waitForFunction(()=>window.gameWorld?.loadedObjects.has(3));
+ await page.waitForFunction(() => gameWorld.players.get('peer')?.group.userData.accountAvatarConfig?.headType === 'cube');
+ assert.equal(await page.evaluate(() => gameWorld.players.get('peer').group.userData.roomSeat?.id), 'two');
  assert.equal(await page.evaluate(()=>gameWorld.generatedBuildings.size),3,'room geometry and uploaded GLB render with the lean script set');
  // Allow delayed legacy initializers to run, then exercise their old shortcuts.
  await page.waitForTimeout(1700);
@@ -81,7 +83,7 @@ let browser;
  assert.equal(await page.evaluate(() => gameWorld.worker), null);
  assert.deepEqual(await page.evaluate(() => Object.values(gameWorld.objectPools).map(pool => pool.length)), [0,0]);
  assert.deepEqual(await page.evaluate(()=>legacyReads),[],'meeting does not read legacy character settings');
- assert(scripts.every(url=>!/(main\.js|player\.js|modelCacheDB|model-detector|entitySleepManager|lightPool|preloadSweeper|loadFacing|geometryBatcher|gltfWorkerClient|worldObjectBounds|placeholderField|worldTextureOptimizer|worldLoadingOptimizer|capsuleCollision|OBJLoader|MTLLoader|legacyAvatarSession|federationUI|worldLod|worldGroundSync|skillManager|skillHUD|portalManager|bone-physics|gaussianSplat|buildingManager|skyManager|agentPositionSmoother)/.test(url)),'legacy scripts must not be requested');
+ assert(scripts.every(url=>!/(main\.js|websocket\.js|player\.js|modelCacheDB|model-detector|entitySleepManager|lightPool|preloadSweeper|loadFacing|geometryBatcher|gltfWorkerClient|worldObjectBounds|placeholderField|worldTextureOptimizer|worldLoadingOptimizer|capsuleCollision|OBJLoader|MTLLoader|legacyAvatarSession|federationUI|worldLod|worldGroundSync|skillManager|skillHUD|portalManager|bone-physics|gaussianSplat|buildingManager|skyManager|agentPositionSmoother)/.test(url)),'legacy scripts must not be requested');
  const join=await page.evaluate(()=>sent.find(message=>message.type==='PLAYER_JOIN').payload);assert.deepEqual(Object.keys(join).sort(),['characterId','position','roomSlug','token']);
  assert.deepEqual(dialogs,[],'room startup must not display browser dialogs');assert.deepEqual(errors,[]);
  const state=await page.evaluate(()=>({weather:gameWorld._weather,recognition:!!window.voiceManagerInstance,avatar:player.worldObject.userData.accountAvatarConfig?.headType,movementControls:!!document.getElementById('mobile-joystick'),hudSettings:!!window.uiControlManager?.initialized,chat:!!document.getElementById('nearby-chat-input'),mic:!!document.getElementById('skill-voice-btn')}));
