@@ -1,24 +1,34 @@
-// Loads the complete player page. HTTP/WS data are fixtures; every production
-// browser script and the World/Player constructors run without replacement.
+// Uses the production meeting page renderer. HTTP/WS data are fixtures; the
+// remaining browser scripts and World/Player constructors run without replacement.
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs/promises'),path=require('node:path');
 const {chromium}=require('playwright');const root=path.resolve(__dirname,'../public');
+const {renderMeetingPage}=require('../src/services/meetingPage');
 const apiCalls=[];
+const {getPrefab}=require('../src/services/worldPrefabs');
+const objects=['room','table'].map((kind,i)=>({id:i+1,type:'geometry_building',name:kind,geometry_data:{components:getPrefab(kind).components},position_x:0,position_y:0,position_z:0,scale_x:1,scale_y:1,scale_z:1,has_collision:true}));
+objects.push({id:3,type:'uploaded_model',model_type:'gltf',name:'Fixture chair',model_path:'/models/fixture-chair.glb',position_x:2,position_y:0,position_z:0,scale_x:1,scale_y:1,scale_z:1,has_collision:true});
+const binary=Buffer.alloc(36);[-1,0,0,1,0,0,0,1,0].forEach((v,i)=>binary.writeFloatLE(v,i*4));
+let json=Buffer.from(JSON.stringify({asset:{version:'2.0'},scene:0,scenes:[{nodes:[0]}],nodes:[{mesh:0}],meshes:[{primitives:[{attributes:{POSITION:0}}]}],buffers:[{byteLength:36}],bufferViews:[{buffer:0,byteOffset:0,byteLength:36}],accessors:[{bufferView:0,componentType:5126,count:3,type:'VEC3',min:[-1,0,0],max:[1,1,0]}]}));
+json=Buffer.concat([json,Buffer.alloc((4-json.length%4)%4,32)]);
+const header=Buffer.alloc(20);header.writeUInt32LE(0x46546c67,0);header.writeUInt32LE(2,4);header.writeUInt32LE(28+json.length+binary.length,8);header.writeUInt32LE(json.length,12);header.writeUInt32LE(0x4e4f534a,16);
+const binHeader=Buffer.alloc(8);binHeader.writeUInt32LE(binary.length,0);binHeader.writeUInt32LE(0x004e4942,4);const chairGlb=Buffer.concat([header,json,binHeader,binary]);
 const room={id:'fixture-room',slug:'fixture',name:'Meeting fixture',status:'open',capacity:6,seating_mode:'seated',spawn_position:{x:0,y:1,z:0}};
 const server=http.createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://fixture').pathname;
+ if(url==='/models/fixture-chair.glb'){res.setHeader('Content-Type','model/gltf-binary');res.end(chairGlb);return;}
  if(url.startsWith('/api/')){
   apiCalls.push({url,method:req.method});res.setHeader('Content-Type','application/json');
   const data=url==='/api/config/language'?{language:'en-US'}:
     url==='/api/users/character/me'?{character:{id:'me',name:'Fixture',health:100,max_health:100},appearance:{},equipment:[],skills:[]}:
     url==='/api/rooms/fixture'?{success:true,room}:
-    url==='/api/rooms/fixture/objects'?{success:true,objects:[]}:
+    url==='/api/rooms/fixture/objects'?{success:true,objects}:
     url==='/api/my/avatar'?{config:{mode:'standard',headType:'sphere',headColor:'#ffaa99',bodyColor:'#4a90e2',headScale:1,headOffset:0,headYaw:0}}:
     {success:false,error:'Legacy API is deliberately unavailable'};
   res.end(JSON.stringify(data));return;
  }
  const file=url==='/play'?path.join(root,'index.html'):path.resolve(root,'.'+url);
  if(!file.startsWith(root+path.sep))throw Error('Invalid path');
- res.setHeader('Content-Type',({'.js':'application/javascript','.css':'text/css','.json':'application/json','.html':'text/html'})[path.extname(file)]||'application/octet-stream');res.end(await fs.readFile(file));
+ res.setHeader('Content-Type',({'.js':'application/javascript','.css':'text/css','.json':'application/json','.html':'text/html'})[path.extname(file)]||'application/octet-stream');const contents=await fs.readFile(file);res.end(url==='/play'?renderMeetingPage(contents.toString()):contents);
 }catch(e){res.statusCode=404;res.end(e.message);}});
 let browser;
 (async()=>{
@@ -26,9 +36,11 @@ let browser;
  const cache='/root/.cache/ms-playwright';let executable=process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE||chromium.executablePath();
  try{await fs.access(executable);}catch(_){for(const dir of await fs.readdir(cache))if(dir.startsWith('chromium-')){const file=path.join(cache,dir,'chrome-linux64/chrome');try{await fs.access(file);executable=file;break;}catch(_){}}}
  browser=await chromium.launch({executablePath:executable,headless:true,args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
- const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[],dialogs=[];page.on('pageerror',e=>{errors.push(e.message);console.error(e.stack);});page.on('dialog',async d=>{dialogs.push(d.message());await d.dismiss();});
+ const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[],dialogs=[],scripts=[];page.on('request',req=>{if(req.url().includes('/js/'))scripts.push(req.url());});page.on('pageerror',e=>{errors.push(e.message);console.error(e.stack);});page.on('dialog',async d=>{dialogs.push(d.message());await d.dismiss();});
  await page.addInitScript(()=>{
   localStorage.setItem('token','fixture-token');localStorage.setItem('userId','user');localStorage.setItem('characterId','me');
+  localStorage.setItem('selectedTemplateGlbUrl','/uploads/legacy-missing.glb');localStorage.setItem('selectedTemplateHeight','99');localStorage.setItem('selectedTemplateWeaponConfig','{\"weapon\":\"legacy\"}');
+  window.legacyReads=[];const originalGet=Storage.prototype.getItem;Storage.prototype.getItem=function(key){if(key.startsWith('selectedTemplate'))legacyReads.push(key);return originalGet.call(this,key);};
   window.sent=[];
   class Socket {
    static OPEN=1;static CLOSED=3;readyState=0;
@@ -44,12 +56,17 @@ let browser;
  });
  await page.goto('http://127.0.0.1:'+server.address().port+'/play?room=fixture');
  await page.waitForFunction(()=>window.gameWorld&&window.RoomSeating?.active&&window.sent?.some(m=>m.type==='PLAYER_JOIN'),{timeout:15000});
+ await page.waitForFunction(()=>window.gameWorld?.loadedObjects.has(3));
+ assert.equal(await page.evaluate(()=>gameWorld.generatedBuildings.size),3,'room geometry and uploaded GLB render with the lean script set');
  // Allow delayed legacy initializers to run, then exercise their old shortcuts.
  await page.waitForTimeout(1700);
  for(const key of ['p','i','v','m'])await page.keyboard.press(key);
  await page.waitForTimeout(150);
  const forbidden=apiCalls.filter(call=>/^\/api\/(federation|world\/ground-config|ui-controls|config\/(lod-enabled|weather)|shop|skills|monsters|inventory|public\/character-templates|model-guard)/.test(call.url));
  assert.deepEqual(forbidden,[],'room startup and RPG shortcuts must not call legacy APIs');
+ assert.deepEqual(await page.evaluate(()=>legacyReads),[],'meeting does not read legacy character settings');
+ assert(scripts.every(url=>!/(legacyAvatarSession|federationUI|worldLod|worldGroundSync|skillManager|skillHUD|portalManager|bone-physics|gaussianSplat|buildingManager|skyManager|agentPositionSmoother)/.test(url)),'legacy scripts must not be requested');
+ const join=await page.evaluate(()=>sent.find(message=>message.type==='PLAYER_JOIN').payload);assert.deepEqual(Object.keys(join).sort(),['characterId','position','roomSlug','token']);
  assert.deepEqual(dialogs,[],'room startup must not display browser dialogs');assert.deepEqual(errors,[]);
  const state=await page.evaluate(()=>({weather:gameWorld._weather,recognition:!!window.voiceManagerInstance,avatar:player.worldObject.userData.accountAvatarConfig?.headType,movementControls:!!document.getElementById('mobile-joystick'),hudSettings:!!window.uiControlManager?.initialized,chat:!!document.getElementById('nearby-chat-input'),mic:!!document.getElementById('skill-voice-btn')}));
  assert.deepEqual(state,{weather:'clear',recognition:false,avatar:'sphere',movementControls:false,hudSettings:false,chat:true,mic:true});

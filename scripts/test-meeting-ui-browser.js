@@ -1,6 +1,7 @@
 /** Real meeting HUD components and page markup; isolated transport and microphone stubs. */
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs/promises'),path=require('node:path');
 const {chromium}=require('playwright');
+const {renderMeetingPage}=require('../src/services/meetingPage');
 const root=path.resolve(__dirname,'../public');
 const setup=`window.GAME_STATE={characterId:'me',characterName:'Fixture'};window.sent=[];window.WSClient={connected:true,ws:{readyState:1},isConnected:()=>true,send:m=>sent.push(m)};window.voiceChat={startTalk:()=>window.talkStarted=(window.talkStarted||0)+1,stopTalk:()=>window.talkStopped=(window.talkStopped||0)+1};`;
 const boot=`window.addEventListener('DOMContentLoaded',async()=>{await i18n.init();if(location.pathname!='/play')return;const room={id:'fixture',name:'Long meeting name / Очень длинное название переговорной комнаты для проверки интерфейса',capacity:6,seating_mode:'seated'};window.gameWorld={players:new Map([['me',{group:new THREE.Group()}]])};RoomSeating.enter(room);RoomSeating.message('ROOM_SEAT_ASSIGNED',{roomId:room.id,seat:{id:'one',position:{x:0,y:1,z:0},orientation:{x:0,y:0,z:0,w:1}}});RoomSeating.sceneReady();RoomSeating.message('ROOM_SEATS_STATE',{roomId:room.id,version:1,seats:Array.from({length:20},(_,i)=>({id:i?'seat-'+i:'one',label:String(i+1),occupancy:i?'free':'active',character_id:i?null:'me',position:{x:i%4,y:1,z:Math.floor(i/4)}}))});});`;
@@ -8,10 +9,10 @@ const server=http.createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://local').pathname;
  if(url==='/api/config/language'){res.setHeader('Content-Type','application/json');return res.end('{"language":"en-US"}');}
  if(url==='/play'||url==='/__legacy'){
-  let html=await fs.readFile(path.join(root,'index.html'),'utf8');
+  let html=await fs.readFile(path.join(root,'index.html'),'utf8');if(url==='/play')html=renderMeetingPage(html);
   html=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'');
   html=html.replace('</head>','<script src="/js/meetingUI.js"></script></head>');
-  const scripts=['i18n/i18n.js','js/lib/three.min.js','js/ui.js','js/roomSeatLabels.js','js/roomSeating.js','js/skillHUD.js','js/nearbyChat.js'].map(s=>'<script src="/'+s+'"></script>').join('');
+  const scripts=['i18n/i18n.js','js/lib/three.min.js','js/ui.js','js/roomSeatLabels.js','js/roomSeating.js',...(url==='/play'?['js/meetingVoiceControl.js']:['js/skillHUD.js']),'js/nearbyChat.js'].map(s=>'<script src="/'+s+'"></script>').join('');
   html=html.replace('</body>','<script>'+setup+'</script>'+scripts+'<script>'+boot+'</script></body>');
   res.setHeader('Content-Type','text/html');return res.end(html);
  }
@@ -56,6 +57,11 @@ let browser;
  assert.equal(await page.evaluate(()=>sent.at(-1).type),'CHAT');
  await page.locator('#skill-voice-btn').hover();await page.mouse.down();await page.mouse.up();
  assert.equal(await page.evaluate(()=>talkStarted),1);assert.equal(await page.evaluate(()=>talkStopped),1);
+ await page.locator('#skill-voice-btn').focus();await page.keyboard.down('Space');await page.keyboard.up('Space');
+ assert.equal(await page.evaluate(()=>talkStarted),2);assert.equal(await page.evaluate(()=>talkStopped),2);
+ await page.mouse.down();await page.evaluate(()=>window.dispatchEvent(new Event('blur')));await page.mouse.up();
+ assert.equal(await page.evaluate(()=>talkStarted),3);assert.equal(await page.evaluate(()=>talkStopped),3);
+ assert.equal(await page.locator('#skill-voice-btn').evaluate(el=>el.tagName),'BUTTON');
  await page.locator('#room-places-toggle').click();await page.locator('.room-seat-inspect').nth(1).click();await page.locator('.room-seat-row.selected .room-seat-take').click();
  assert.equal(await page.evaluate(()=>sent.at(-1).type),'ROOM_SEAT_SELECT');
  await page.goto(base+'/__legacy');await page.waitForSelector('#skill-hud');

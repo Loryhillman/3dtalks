@@ -77,6 +77,7 @@ class Player {
       true,
       glbUrl,
       (function() {
+        if (window.MeetingUI?.active) return null;
         try {
           const wcRaw = localStorage.getItem('selectedTemplateWeaponConfig');
           return wcRaw ? JSON.parse(wcRaw) : null;

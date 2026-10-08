@@ -1,4 +1,5 @@
 const path = require('node:path');
+const { serveMeetingPage } = require('../services/meetingPage');
 function registerRoomPages(app) {
   const roomsMode = process.env.APP_MODE === 'rooms';
   if (roomsMode && process.env.ROOMS_ENABLED !== 'true') throw new Error('APP_MODE=rooms requires ROOMS_ENABLED=true');
@@ -6,9 +7,9 @@ function registerRoomPages(app) {
   const page = file => (_req, res) => { res.setHeader('Cache-Control', 'no-cache'); res.sendFile(path.resolve(__dirname, '../../public', file)); };
   app.get('/rooms', page('rooms.html'));
   app.get('/join/:slug', page('rooms.html'));
-  app.get('/play', (req, res) => {
+  app.get('/play', (req, res, next) => {
     if (!/^[a-z0-9-]{3,80}$/.test(req.query.room || '') || req.query.room === 'main') return res.redirect('/rooms');
-    return page('index.html')(req, res);
+    return serveMeetingPage(req, res, next);
   });
   if (roomsMode) {
     for (const url of ['/admin', '/admin.html', '/admin_rooms.html']) app.get(url, page('admin_rooms.html'));

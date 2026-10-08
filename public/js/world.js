@@ -1925,7 +1925,7 @@ class World {
     }
 
     // Name label（使用评估高度，模型加载后会重新校准）
-    const estimatedHeight = parseFloat(localStorage.getItem('selectedTemplateHeight') || '1.8');
+    const estimatedHeight = window.MeetingUI?.active ? 1.8 : parseFloat(localStorage.getItem('selectedTemplateHeight') || '1.8');
     const nameSprite = this.createNameSprite(characterName, estimatedHeight);
     characterGroup.add(nameSprite);
     characterGroup.userData.nameSprite = nameSprite;

@@ -38,7 +38,13 @@
   position: relative !important; inset: auto !important; transform: none !important;
   flex: 0 0 64px; width: 64px !important; height: auto !important; min-height: 52px; margin: 0 !important;
   border-radius: 10px !important; box-sizing: border-box; align-self: stretch;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border: 2px solid #b65b65; background: #171e29ee; color: #ffaaaa;
+  cursor: pointer; touch-action: none; user-select: none;
 }
+.meeting-session #skill-voice-btn .sv-icon { font-size: 22px; }
+.meeting-session #skill-voice-btn.listening { border-color: #ff4444; box-shadow: 0 0 12px #ff444480; }
+.meeting-session #skill-voice-btn:focus-visible { outline: 2px solid #ffcc66; outline-offset: 2px; }
 .meeting-session #skill-voice-btn .sv-label { font: 11px system-ui; }
 .meeting-session #room-seat-picker {
   top: var(--meeting-top-edge) !important; bottom: auto !important; right: 12px !important; left: auto !important;

@@ -665,7 +665,7 @@
     /* ============================= */
 
   </style>
-  <link rel="stylesheet" href="/css/meeting.css?v=2">
+  <link rel="stylesheet" href="/css/meeting.css?v=3">
   <script src="/js/meetingUI.js?v=1"></script>
 </head>
 <body>
@@ -1396,7 +1396,7 @@
   <script src="js/lib/DRACOLoader.js?v=185"></script>
   <script src="js/lib/OBJLoader.js?v=185"></script>
   <script src="js/lib/MTLLoader.js?v=185"></script>
-  <script src="js/lib/TransformControls.js?v=185"></script>
+  <script data-world-only src="js/lib/TransformControls.js?v=185"></script>
   
   <!-- 直接加载JS源文件（开发模式，无需打包） -->
   <script src="js/config.js"></script>
@@ -1411,23 +1411,23 @@
   <script src="js/model-detector.js"></script>
   
   <!-- 骨骼平台适配器 + 动画重定向 -->
-  <script src="js/bone-platforms-config.js"></script>
-  <script src="js/bone-platforms-adapter.js"></script>
-  <script src="js/anim-retarget-helper.js"></script>
+  <script data-world-only src="js/bone-platforms-config.js"></script>
+  <script data-world-only src="js/bone-platforms-adapter.js"></script>
+  <script data-world-only src="js/anim-retarget-helper.js"></script>
   <!-- 畸形双骨骼链修复（GLTFLoader 去重后缀导致 SkinnedMesh 绑到副本链） -->
-  <script src="js/duplicateBoneChainFixer.js"></script>
+  <script data-world-only src="js/duplicateBoneChainFixer.js"></script>
   <!-- 动作库动画骨骼约定托底补偿（模型 rest 约定与 Mixamo 动作库不一致时自动补偿） -->
-  <script src="js/animConventionCompensator.js?v=2"></script>
+  <script data-world-only src="js/animConventionCompensator.js?v=2"></script>
   
-  <script src="js/animLoader.js"></script>
+  <script data-world-only src="js/animLoader.js"></script>
   <!-- 骨骼物理参数集中配置 + 运行时热调（必须先于 bone-physics.js 加载） -->
-  <script src="js/bonePhysicsConfig.js"></script>
+  <script data-world-only src="js/bonePhysicsConfig.js"></script>
   <!-- 骨骼物理引擎（Dynamic Bone 风格，头发/尾巴/裙子等跟随移动飘动） -->
-  <script src="js/bone-physics.js"></script>
-  <script src="js/modules/remote-model-guard.js"></script>
-  <script src="js/self-contained-char.js"></script>
-  <script src="js/modules/remote-anim-guard.js"></script>
-  <script src="js/modules/passwordRecovery.js"></script>
+  <script data-world-only src="js/bone-physics.js"></script>
+  <script data-world-only src="js/modules/remote-model-guard.js"></script>
+  <script data-world-only src="js/self-contained-char.js"></script>
+  <script data-world-only src="js/modules/remote-anim-guard.js"></script>
+  <script data-world-only src="js/modules/passwordRecovery.js"></script>
   <script src="js/coordFormat.js"></script>
   <script src="js/bgThrottle.js?v=1"></script>
   <script src="js/entitySleepManager.js?v=1"></script>
@@ -1440,58 +1440,61 @@
   <!-- 【2026-09-08 会话2】GLB 解析 Worker 客户端（worker 内 parse，主线程零停顿） -->
   <script src="js/gltfWorkerClient.js?v=1"></script>
   <script src="js/loadingProgress.js?v=7"></script>
-  <script src="js/skyManager.js?v=1"></script>
+  <script data-world-only src="js/skyManager.js?v=1"></script>
   <script src="js/avatarBase.js?v=1"></script>
-  <script src="js/world.js?v=19"></script>
+  <script src="js/world.js?v=20"></script>
   <script src="js/worldObjectBounds.js?v=3"></script>
   <script src="js/placeholderField.js?v=5"></script>
   <script src="js/worldTextureOptimizer.js"></script>
-  <script src="js/worldLodAssets.js?v=8"></script>
-  <script src="js/worldInstanceMerger_v2.js?v=11"></script>
-  <script src="js/worldLodStandalone.js?v=6"></script>
-  <script>if (window.WorldLodAssets) window.WorldLodAssets.fetchEnabled();</script>
+  <script data-world-only src="js/worldLodAssets.js?v=8"></script>
+  <script data-world-only src="js/worldInstanceMerger_v2.js?v=11"></script>
+  <script data-world-only src="js/worldLodStandalone.js?v=6"></script>
+  <script data-world-only>if (window.WorldLodAssets) window.WorldLodAssets.fetchEnabled();</script>
   <!-- frameBudgetScheduler.js 引用移除：该文件从未存在（git 历史为空），每次加载 404 -->
   <script src="js/worldLoadingOptimizer.js"></script>
-  <script src="js/worldSpatialManager.js?v=1"></script>
-  <script src="js/gaussianSplatLoader.js"></script>
-  <script src="js/gaussianSplatRenderer.js"></script>
-  <script src="js/world3dgs.js?v=2"></script>
-  <script src="js/threejsCompatibility.js"></script>
-  <script src="js/threejsCodeNormalizer.js"></script>
-  <script src="js/threejsWorldSanitizer.js?v=185fix1"></script>
-  <script src="js/threejsCodeRunner.js"></script>
+  <script data-world-only src="js/worldSpatialManager.js?v=1"></script>
+  <script data-world-only src="js/gaussianSplatLoader.js"></script>
+  <script data-world-only src="js/gaussianSplatRenderer.js"></script>
+  <script data-world-only src="js/world3dgs.js?v=2"></script>
+  <script data-world-only src="js/threejsCompatibility.js"></script>
+  <script data-world-only src="js/threejsCodeNormalizer.js"></script>
+  <script data-world-only src="js/threejsWorldSanitizer.js?v=185fix1"></script>
+  <script data-world-only src="js/threejsCodeRunner.js"></script>
   <script src="js/customConfigRegistry.js"></script>
   <script src="js/customConfigApplier.js"></script>
-  <script src="js/galleryRenderer.js?v=1"></script>
-  <script src="js/debug_controls.js"></script>
+  <script data-world-only src="js/galleryRenderer.js?v=1"></script>
+  <script data-world-only src="js/debug_controls.js"></script>
   
   <script src="js/avatarRig.js?v=1"></script>
   <script src="js/userAvatarRenderer.js?v=1"></script>
   <script src="js/roomSeatAvatar.js?v=3"></script>
   <script src="js/roomSeatLabels.js?v=1"></script>
   <script src="js/roomSeating.js?v=12"></script>
-  <script src="js/player.js?v=9"></script>
-  <script src="js/voice.js?v=2"></script>
+  <script src="js/player.js?v=10"></script>
+  <script data-world-only src="js/voice.js?v=2"></script>
   <script src="js/websocket.js?v=avatar1-13"></script>
   <script src="js/wsPresenceGuard.js?v=1"></script>
-  <script src="js/agentPositionSmoother.js?v=4"></script>
+  <script data-world-only src="js/agentPositionSmoother.js?v=4"></script>
   <script src="js/ui.js?v=2"></script>
-  <script src="js/portalManager.js?v=2"></script>
-  <script src="js/mobileControls.js?v=2"></script>
-  <script src="js/buildingCopyLoader.js?v=1"></script>
-  <script src="js/buildingCollisionToggle.js?v=2"></script>
-  <script src="js/buildingManager.js?v=5"></script>
-  <script src="js/federationUI.js?v=2"></script>
+  <script data-world-only src="js/portalManager.js?v=2"></script>
+  <script data-world-only src="js/mobileControls.js?v=2"></script>
+  <script data-world-only src="js/buildingCopyLoader.js?v=1"></script>
+  <script data-world-only src="js/buildingCollisionToggle.js?v=2"></script>
+  <script data-world-only src="js/buildingManager.js?v=5"></script>
+  <script data-world-only src="js/federationUI.js?v=2"></script>
 
-  <script src="js/soundManager.js"></script>
-  <script src="js/skillManager.js"></script>
-  <script src="js/skillHUD.js?v=3"></script>
+  <script data-world-only src="js/soundManager.js"></script>
+  <script data-world-only src="js/skillManager.js"></script>
+  <script data-world-only src="js/skillHUD.js?v=3"></script>
+  <script src="js/meetingVoiceControl.js?v=1"></script>
   <script src="js/chatBubbles.js?v=2"></script>
   <script src="js/nearbyChat.js?v=5"></script>
   <script src="js/voiceChat.js?v=2"></script>
-  <script src="js/uiControlManager.js?v=2"></script>
-  <script src="js/main.js?v=avatar1-8"></script>
-  <script src="js/worldGroundSync.js?v=2"></script>
+  <script data-world-only src="js/uiControlManager.js?v=2"></script>
+  <script src="js/roomAvatarSession.js?v=1"></script>
+  <script data-world-only src="js/legacyAvatarSession.js?v=1"></script>
+  <script src="js/main.js?v=avatar1-9"></script>
+  <script data-world-only src="js/worldGroundSync.js?v=2"></script>
   
   <!-- 国际化语言初始化 -->
   <script>
