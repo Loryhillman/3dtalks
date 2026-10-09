@@ -6,6 +6,8 @@
   const message = document.getElementById('message');
   const viewport = document.getElementById('viewport');
   const objects = new Map();
+  const selectedIds=new Set();
+  let environmentHuman;
   let environmentHelper, environmentSignature, framedEnvironment, frameId, environmentProposal, seatAvatar;
   let placementIssues=[];
   let seatPreview = [], selectedSeat = -1, selectionMode = 'objects';
@@ -47,9 +49,35 @@
       RoomSeatAvatar.apply(seatAvatar); // Reset to the seat before the procedural hip offset.
     }
     if(seatAvatar)seatAvatar.visible=show;
+    renderEnvironmentHuman();
     updatePlacementCheck();
   }
   document.getElementById('seat-avatar-preview').addEventListener('change',renderSeatPreview);
+
+  function renderEnvironmentHuman(){
+    const object=environmentProposal?.data||[...objects.values()].find(entry=>entry.data.is_room_environment)?.data;
+    document.getElementById('environment-human-panel').hidden=!object;
+    const values=['x','y','z','yaw'].map(axis=>Number(document.getElementById('environment-human-'+axis).value));
+    const visible=!!object&&selectionMode==='room'&&document.getElementById('environment-human-visible').checked&&values.every(value=>Number.isFinite(value)&&Math.abs(value)<=10000);
+    if(visible){
+      if(!environmentHuman){environmentHuman=AvatarBase.create().characterGroup;environmentHuman.userData.editorEnvironmentHuman=true;scene.add(environmentHuman);}
+      const bounds=object.room_environment.bounds;
+      const t=Object.fromEntries(['position','rotation','scale'].map(p=>[p,Object.fromEntries(['x','y','z'].map(a=>[a,object[p+'_'+a]]))]));
+      const floor=RoomEnvironment.toWorld({x:(bounds.min.x+bounds.max.x)/2,y:bounds.min.y,z:(bounds.min.z+bounds.max.z)/2},t);
+      // The chosen GLB floor is aligned to world Y=0 by the preparation form;
+      // bounds.min.y can include a margin and must not shift this reference.
+      environmentHuman.position.set(floor.x+values[0],values[1],floor.z+values[2]);
+      environmentHuman.rotation.set(0,t.rotation.y+values[3]*Math.PI/180,0);
+      environmentHuman.scale.set(1,1,1);RoomSeatAvatar.apply(environmentHuman);
+    }
+    if(environmentHuman)environmentHuman.visible=visible;
+  }
+  for(const axis of ['x','y','z','yaw'])document.getElementById('environment-human-'+axis).addEventListener('input',renderEnvironmentHuman);
+  document.getElementById('environment-human-visible').addEventListener('change',renderEnvironmentHuman);
+  document.getElementById('environment-human-focus').addEventListener('click',()=>{
+    if(!environmentHuman?.visible)return;
+    orbit.target.copy(environmentHuman.position);camera.position.copy(environmentHuman.position).add(new THREE.Vector3(2,1.5,3));orbit.update();
+  });
 
   function updatePlacementCheck(){
     const rows=[...objects.values()].map(entry=>window.RoomEditorObjects.get(entry.data.id));
@@ -77,7 +105,7 @@
   window.addEventListener('room-seat-selected',event=>{
     if (busy || preview) return;
     action(async()=>{
-      await applyCurrent(); selected=null; objectDirty=false;
+      await applyCurrent(); selected=null; selectedIds.clear(); objectDirty=false;
       document.getElementById('edit-form').hidden=true;
       updateSelection();showPanel('seats');transform.detach();
       selectedSeat=event.detail;
@@ -175,6 +203,8 @@
   scene.add(transform.getHelper ? transform.getHelper() : transform);
   const selectionBox = new THREE.BoxHelper(new THREE.Group(), 0xffcc66);
   selectionBox.visible = false; scene.add(selectionBox);
+  const groupSelectionBox=new THREE.Box3Helper(new THREE.Box3(),0xffcc66);
+  groupSelectionBox.visible=false;scene.add(groupSelectionBox);
   scene.add(new THREE.HemisphereLight(0xffffff, 0x748090, 2));
   const grid = new THREE.GridHelper(40, 40, 0x64748b, 0x394657);
   grid.position.y = -0.01;
@@ -268,19 +298,26 @@
     selectionBox.visible = !!group && !preview && selectionMode === 'objects';
     if (group) selectionBox.setFromObject(group);
     document.querySelectorAll('#object-list .item').forEach(button =>
-      button.classList.toggle('selected', Number(button.dataset.id) === selected?.id));
+      {const active=selectedIds.has(Number(button.dataset.id));button.classList.toggle('selected',active);button.setAttribute('aria-pressed',String(active));});
+    const multiple=selectedIds.size>1;
+    document.getElementById('group-scale-form').hidden=!template||!multiple||preview||room?.status!=='draft';
+    for(const id of ['move-mode','rotate-mode','scale-mode'])document.getElementById(id).disabled=multiple;
+    document.getElementById('group-selection-count').textContent=tr('groupSelected','Выбрано предметов')+': '+selectedIds.size;
+    groupSelectionBox.visible=multiple&&!preview&&selectionMode==='objects';
+    if(multiple){groupSelectionBox.box.makeEmpty();for(const id of selectedIds){const entry=objects.get(id);if(entry)groupSelectionBox.box.union(new THREE.Box3().setFromObject(entry.group));}}
     if (selected) {
       const label = `${selected.name} (#${selected.id})`;
       document.getElementById('selected-name').textContent = label;
       const button = document.querySelector(`#object-list [data-id="${selected.id}"]`);
       if (button) button.textContent = label;
     }
-    document.getElementById('deselect').disabled = !selected && selectedSeat < 0;
+    document.getElementById('deselect').disabled = !selectedIds.size && selectedSeat < 0;
     document.getElementById('placement-beside').disabled = !selected;
     if (!selected) document.getElementById('add-placement').value = 'center';
-    document.getElementById('selection-empty').hidden = !!selected;
+    document.getElementById('selection-empty').hidden = !!selectedIds.size;
   }
   function selectObject(object) {
+    selectedIds.clear();if(object)selectedIds.add(object.id);
     selected = object || null;
     transform.detach();
     document.getElementById('edit-form').hidden = !selected || room.status !== 'draft';
@@ -298,13 +335,22 @@
     window.RoomSeatEditor?.deselect();
     selectedSeat = -1; selectObject(null); renderSeatPreview();
   }
-  async function choose(object) {
-    if (busy || preview || selected?.id === object.id) return;
+  function selectObjects(ids){
+    const rows=ids.map(id=>objects.get(id)?.data).filter(o=>o&&!o.is_room_shell&&!o.is_room_environment);
+    selectObject(rows.length===1?rows[0]:null);
+    for(const row of rows)selectedIds.add(row.id);
+    updateSelection();
+  }
+  async function choose(object,event={}) {
+    const multiple=!!template&&(event.ctrlKey||event.metaKey||document.getElementById('multi-select').checked);
+    if (busy || preview || (!multiple&&selected?.id === object.id&&selectedIds.size===1)) return;
     return action(async () => {
       await applyCurrent();
       window.RoomSeatEditor?.deselect();
       if (object.is_room_shell || object.is_room_environment) { selectObject(null); showPanel('room'); return; }
-      showPanel('objects'); selectObject(objects.get(object.id)?.data);
+      showPanel('objects');
+      if(multiple){const ids=new Set(selectedIds);if(ids.has(object.id))ids.delete(object.id);else ids.add(object.id);selectObjects([...ids]);}
+      else selectObject(objects.get(object.id)?.data);
     });
   }
   document.getElementById('deselect').addEventListener('click', () => action(clearSelection));
@@ -342,7 +388,7 @@
           if(selectionMode==='room') {showPanel('room');if(hit.object.userData.roomSurface)window.dispatchEvent(new CustomEvent('room-surface-picked',{detail:hit.object.userData.roomSurface}));return;}
           continue;
         }
-        if(selectionMode!=='room'&&object)choose(object);
+        if(selectionMode!=='room'&&object)choose(object,event);
         if(selectionMode!=='room')return;
       }
     }
@@ -403,6 +449,7 @@
   }
 
   function syncEnvironmentView() {
+    renderEnvironmentHuman();
     if(environmentProposal?.helper)environmentProposal.helper.visible=!preview&&document.getElementById('environment-bounds').checked;
     const entry=[...objects.values()].find(e=>e.data.is_room_environment);
     document.getElementById('room-environment-preview').hidden=!entry;
@@ -471,8 +518,8 @@
       button.dataset.id = object.id;
       button.textContent = `${object.name || object.type} (#${object.id})`;
       button.dataset.search = button.textContent.toLocaleLowerCase();
-      button.addEventListener('click', () => choose(object));
-      button.addEventListener('dblclick', async () => {await choose(object);focusObject(object.id);});
+      button.addEventListener('click', event => choose(object,event));
+      button.addEventListener('dblclick', () => focusObject(object.id));
       list.append(button);
     }
     const selection=objects.get(selectId)?.data;
@@ -499,6 +546,7 @@
       document.getElementById('add-form').hidden = room.status !== 'draft';
       document.getElementById('model-upload-panel').hidden = room.status !== 'draft';
       document.getElementById('template-panel').hidden = !template;
+      document.getElementById('multi-select-label').hidden=!template;
       document.getElementById('template-object-actions').hidden = room.status !== 'draft';
       document.getElementById('replace-model-label').hidden = !template;
       document.getElementById('replace-object').hidden = !template;
@@ -621,6 +669,19 @@
       message.textContent = template ? tr('appliedDraft', 'Изменения применены. Сохраните черновик') : tr('saved', 'Положение сохранено');
     });
   });
+  document.getElementById('group-scale-form').addEventListener('submit',event=>{
+    event.preventDefault();
+    if(!template||preview)return;
+    action(async()=>{
+      if(!document.getElementById('group-scale-form').reportValidity())return;
+      const ids=[...selectedIds],factor=Number(document.getElementById('group-scale-factor').value);
+      await prepareTemplate();
+      try{template.scaleObjects(ids,factor);}catch(error){throw new Error(tr(error.message,'Проверьте общий масштаб'));}
+      await loadObjects(null);selectObjects(ids);
+      document.getElementById('group-scale-factor').value='1';
+      message.textContent=tr('groupScaleApplied','Общий масштаб применён. Проверьте места и сохраните черновик');
+    });
+  });
   document.getElementById('delete-object').addEventListener('click', () => action(async () => {
     if (!selected || !confirm(tr('confirmDelete', 'Удалить этот предмет?'))) return;
     await applyCurrent(); await window.RoomSeatEditor?.save();
@@ -689,6 +750,7 @@
       for(const entry of objects.values())if(entry.data.is_room_environment||entry.data.is_room_shell)entry.group.visible=false;
       if(environmentHelper)environmentHelper.visible=false;
       if(fitNewModel)RoomEnvironmentView.fit(camera,orbit,RoomEnvironmentView.bounds(data));
+      renderEnvironmentHuman();
       updatePlacementCheck();
     },
     register(model){if(!template)return;if(!template.models.some(m=>m.id===model.id)){template.models.push(model);addModelOption(model);}window.RoomEnvironmentEditor?.refreshModels();},
@@ -738,6 +800,7 @@
     cancelAnimationFrame(frameId);for(const entry of objects.values())removeVisual(entry);objects.clear();
     if(environmentProposal){disposeGroup(environmentProposal.group);disposeGroup(environmentProposal.helper);}
     disposeGroup(seatAvatar);
+    disposeGroup(environmentHuman);disposeGroup(groupSelectionBox);
     if(environmentHelper)disposeGroup(environmentHelper);orbit.dispose();transform.dispose();renderer.dispose();
   });
   init();

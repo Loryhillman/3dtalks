@@ -61,6 +61,7 @@
       <button type="submit" data-i18n="roomEditor.addObject">Добавить предмет</button>
     </form>
     <h2 data-i18n="roomEditor.objects">Предметы</h2>
+    <label id="multi-select-label" hidden><input id="multi-select" type="checkbox" style="width:auto"><span data-i18n="roomEditor.multiSelect">Выбирать несколько предметов (или Ctrl/⌘-клик)</span></label>
     <div id="object-list"></div>
 
     </section>
@@ -85,6 +86,13 @@
   <aside id="properties-panel">
     <h2 data-i18n="roomEditor.properties">Свойства выбранного элемента</h2>
     <section id="room-properties" hidden>
+      <section id="environment-human-panel" hidden>
+        <label><input id="environment-human-visible" type="checkbox" checked style="width:auto"><span data-i18n="roomEditor.environmentHuman">Сидящий персонаж для сравнения размеров</span></label>
+        <p data-i18n="roomEditor.environmentHumanHint">Масштаб персонажа не меняется вместе с офисом. X/Z — смещение от центра помещения, Y — высота точки посадки над выбранным полом. Это ориентир, не посадочное место.</p>
+        <div class="coords"><label>X<input id="environment-human-x" type="number" step="any" value="0"></label><label>Y<input id="environment-human-y" type="number" step="any" value="1"></label><label>Z<input id="environment-human-z" type="number" step="any" value="0"></label></div>
+        <label><span data-i18n="roomEditor.environmentHumanYaw">Поворот персонажа, градусы</span><input id="environment-human-yaw" type="number" step="any" value="0"></label>
+        <button id="environment-human-focus" type="button" data-i18n="roomEditor.environmentHumanFocus">Приблизить персонажа</button>
+      </section>
       <section id="environment-import" hidden>
         <h2 data-i18n="roomEnvironmentEditor.title">Способ создания помещения</h2>
         <p data-i18n="roomEnvironmentEditor.hint">Соберите стены или выберите готовый статический офис GLB. Мебель и места сохраняются при переключении.</p>
@@ -148,7 +156,15 @@
       </form>
       <p id="room-envelope-message" role="status"></p>
     </section>
-    <section id="object-properties"><p id="selection-empty" data-i18n="roomEditor.selectionEmpty">Выберите предмет в списке или в комнате. Esc снимает выделение.</p><form id="edit-form" hidden>
+    <section id="object-properties">
+      <form id="group-scale-form" hidden>
+        <h2 data-i18n="roomEditor.groupScale">Общий масштаб</h2>
+        <p id="group-selection-count"></p>
+        <p data-i18n="roomEditor.groupScaleHint">Размеры и расстояния меняются относительно среднего положения выбранных предметов. Места не масштабируются; проверьте посадку после изменения.</p>
+        <label><span data-i18n="roomEditor.groupScaleFactor">Коэффициент: 0.5 — уменьшить вдвое, 2 — увеличить вдвое</span><input id="group-scale-factor" type="number" step="any" min="0.000001" required value="1"></label>
+        <button type="submit" data-i18n="roomEditor.groupScaleApply">Применить к выбранным предметам</button>
+      </form>
+      <p id="selection-empty" data-i18n="roomEditor.selectionEmpty">Выберите предмет в списке или в комнате. Esc снимает выделение.</p><form id="edit-form" hidden>
       <h2 id="selected-name"></h2>
       <label id="object-name-label" hidden><span data-i18n="roomEditor.name">Название</span><input id="object-name" maxlength="120"></label>
       <div class="coords"><label>X<input id="pos-x" type="number" step="any" required></label><label>Y<input id="pos-y" type="number" step="any" required></label><label>Z<input id="pos-z" type="number" step="any" required></label></div>
@@ -195,10 +211,11 @@
   <script src="js/roomEnvelopeEditor.js?v=2"></script>
   <script src="js/roomSeatLabels.js?v=1"></script>
   <script src="js/roomSeatCoordinates.js?v=1"></script>
-  <script src="js/roomTemplateSession.js?v=5"></script>
+  <script src="js/roomObjectScale.js?v=1"></script>
+  <script src="js/roomTemplateSession.js?v=6"></script>
   <script src="js/roomSeatEditor.js?v=6"></script>
   <script src="js/roomModelUpload.js?v=2"></script>
   <script src="js/roomEnvironmentEditor.js?v=1"></script>
-  <script src="js/roomEditor.js?v=12"></script>
+  <script src="js/roomEditor.js?v=13"></script>
 </body>
 </html>

@@ -13,6 +13,10 @@
       return data;
     }
     changed() { this.dirty = true; window.dispatchEvent(new Event('room-template-changed')); }
+    scaleObjects(ids,factor) {
+      const layout=RoomObjectScale.apply(this.draft.layout,ids,factor);
+      this.draft.layout=layout;this.changed();
+    }
     adopt(draft) {
       this.draft = draft;
       // Upgrade old snapshots in memory; published versions remain immutable.

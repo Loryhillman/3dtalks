@@ -5318,7 +5318,20 @@
     "environmentReady": "Room loaded",
     "environmentFailed": "Could not load the room",
     "environmentLoading": "Loading room…",
-    "environmentWait": "Wait for the room to load successfully before publishing"
+    "environmentWait": "Wait for the room to load successfully before publishing",
+    "multiSelect": "Select multiple objects (or Ctrl/⌘-click)",
+    "groupScale": "Scale selected objects",
+    "groupSelected": "Selected objects",
+    "groupScaleHint": "Sizes and distances change around the average position of selected objects. Seats are not scaled; check seating afterwards.",
+    "groupScaleFactor": "Factor: 0.5 halves the size, 2 doubles it",
+    "groupScaleApply": "Apply to selected objects",
+    "groupScaleApplied": "Scale applied. Check seats and save the draft.",
+    "groupScaleInvalid": "Select at least two furniture objects and enter a positive factor.",
+    "groupScaleRange": "Result exceeds limits: scale 0.01–100 per axis, coordinates ±10000 m. No selected objects were changed.",
+    "environmentHuman": "Seated avatar as a size reference",
+    "environmentHumanHint": "The avatar keeps its game size when the office is resized. X/Z offset it from the room center; Y is the seat point above the chosen floor. This reference does not create a seat.",
+    "environmentHumanYaw": "Avatar rotation, degrees",
+    "environmentHumanFocus": "Focus on the avatar"
   },
   "roomSeatsEditor": {
     "title": "Seats",

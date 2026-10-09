@@ -5318,7 +5318,20 @@
     "environmentReady": "房间已加载",
     "environmentFailed": "无法加载房间",
     "environmentLoading": "正在加载房间…",
-    "environmentWait": "发布前请等待房间成功加载"
+    "environmentWait": "发布前请等待房间成功加载",
+    "multiSelect": "选择多个物体（或 Ctrl/⌘ 点击）",
+    "groupScale": "缩放所选物体",
+    "groupSelected": "已选物体",
+    "groupScaleHint": "尺寸和间距围绕所选物体的平均位置变化。座位不会缩放，请随后检查座位。",
+    "groupScaleFactor": "系数：0.5 缩小一半，2 放大一倍",
+    "groupScaleApply": "应用到所选物体",
+    "groupScaleApplied": "缩放已应用。请检查座位并保存草稿。",
+    "groupScaleInvalid": "请选择至少两个家具物体并输入正系数。",
+    "groupScaleRange": "结果超出限制：每轴缩放 0.01–100，坐标 ±10000 米。所选物体未更改。",
+    "environmentHuman": "以坐姿角色比较尺寸",
+    "environmentHumanHint": "办公室缩放时角色保持游戏尺寸。X/Z 是相对房间中心的偏移，Y 是座位点相对所选地面的高度。此参考不会创建座位。",
+    "environmentHumanYaw": "角色旋转角度",
+    "environmentHumanFocus": "聚焦角色"
   },
   "roomSeatsEditor": {
     "title": "座位",
