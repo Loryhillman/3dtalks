@@ -5462,7 +5462,8 @@
     "staleRooms": "Could not refresh rooms. The cards below may be out of date.",
     "loadRoomsFailed": "Could not load your rooms. Try again.",
     "connectionRestored": "Connection restored. Room information refreshed.",
-    "invitationLoadFailed": "Could not open this invitation. Check your connection or try again."
+    "invitationLoadFailed": "Could not open this invitation. Check your connection or try again.",
+    "email": "Email"
   },
   "roomEnvelope": {
     "title": "Room shell",

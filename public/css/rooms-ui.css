@@ -39,7 +39,7 @@
 .rooms-ui .room-menu summary { list-style: none; padding: 8px; min-height: 40px; width: 44px; }
 .rooms-ui .room-menu summary::-webkit-details-marker { display: none; }
 .rooms-ui .room-menu summary:focus-visible { outline: 2px solid var(--color-action); outline-offset: 3px; }
-.rooms-ui .room-menu-items { position: absolute; z-index: 15; right: 0; bottom: calc(100% + 8px); width: 240px; max-width: calc(100vw - 64px); padding: 8px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); box-shadow: 0 8px 24px rgb(23 38 56 / 12%); }
+.rooms-ui .room-menu-items { position: fixed; z-index: 15; width: 240px; max-width: calc(100vw - 32px); overflow-y: auto; overscroll-behavior: contain; padding: 8px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); box-shadow: 0 8px 24px rgb(23 38 56 / 12%); }
 .rooms-ui .room-menu-items > button { display: flex; width: 100%; justify-content: flex-start; text-align: left; border-color: transparent; background: transparent; }
 .rooms-ui .room-menu-items > button:hover { background: var(--color-hover); }
 .rooms-ui .room-menu[open] .room-menu-items { animation: room-menu-in 150ms ease-out; }

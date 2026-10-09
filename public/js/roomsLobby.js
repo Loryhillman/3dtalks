@@ -78,6 +78,18 @@
   // The API has no cover/template metadata: use an explicitly generic illustration.
   const ROOM_COVER = '/images/room-covers/neutral-v1.svg';
   let openRoomMenu = null;
+  function positionRoomMenu(summary, items) {
+    const anchor = summary.getBoundingClientRect();
+    const viewport = window.visualViewport;
+    const width = viewport?.width || innerWidth, height = viewport?.height || innerHeight;
+    const originX = viewport?.offsetLeft || 0, originY = viewport?.offsetTop || 0;
+    const safeTop = Math.max(originY + 8, document.querySelector('.shell-header').getBoundingClientRect().bottom + 8);
+    items.style.maxHeight = Math.max(40, originY + height - safeTop - 8) + 'px';
+    const bounds = items.getBoundingClientRect();
+    const preferred = anchor.top - bounds.height - 8 >= safeTop ? anchor.top - bounds.height - 8 : anchor.bottom + 8;
+    items.style.left = Math.max(originX + 16, Math.min(anchor.right - bounds.width, originX + width - bounds.width - 16)) + 'px';
+    items.style.top = Math.max(safeTop, Math.min(preferred, originY + height - bounds.height - 8)) + 'px';
+  }
   function roomMenu(room) {
     const menu = document.createElement('details'); menu.className = 'room-menu';
     const summary = document.createElement('summary'); summary.className = 'ui-button ui-button--ghost';
@@ -91,7 +103,7 @@
       openRoomMenu = menu;
     });
     menu.addEventListener('toggle', () => {
-      if (menu.open) { if (openRoomMenu && openRoomMenu !== menu) openRoomMenu.open = false; openRoomMenu = menu; }
+      if (menu.open) { if (openRoomMenu && openRoomMenu !== menu) openRoomMenu.open = false; openRoomMenu = menu; positionRoomMenu(summary, items); }
       else if (openRoomMenu === menu) openRoomMenu = null;
     });
     menu.addEventListener('focusout', event => { if (!menu.contains(event.relatedTarget)) menu.open = false; });
@@ -99,6 +111,13 @@
     return { menu, items, summary };
   }
   document.addEventListener('click', event => { if (openRoomMenu && !openRoomMenu.contains(event.target)) openRoomMenu.open = false; });
+  function repositionOpenMenu() {
+    if (openRoomMenu?.open) positionRoomMenu(openRoomMenu.querySelector('summary'), openRoomMenu.querySelector('.room-menu-items'));
+  }
+  document.addEventListener('scroll', repositionOpenMenu, true);
+  window.addEventListener('resize', repositionOpenMenu);
+  window.visualViewport?.addEventListener('resize', repositionOpenMenu);
+  window.visualViewport?.addEventListener('scroll', repositionOpenMenu);
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && openRoomMenu) {
       event.preventDefault(); const menu = openRoomMenu; menu.open = false; menu.querySelector('summary').focus();

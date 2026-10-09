@@ -126,7 +126,7 @@
 }
 .app-ui .ui-card:hover { border-color: #CFDDD7; }
 .app-ui .ui-field-error { color: var(--color-danger-action); font-size: 12px; }
-.app-ui .ui-toasts { position: fixed; z-index: 60; right: max(24px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom)); display: grid; gap: 12px; width: min(380px, calc(100vw - 32px)); pointer-events: none; }
+.app-ui .ui-toasts { position: fixed; z-index: 60; right: max(24px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom)); display: grid; gap: 12px; width: min(380px, calc(100vw - 32px)); max-height: calc(100dvh - 96px); overflow-y: auto; overscroll-behavior: contain; pointer-events: auto; }
 .app-ui .ui-toast { display: grid; grid-template-columns: 24px minmax(0, 1fr) 40px; align-items: start; gap: 8px; padding: 12px; border: 1px solid var(--color-border); border-radius: 12px; background: white; color: var(--color-text-primary); box-shadow: 0 8px 24px rgb(23 38 56 / 12%); pointer-events: auto; overflow-wrap: anywhere; animation: ui-toast-in 200ms ease-out; }
 .app-ui .ui-toast-icon { display: grid; place-items: center; width: 24px; height: 24px; font-weight: 600; border-radius: 50%; color: #007D59; background: #E8F7F2; }
 .app-ui .ui-toast-icon::before { content: ''; width: 20px; height: 20px; background: currentColor; -webkit-mask: url('/icons/lucide/circle-check.svg') center / contain no-repeat; mask: url('/icons/lucide/circle-check.svg') center / contain no-repeat; }

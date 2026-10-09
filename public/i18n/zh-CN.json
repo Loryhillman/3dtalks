@@ -5462,7 +5462,8 @@
     "staleRooms": "无法刷新房间。下方卡片的信息可能已过期。",
     "loadRoomsFailed": "无法加载您的房间，请重试。",
     "connectionRestored": "连接已恢复，房间信息已刷新。",
-    "invitationLoadFailed": "无法打开此邀请。请检查连接或重试。"
+    "invitationLoadFailed": "无法打开此邀请。请检查连接或重试。",
+    "email": "电子邮箱"
   },
   "roomEnvelope": {
     "title": "房间结构",

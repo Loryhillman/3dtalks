@@ -64,6 +64,7 @@ let server, browser;
   const base = 'http://127.0.0.1:' + server.address().port;
   await page.goto(base + '/rooms');
   await page.locator('#auth').waitFor();
+  assert.equal(await page.locator('h1:visible').count(), 1, 'login has a main heading');
   assert.equal(await page.evaluate(() => document.body.getBoundingClientRect().height >= innerHeight), true, 'light background fills the viewport before login');
   await page.evaluate(() => document.fonts.ready);
   assert.equal(await page.evaluate(() => [...document.fonts].some(font => font.family === 'Inter' && font.status === 'loaded')), true, 'local Inter loads');
@@ -82,6 +83,27 @@ let server, browser;
   assert.equal(await page.locator('.room-skeleton').count(), 0);
   await page.locator('#rooms-retry').click();
   await page.locator('#rooms article').first().waitFor();
+  const contrasts = await page.evaluate(() => {
+    const luminance = color => {
+      const channels = color.match(/[\d.]+/g).slice(0, 3).map(value => {
+        const channel = Number(value) / 255;
+        return channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
+      });
+      return channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
+    };
+    return ['#create-launcher', '#quota', '.room-occupancy', '.room-status--open', '.room-status--closed'].map(selector => {
+      const node = document.querySelector(selector);
+      let parent = node, background;
+      while (parent) {
+        background = getComputedStyle(parent).backgroundColor;
+        if (background !== 'rgba(0, 0, 0, 0)') break;
+        parent = parent.parentElement;
+      }
+      const foreground = luminance(getComputedStyle(node).color), backdrop = luminance(background);
+      return { selector, ratio: (Math.max(foreground, backdrop) + .05) / (Math.min(foreground, backdrop) + .05) };
+    });
+  });
+  for (const { selector, ratio } of contrasts) assert(ratio >= 4.5, selector + ' text contrast ' + ratio);
   assert.equal(await page.locator('#rooms a').getAttribute('href'), '/play?room=test-room');
   const text = require('../public/i18n/ru-RU.json').roomsLobby;
   assert.equal(await page.locator('.room-card').count(), 4);
@@ -96,6 +118,16 @@ let server, browser;
     for (const label of absent) assert(!labels.includes(label), 'unavailable action is absent: ' + label);
   }
   const firstMenu = page.locator('.room-menu').first();
+  await page.setViewportSize({ width: 390, height: 360 });
+  await firstMenu.locator('summary').click();
+  await page.waitForFunction(() => parseFloat(document.querySelector('.room-menu-items').style.top) >= 64);
+  const menuBounds = await firstMenu.locator('.room-menu-items').evaluate(node => {
+    const rect = node.getBoundingClientRect();
+    return { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right };
+  });
+  assert(menuBounds.top >= 64 && menuBounds.bottom <= 360 && menuBounds.left >= 0 && menuBounds.right <= 390, 'room menu stays in the visible viewport: ' + JSON.stringify(menuBounds));
+  await page.keyboard.press('Escape');
+  await page.setViewportSize({ width: 1440, height: 900 });
   await firstMenu.locator('summary').focus(); await page.keyboard.press('Enter');
   await page.keyboard.press('Tab');
   assert.equal(await page.evaluate(() => document.activeElement.textContent), text.rename, 'keyboard enters room actions');
@@ -304,6 +336,7 @@ let server, browser;
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(base + '/join/test-room');
   await page.locator('#enter').waitFor();
+  assert.equal(await page.locator('h1:visible').count(), 1, 'invitation has a main heading');
   assert.equal(await page.locator('#enter').getAttribute('href'), '/play?room=test-room');
   await page.locator('.shell-account summary').click();
   await page.locator('#logout').click();
@@ -336,6 +369,30 @@ let server, browser;
   assert.equal(await page.locator('.ui-toast--leaving').count(), 1, 'normal motion animates dismissal');
   await page.clock.runFor(200);
   assert.equal(await page.locator('.ui-toast').count(), 0);
+  await page.setViewportSize({ width: 320, height: 360 });
+  await page.evaluate(() => {
+    for (let index = 0; index < 3; index++) toastFixture.show(('Long notification ' + index + ' ').repeat(20), 'error');
+  });
+  const toastBounds = await page.locator('.ui-toasts').last().evaluate(node => {
+    const rect = node.getBoundingClientRect(); return { top: rect.top, bottom: rect.bottom, right: rect.right, scrollable: node.scrollHeight > node.clientHeight };
+  });
+  assert(toastBounds.top >= 64 && toastBounds.bottom <= 360 && toastBounds.right <= 320 && toastBounds.scrollable, 'long notifications stay below the header and scroll on short screens');
+  for (let index = 0; index < 3; index++) {
+    await page.locator('.ui-toast--error button').first().click();
+    await page.clock.runFor(200);
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  for (const locale of ['en-US', 'ru-RU', 'zh-CN']) {
+    await page.evaluate(value => { localStorage.setItem('preferredLocale', value); localStorage.setItem('token', 'fixture'); }, locale);
+    await page.goto(base + '/rooms');
+    await page.locator('#rooms article').first().waitFor();
+    assert.equal(await page.locator('h1:visible').count(), 1, 'cabinet has a main heading');
+    for (const width of [320, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, locale + ' has no horizontal overflow');
+      assert.equal(await page.locator('#create-launcher').textContent(), JSON.parse(await fs.readFile(path.resolve(__dirname, '../public/i18n/' + locale + '.json'), 'utf8')).roomsLobby.create);
+    }
+  }
   assert.deepEqual(errors, []);
   console.log('Rooms design: skeleton/retry/empty/stale/quota/offline/recovery, toast queue/lifetimes, modal contracts and existing flows OK (fixture API)');
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {
