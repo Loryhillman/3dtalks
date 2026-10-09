@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>3DTalks</title>
-<link rel="stylesheet" href="/css/rooms.css"><script src="/i18n/i18n.js?v=english-default-1" defer></script><script src="/js/roomsLobby.js?v=5" defer></script></head>
-<body><main><header><h1>3DTalks</h1><label class="lobby-language"><span data-t="language"></span><select id="lobby-language"><option value="en-US">English</option><option value="ru-RU">Русский</option><option value="zh-CN">中文</option></select></label><button id="logout" hidden data-t="logout"></button></header>
+<link rel="stylesheet" href="/css/rooms.css"><link rel="stylesheet" href="/css/app-ui.css"><link rel="stylesheet" href="/css/rooms-ui.css"><link rel="stylesheet" href="/css/app-shell.css"><script src="/i18n/i18n.js?v=english-default-1" defer></script><script src="/js/appShell.js?v=1" defer></script><script src="/js/roomsLobby.js?v=6" defer></script></head>
+<body class="app-ui rooms-ui app-shell" data-app-page="rooms"><main><header><h1>3DTalks</h1><label class="lobby-language"><span data-t="language"></span><select id="lobby-language"><option value="en-US">English</option><option value="ru-RU">Русский</option><option value="zh-CN">中文</option></select></label><button class="ui-button ui-button--ghost" id="logout" hidden data-t="logout"></button></header>
 <p id="message" role="status" aria-live="polite"></p>
 <section id="auth" hidden><h2 data-t="welcome"></h2><form id="auth-form">
 <label><span data-t="username"></span><input name="username" autocomplete="username" required maxlength="100"></label>
@@ -10,13 +10,14 @@
 <label>Email<input name="email" type="email" autocomplete="email"></label>
 <label><span data-t="question"></span><select name="securityQuestionId"></select></label>
 <label><span data-t="answer"></span><input name="securityAnswer" autocomplete="off"></label></div>
-<button type="submit" id="auth-submit" data-t="login"></button><button type="button" id="auth-toggle" data-t="register"></button>
+<button class="ui-button ui-button--primary" type="submit" id="auth-submit" data-t="login"></button><button class="ui-button ui-button--ghost" type="button" id="auth-toggle" data-t="register"></button>
 </form></section>
-<section id="cabinet" hidden><a href="/avatar.html" data-t="myAvatar"></a><h2 data-t="myRooms"></h2><p id="quota"></p>
+<section id="cabinet" hidden><div class="rooms-dashboard-heading"><div><h1 data-t="myRooms"></h1><p class="ui-text-muted" data-t="dashboardDescription"></p><p id="quota"></p></div><div class="rooms-dashboard-tools"><button class="ui-button ui-button--primary" type="button" id="create-launcher" data-t="create"></button><button class="ui-button" id="refresh" data-t="refresh"></button></div></div>
+<details id="create-panel" class="rooms-create-panel"><summary data-t="create"></summary>
 <form id="create"><label><span data-t="name"></span><input name="name" maxlength="120" required></label>
 <label><span data-t="capacity"></span><input name="capacity" type="number" min="1" max="6" value="6" required></label>
-<p data-t="template"></p><button type="submit" data-t="create"></button></form>
-<form id="join"><label><span data-t="invite"></span><input name="link" required></label><button type="submit" data-t="join"></button></form>
-<div id="rooms"></div><button id="refresh" data-t="refresh"></button></section>
-<section id="invitation" hidden><h2 id="invite-name"></h2><p id="invite-info"></p><a id="enter" data-t="enter"></a><p><a href="/rooms" data-t="back"></a></p></section>
+<p data-t="template"></p><button class="ui-button ui-button--primary" type="submit" data-t="create"></button></form></details>
+<div id="rooms" class="rooms-grid"></div>
+<div class="rooms-invitation-block"><h2 data-t="joinHeading"></h2><p class="ui-text-muted" data-t="joinDescription"></p><form id="join"><label><span data-t="invite"></span><input name="link" required></label><button class="ui-button" type="submit" data-t="join"></button></form></div></section>
+<section id="invitation" hidden><h2 id="invite-name"></h2><p id="invite-info"></p><a class="ui-button ui-button--primary" id="enter" data-t="enter"></a><p><a href="/rooms" data-t="back"></a></p></section>
 </main></body></html>

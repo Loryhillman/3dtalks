@@ -5432,7 +5432,12 @@
     "ROOM_INVALID": "房间验证失败，请联系管理员。",
     "INVALID_TEMPLATE": "无法从模板创建房间，请联系管理员。",
     "language": "语言",
-    "myAvatar": "My avatar"
+    "myAvatar": "My avatar",
+    "dashboardDescription": "创建会议空间，通过链接邀请参与者。",
+    "joinHeading": "收到邀请了吗？",
+    "joinDescription": "打开与您分享的房间。链接必须来自本站。",
+    "coverIllustration": "示意图",
+    "roomActions": "房间“{{name}}”的操作"
   },
   "roomEnvelope": {
     "title": "房间结构",
@@ -5568,5 +5573,18 @@
     "savedRooms": "已保存的房间",
     "saved": "已保存",
     "passwordMismatch": "密码不一致"
+  },
+  "appShell": {
+    "myRooms": "我的房间",
+    "myAvatar": "我的形象",
+    "invitation": "房间邀请",
+    "account": "账户",
+    "logout": "退出登录",
+    "language": "语言",
+    "navigation": "主导航",
+    "toggleNavigation": "展开或收起导航",
+    "closeNavigation": "关闭导航",
+    "skipContent": "跳转到内容",
+    "languageFailed": "无法切换语言，请重试。"
   }
 }

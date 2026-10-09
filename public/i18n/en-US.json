@@ -5432,7 +5432,12 @@
     "ROOM_INVALID": "Room validation failed. Contact the administrator.",
     "INVALID_TEMPLATE": "Cannot create room from template. Contact the administrator.",
     "language": "Language",
-    "myAvatar": "My avatar"
+    "myAvatar": "My avatar",
+    "dashboardDescription": "Create a meeting space and invite people with a link.",
+    "joinHeading": "Have an invitation?",
+    "joinDescription": "Open a room shared with you. The link must be from this site.",
+    "coverIllustration": "Illustration",
+    "roomActions": "Actions for {{name}}"
   },
   "roomEnvelope": {
     "title": "Room shell",
@@ -5568,5 +5573,18 @@
     "savedRooms": "Saved rooms",
     "saved": "Saved",
     "passwordMismatch": "Passwords do not match"
+  },
+  "appShell": {
+    "myRooms": "My rooms",
+    "myAvatar": "My avatar",
+    "invitation": "Room invitation",
+    "account": "Account",
+    "logout": "Sign out",
+    "language": "Language",
+    "navigation": "Main navigation",
+    "toggleNavigation": "Toggle navigation",
+    "closeNavigation": "Close navigation",
+    "skipContent": "Skip to content",
+    "languageFailed": "Could not change language. Try again."
   }
 }

@@ -36,15 +36,45 @@
   async function action(fn) {
     if (busy) return;
     busy = true; message();
-    const controls = [...document.querySelectorAll('button')];
+    const controls = [...document.querySelectorAll('button:not([data-shell-control])')];
     const disabled = controls.map(c => c.disabled); controls.forEach(c => { c.disabled = true; });
     try { await fn(); } catch (error) { message(error.message); }
     finally { controls.forEach((c, i) => { if (c.isConnected) c.disabled = disabled[i]; }); busy = false; }
   }
-  function button(parent, label, handler) {
+  function button(parent, label, handler, className = '') {
     const element = document.createElement('button'); element.textContent = t(label);
+    element.className = 'ui-button' + (['delete', 'end'].includes(label) ? ' ui-button--destructive' : '') + (className ? ' ' + className : '');
     element.addEventListener('click', () => action(handler)); parent.append(element);
   }
+  // The API has no cover/template metadata: use an explicitly generic illustration.
+  const ROOM_COVER = '/images/room-covers/neutral-v1.svg';
+  let openRoomMenu = null;
+  function roomMenu(room) {
+    const menu = document.createElement('details'); menu.className = 'room-menu';
+    const summary = document.createElement('summary'); summary.className = 'ui-button ui-button--ghost';
+    summary.setAttribute('aria-label', t('roomActions', { name: room.name }));
+    const icon = document.createElement('img'); icon.src = '/icons/lucide/ellipsis.svg'; icon.alt = ''; icon.width = icon.height = 20;
+    summary.append(icon);
+    const items = document.createElement('div'); items.className = 'room-menu-items';
+    menu.append(summary, items);
+    summary.addEventListener('click', () => {
+      if (openRoomMenu && openRoomMenu !== menu) openRoomMenu.open = false;
+      openRoomMenu = menu;
+    });
+    menu.addEventListener('toggle', () => {
+      if (menu.open) { if (openRoomMenu && openRoomMenu !== menu) openRoomMenu.open = false; openRoomMenu = menu; }
+      else if (openRoomMenu === menu) openRoomMenu = null;
+    });
+    menu.addEventListener('focusout', event => { if (!menu.contains(event.relatedTarget)) menu.open = false; });
+    items.addEventListener('click', event => { if (event.target.closest('button')) menu.open = false; });
+    return { menu, items, summary };
+  }
+  document.addEventListener('click', event => { if (openRoomMenu && !openRoomMenu.contains(event.target)) openRoomMenu.open = false; });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && openRoomMenu) {
+      event.preventDefault(); const menu = openRoomMenu; menu.open = false; menu.querySelector('summary').focus();
+    }
+  });
   function invitationUrl(room) { return location.origin + '/join/' + encodeURIComponent(room.slug); }
   async function copyInvitation(url) {
     if (navigator.clipboard?.writeText) {
@@ -91,32 +121,47 @@
     }
     $('cabinet').hidden = false; $('invitation').hidden = true;
     $('quota').textContent = t('quota', { used: data.quota.used, limit: data.quota.limit });
+    if (openRoomMenu) { openRoomMenu.open = false; openRoomMenu = null; }
     $('rooms').replaceChildren();
     if (!data.rooms.length) $('rooms').textContent = t('empty');
     for (const room of data.rooms) {
-      const card = document.createElement('article'), name = document.createElement('h3'), info = document.createElement('p');
+      const card = document.createElement('article'), name = document.createElement('h3'), info = document.createElement('span');
+      card.className = 'ui-card room-card';
+      const cover = document.createElement('div'); cover.className = 'room-cover';
+      const image = document.createElement('img'); image.src = ROOM_COVER; image.alt = ''; image.width = 640; image.height = 360; image.loading = 'lazy'; image.decoding = 'async';
+      image.addEventListener('error', () => { image.hidden = true; });
+      const caption = document.createElement('span'); caption.className = 'room-cover-caption'; caption.textContent = t('coverIllustration');
+      cover.append(image, caption);
+      const body = document.createElement('div'); body.className = 'room-card-body';
       name.textContent = room.name;
-      info.textContent = t(room.status === 'closed' && !room.allow_rejoin ? 'ended' : room.status) + ' · ' + t('capacity') + ': ' + room.capacity;
+      const status = room.status === 'closed' && !room.allow_rejoin ? 'ended' : room.status;
+      info.className = 'room-status room-status--' + (['open', 'closed', 'ended', 'draft', 'archived'].includes(status) ? status : 'draft');
+      info.textContent = t(status);
+      const capacity = document.createElement('p'); capacity.className = 'room-capacity'; capacity.textContent = t('capacity') + ': ' + room.capacity;
       const occupancy = document.createElement('p');
+      occupancy.className = 'room-occupancy';
       occupancy.textContent = t('occupancy', { active: room.active ?? 0, held: room.held ?? 0, available: room.available ?? 0 });
-      card.append(name, info, occupancy);
-      const actions = document.createElement('div'); actions.className = 'actions'; card.append(actions);
-      if (room.status === 'open') { const link = document.createElement('a'); link.textContent = t('enter'); link.href = '/play?room=' + encodeURIComponent(room.slug); actions.append(link); }
+      body.append(info, name, capacity, occupancy); card.append(cover, body);
+      const actions = document.createElement('div'); actions.className = 'actions room-card-actions'; body.append(actions);
+      if (room.status === 'open') { const link = document.createElement('a'); link.className = 'ui-button ui-button--primary'; link.textContent = t('enter'); link.href = '/play?room=' + encodeURIComponent(room.slug); actions.append(link); }
       button(actions, 'copy', async () => {
         await copyInvitation(invitationUrl(room));
         message(t('copied'));
-      });
-      button(actions, 'rename', async () => { const name = prompt(t('name'), room.name); if (name !== null) await mutate(room, '', { name }, 'PATCH'); });
+      }, 'room-copy');
+      const { menu, items } = roomMenu(room);
+      actions.append(menu);
+      button(items, 'rename', async () => { const name = prompt(t('name'), room.name); if (name !== null) await mutate(room, '', { name }, 'PATCH'); });
       if (room.status === 'draft' || (room.status === 'closed' && !room.allow_rejoin)) {
-        button(actions, 'capacity', async () => { const value = prompt(t('capacity'), String(room.capacity)); if (value !== null) await mutate(room, '', { capacity: Number(value) }, 'PATCH'); });
+        button(items, 'capacity', async () => { const value = prompt(t('capacity'), String(room.capacity)); if (value !== null) await mutate(room, '', { capacity: Number(value) }, 'PATCH'); });
       }
-      if (['closed', 'draft'].includes(room.status)) button(actions, 'openAction', () => mutate(room, 'open'));
-      if (room.status === 'open') button(actions, 'closeAction', () => mutate(room, 'close'));
-      if (room.status === 'open' || (room.status === 'closed' && room.allow_rejoin)) button(actions, 'end', async () => { if (confirm(t('confirmEnd', { name: room.name }))) await mutate(room, 'end'); });
-      button(actions, 'delete', async () => { if (confirm(t('confirmDelete', { name: room.name }))) await mutate(room, '', {}, 'DELETE'); });
+      if (['closed', 'draft'].includes(room.status)) button(items, 'openAction', () => mutate(room, 'open'));
+      if (room.status === 'open') button(items, 'closeAction', () => mutate(room, 'close'));
+      if (room.status === 'open' || (room.status === 'closed' && room.allow_rejoin)) button(items, 'end', async () => { if (confirm(t('confirmEnd', { name: room.name }))) await mutate(room, 'end'); });
+      button(items, 'delete', async () => { if (confirm(t('confirmDelete', { name: room.name }))) await mutate(room, '', {}, 'DELETE'); });
       $('rooms').append(card);
     }
   }
+  $('create-launcher').onclick = () => { $('create-panel').open = true; $('create').elements.name.focus(); };
   $('auth-toggle').onclick = () => {
     registering = !registering; $('registration').hidden = !registering;
     for (const field of $('registration').querySelectorAll('input,select')) field.required = registering;

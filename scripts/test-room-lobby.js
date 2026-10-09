@@ -6,6 +6,7 @@ const nodes = new Map();
 function node() { return { hidden: false, isConnected: true, children: [], dataset: {}, style: {},
   append(...items) { this.children.push(...items); }, replaceChildren() { this.children = []; },
   addEventListener(event, fn) { this['on' + event] = fn; }, querySelectorAll() { return []; },
+  setAttribute(key, value) { this[key] = value; },
   focus() {}, select() {}, setSelectionRange() {}, remove() { this.isConnected = false; },
   reset() {}, elements: {} }; }
 const $ = id => { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); };
@@ -18,7 +19,7 @@ const requests = [], navigation = [], session = new Map();
 let failCreate = true, copyAllowed = true, copiedText;
 const body = node();
 const context = { console, URL, Uint8Array, crypto: webcrypto, localStorage: storage(data), sessionStorage: storage(session),
- document: { documentElement: {}, body, getElementById: $, createElement: node, querySelectorAll: () => [],
+ document: { documentElement: {}, body, getElementById: $, createElement: node, querySelectorAll: () => [], addEventListener() {},
    execCommand(command) { assert.equal(command, 'copy'); copiedText = body.children.at(-1).value; return copyAllowed; } },
  location: { pathname: '/rooms', origin: 'http://local', assign: url => navigation.push(url), reload() {} },
  navigator: {}, prompt: () => null, confirm: () => false,
@@ -34,8 +35,10 @@ const settle = () => new Promise(resolve => setImmediate(resolve));
   vm.runInNewContext(fs.readFileSync(require.resolve('../public/js/roomsLobby.js'), 'utf8'), context);
   await settle();
   assert.equal($('cabinet').hidden, false);
-  assert.equal($('rooms').children[0].children[0].textContent, '<img onerror=bad>', 'names are text, not HTML');
-  const copyButton = $('rooms').children[0].children.at(-1).children.find(child => child.textContent === 'roomsLobby.copy');
+  const descendants = root => [root, ...root.children.flatMap(descendants)];
+  const cardNodes = descendants($('rooms').children[0]);
+  assert(cardNodes.some(child => child.textContent === '<img onerror=bad>'), 'names are text, not HTML');
+  const copyButton = cardNodes.find(child => child.textContent === 'roomsLobby.copy');
   copyButton.onclick(); await settle();
   assert.equal(copiedText, 'http://local/join/room-one', 'HTTP fallback copies the actual invitation');
   assert.equal($('message').textContent, 'roomsLobby.copied');

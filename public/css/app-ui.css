@@ -1,0 +1,137 @@
+/* Shared web UI primitives. Opt in with .app-ui; never apply to a 3D page. */
+@font-face {
+  font-family: Inter;
+  src: url('/fonts/inter/InterVariable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+.app-ui {
+  --color-app-bg: #F8FAFB;
+  --color-surface: #FFFFFF;
+  --color-sidebar-bg: #FFFFFF;
+  --color-header-bg: #FFFFFF;
+  --color-text-primary: #172638;
+  --color-text-secondary: #8292A3;
+  --color-primary: #00A878;
+  --color-primary-foreground: #FFFFFF;
+  --color-nav-active: #E8F7F2;
+  --color-border: #E9EEF1;
+  --color-hover: #F2F6F5;
+  --color-success: #22C55E;
+  --color-danger: #EF4444;
+  --color-warning: #F59E0B;
+  --color-info: #3B82F6;
+  /* Text applications need more contrast than the reference swatches. */
+  --color-text-muted: #596B7D;
+  --color-action: #007D59;
+  --color-action-hover: #006B4C;
+  --color-action-pressed: #005A40;
+  --color-danger-action: #B42318;
+  --color-control-border: #8292A3;
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-modal: 16px;
+  --sidebar-expanded: 248px;
+  --sidebar-collapsed: 64px;
+  --header-height: 64px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --shadow-card: 0 2px 8px rgb(23 38 56 / 4%);
+  color-scheme: light;
+  min-height: 100vh;
+  min-height: 100dvh;
+  color: var(--color-text-primary);
+  background: var(--color-app-bg);
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.app-ui :where(input, select, textarea, button) { font: inherit; }
+.app-ui :where(h1, h2, h3, p) { overflow-wrap: anywhere; }
+.app-ui h1 { font-size: 28px; font-weight: 600; line-height: 1.25; }
+.app-ui h2 { font-size: 22px; font-weight: 600; line-height: 1.35; }
+.app-ui h3 { font-size: 18px; font-weight: 600; line-height: 1.4; }
+.app-ui .ui-text-muted { color: var(--color-text-muted); }
+.app-ui .ui-text-small { font-size: 12px; }
+.app-ui a { color: var(--color-action); text-underline-offset: 3px; }
+.app-ui :where(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 3px;
+}
+.app-ui :where(input, select, textarea) {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  max-width: 100%;
+}
+.app-ui :where(input, textarea)::placeholder { color: var(--color-text-muted); opacity: 1; }
+.app-ui :where(input, select, textarea)[aria-invalid='true'] { border-color: var(--color-danger-action); }
+.app-ui :where(input, select, textarea):disabled { background: var(--color-hover); opacity: .6; }
+.app-ui .ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 8px 16px;
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition: background-color 150ms, border-color 150ms, color 150ms;
+}
+.app-ui .ui-button:hover { background: var(--color-hover); }
+.app-ui .ui-button:active { background: var(--color-nav-active); }
+.app-ui .ui-button--primary {
+  background: var(--color-action);
+  border-color: var(--color-action);
+  color: var(--color-primary-foreground);
+}
+.app-ui .ui-button--primary:hover { background: var(--color-action-hover); border-color: var(--color-action-hover); }
+.app-ui .ui-button--primary:active { background: var(--color-action-pressed); }
+.app-ui .ui-button--ghost { border-color: transparent; background: transparent; color: var(--color-action); }
+.app-ui .ui-button--destructive { color: var(--color-danger-action); border-color: var(--color-danger-action); }
+.app-ui .ui-button--destructive:hover { background: #FFF1F0; }
+.app-ui .ui-button:disabled {
+  opacity: .5;
+  cursor: default;
+  pointer-events: none;
+}
+.app-ui .ui-button[aria-busy='true'] { cursor: progress; }
+.app-ui .ui-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-card);
+  transition: border-color 180ms, box-shadow 180ms;
+}
+.app-ui .ui-card:hover { border-color: #CFDDD7; }
+.app-ui .ui-field-error { color: var(--color-danger-action); font-size: 12px; }
+@media (max-width: 767px) {
+  .app-ui .ui-button, .app-ui :where(input, select, textarea) { min-height: 44px; }
+  /* Prevent automatic zoom when entering text on mobile Safari. */
+  .app-ui :where(input, select, textarea) { font-size: 16px; }
+  .app-ui .ui-card { padding: var(--space-5); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-ui .ui-button, .app-ui .ui-card { transition: none; }
+}
