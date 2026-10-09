@@ -13,6 +13,7 @@ const seat = {editor_id:2,type:'seat',kind:'seat',name:'Seats',collision:false,p
  seats:[{label:'1',sort_order:1,enabled:true,coordinate_space:'rigid',local_position:{x:10,y:1,z:-10},local_orientation:{x:0,y:0,z:0},map_x:0,map_y:0}]};
 let draft={name:'Office',revision:1,base_version:1,layout:[office,seat]},fail=false,published=0,loads=0,release,uploadProfile;
 let pauseInspection=false,resumeInspection,inspectionStarted;
+const publishedSnapshots=[];
 const app=express();app.use(express.json());
 app.get('/models/uploaded/:file',async(req,res)=>{
  loads++;
@@ -35,7 +36,13 @@ app.all('/api/admin/rooms/templates/office/draft',(req,res)=>{
  if(req.method==='PUT')draft={...draft,...req.body,revision:draft.revision+1};
  res.json({success:true,draft});
 });
-app.post('/api/admin/rooms/templates/office/publish',(_req,res)=>{published++;res.json({success:true,draft,version:2});});
+app.post('/api/admin/rooms/templates/office/publish',(_req,res)=>{
+ const errors=require('../src/services/roomTemplateEditor').publicationErrors(draft.layout,'office');
+ if(errors.length)return res.status(422).json({success:false,error:errors.join('; ')});
+ published++;draft={...draft,base_version:published+1,published_revision:draft.revision};
+ publishedSnapshots.push(JSON.parse(JSON.stringify(draft)));
+ res.json({success:true,draft,version:published+1});
+});
 app.get('/js/roomEditor.js',async(_req,res)=>res.type('js').send(`
 const OriginalSession=RoomTemplateSession;
 window.RoomTemplateSession=class extends OriginalSession {constructor(...args){super(...args);window.fixtureSession=this;}};
@@ -176,6 +183,21 @@ let server,browser;
  assert.equal(await page.evaluate(()=>fixtureScene.children.some(n=>n.userData.officeProposal)),false,'late inspection cannot restore a cancelled proposal');
  await page.locator('#environment-shell').click();
  assert.equal(await page.evaluate(()=>fixtureSession.draft.layout.find(i=>i.kind==='room').envelope.width),18,'selecting the current construction mode does not reset it');
+ pauseInspection=false;
+ await page.locator('#show-seats').click();await page.locator('#seat-list [data-label="1"]').click();
+ await page.waitForFunction(()=>document.body.getAttribute('aria-busy')==='false');
+ await page.locator('#seat-x').fill('0');await page.locator('#seat-z').fill('0');await page.locator('#seat-form button[type="submit"]').click();
+ await page.locator('#template-publish').click();await page.waitForFunction(()=>document.body.getAttribute('aria-busy')==='false');
+ assert.equal(published,1,'built room publishes with server placement validation');
+ const previousSnapshot=JSON.stringify(publishedSnapshots[0]);
+ await page.locator('#show-room').click();await page.locator('#environment-prepare').click();
+ await page.waitForFunction(()=>document.getElementById('environment-import-status').textContent.startsWith('Model prepared.'));
+ await page.locator('#environment-confirm').check();await page.locator('#environment-settings button[type="submit"]').click();
+ await page.waitForFunction(()=>document.body.getAttribute('aria-busy')==='false'&&document.getElementById('environment-load-status').textContent==='Room loaded');
+ await page.locator('#template-publish').click();await page.waitForFunction(()=>document.body.getAttribute('aria-busy')==='false');
+ assert.equal(published,2,'imported office publishes through the UI with server placement validation');
+ assert.equal(JSON.stringify(publishedSnapshots[0]),previousSnapshot,'publishing an office preserves the previous built-room snapshot');
+ assert.equal(publishedSnapshots[1].layout.find(i=>i.kind==='room').type,'room_environment');
  assert.deepEqual(errors,[]);
- console.log('Chromium office editor: GLB/DTO, bounds/camera, stale loads, retry, import/upload profile, confirmed resize, cancellation, preserved seats/furniture and shell switch OK (isolated API)');
+ console.log('Chromium office editor: GLB/DTO, bounds/camera, stale loads, retry, import/upload profile, resize, cancellation, seating, built/GLB publication and preserved snapshots OK (isolated API)');
 }finally{release?.();resumeInspection?.();await browser?.close();if(server)await new Promise(r=>server.close(r));}})().catch(e=>{console.error(e);process.exitCode=1;});

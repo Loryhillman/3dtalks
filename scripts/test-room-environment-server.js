@@ -79,16 +79,17 @@ const pool = { async connect() {
   const runtime = { async query(sql, p = []) {
     if (sql.includes('INSERT INTO geometry_buildings')) throw new Error('Imported office must not generate walls');
     if (sql.includes('INSERT INTO world_objects')) {
-      objects.push({ id: 1, room_id: p[0], name: p[1], model_path: p[2], position_x: p[3], position_y: p[4], position_z: p[5], rotation_y: p[6],
+      const id=objects.length+1;
+      objects.push({ id, room_id: p[0], name: p[1], model_path: p[2], position_x: p[3], position_y: p[4], position_z: p[5], rotation_y: p[6],
         has_collision: p[7], type: p[8], rotation_x: p[9], rotation_z: p[10], scale_x: p[11], scale_y: p[12], scale_z: p[13], model_type: p[14], room_environment: JSON.parse(p[15]) });
-      return { rows: [{ id: 1 }] };
+      return { rows: [{ id }] };
     }
     if (sql.includes('INSERT INTO room_seats')) {
       records.push({ id: p[0], room_id: p[1], object_id: p[2], label: p[3], sort_order: p[4], local_position: JSON.parse(p[5]), local_rotation: JSON.parse(p[6]), map_x: p[7], map_y: p[8], enabled: p[9], coordinate_space: p[10] }); return { rows: [] };
     }
-    if (sql.includes('FROM world_objects')) return { rows: clone(objects) };
-    if (sql.includes('FROM room_seats')) return { rows: clone(records) };
-    if (sql.includes('FROM rooms')) return { rows: [{ id: roomId, status: 'draft', seating_mode: 'seated' }] };
+    if (sql.includes('FROM world_objects')) return { rows: clone(objects.filter(o=>o.room_id===p[0])) };
+    if (sql.includes('FROM room_seats')) return { rows: clone(records.filter(o=>o.room_id===p[0])) };
+    if (sql.includes('FROM rooms')) return { rows: [{ id: p[0], status: 'draft', seating_mode: 'seated' }] };
     throw new Error('Unexpected runtime SQL: ' + sql);
   } };
   await populateRoom(runtime, { id: roomId }, stableSnapshot, {});
@@ -106,6 +107,23 @@ const pool = { async connect() {
   assert.equal((await validateRoom(roomId, runtime, stat)).ok, false); objects[0].has_collision = false;
   objects.push(clone(objects[0]));
   assert.match((await validateRoom(roomId, runtime, stat)).errors.join(' '), /только одно помещение/); objects.pop();
+  const previousObjects=clone(objects),previousSeats=clone(records);
+  const nextBody=clone(state.draft);
+  Object.assign(nextBody.layout[0],{position:{x:20,y:0,z:0},rotation:{x:0,y:.6,z:0},scale:{x:.75,y:.75,z:.75}});
+  nextBody.layout[1].seats[0].local_position.x=20;
+  const nextDraft=await service.save('office',nextBody,1);
+  const nextPublication=await service.publish('office',nextDraft.revision);
+  assert.equal(nextPublication.version,3);
+  assert.deepEqual(state.templates[1],stableSnapshot,'successful new publication keeps the previous version immutable');
+  const nextRoomId=randomUUID();
+  await populateRoom(runtime,{id:nextRoomId},state.templates[2],{});
+  assert.equal((await validateRoom(nextRoomId,runtime,stat)).ok,true);
+  assert.equal((await validateRoom(roomId,runtime,stat)).ok,true);
+  assert.deepEqual(objects.filter(o=>o.room_id===roomId),previousObjects,'new room does not overwrite the old room objects');
+  assert.deepEqual(records.filter(o=>o.room_id===roomId),previousSeats,'new room does not overwrite the old seating');
+  const nextDto=await listRoomObjects(nextRoomId,runtime);
+  assert.equal(nextDto.length,1);assert.equal(nextDto[0].position_x,20);assert.equal(nextDto[0].scale_x,.75);
+  assert.equal(records.find(s=>s.room_id===nextRoomId).local_position.x,20);
 
   let commit = false, rollback = false, used = true, changed = false;
   const lockedPool = { async connect() { return { release() {}, async query(sql) {
