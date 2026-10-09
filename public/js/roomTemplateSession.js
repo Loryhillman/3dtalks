@@ -36,9 +36,10 @@
     }
     objects() {
       return this.draft.layout.filter(item => item.type !== 'seat').map(item => {
-        const row = { id: item.editor_id, name: item.name, type: item.type === 'room_shell' ? 'geometry_building' : item.type || 'geometry_building',
+        const row = { id: item.editor_id, name: item.name, type: item.type === 'room_environment' ? 'uploaded_model' : item.type === 'room_shell' ? 'geometry_building' : item.type || 'geometry_building',
           model_path: item.model_path, model_id: item.model_id, template_kind: item.kind,
-          has_collision: item.collision, is_room_shell:item.kind==='room',room_envelope:item.envelope||null,
+          has_collision: item.collision, is_room_shell:item.kind==='room' && item.type !== 'room_environment',room_envelope:item.envelope||null,
+          is_room_environment:item.type==='room_environment',room_environment:item.type==='room_environment'?clone(item.environment):null,
           geometry_data: item.type==='room_shell' ? {envelope:item.envelope,components:RoomEnvelope.components(item.envelope)} : { components: item.components } };
         const values = { position: item.position, rotation: item.rotation || { x: 0, y: item.rotation_y || 0, z: 0 },
           scale: item.scale || { x: 1, y: 1, z: 1 } };
@@ -61,7 +62,7 @@
       if (path === '/seats' && method === 'GET') return { seats: this.seats() };
       if (path === '/seats' && method === 'POST') {
         if (body.seating_mode !== 'seated') throw new Error('Шаблон переговорной должен использовать рассадку');
-        for (const seat of body.seats) if (seat.object_id !== null && !this.draft.layout.some(i => i.type !== 'seat' && i.editor_id === seat.object_id)) throw new Error('Предмет места не найден');
+        for (const seat of body.seats) if (seat.object_id !== null && !this.draft.layout.some(i => i.type !== 'seat' && i.kind !== 'room' && i.editor_id === seat.object_id)) throw new Error('Предмет места не найден');
         const previous = JSON.stringify(this.draft.layout);
         for (const item of this.draft.layout) item.seats = body.seats.filter(s => item.type !== 'seat' && s.object_id === item.editor_id)
           .map(({ id, object_id, room_id, ...seat }) => clone(seat));

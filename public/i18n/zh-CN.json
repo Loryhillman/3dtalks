@@ -5307,7 +5307,18 @@
     "appliedDraft": "更改已应用。请保存草稿",
     "deleteSeatsChoice": "此物体有关联座位。输入1保留独立座位，输入2同时删除座位。",
     "search": "搜索物体和座位",
-    "properties": "所选元素属性"
+    "properties": "所选元素属性",
+    "environmentTitle": "GLB 房间环境",
+    "environmentMaterials": "文件中的家具和材质属于同一模型。表面设置仅适用于搭建的房间。",
+    "environmentRetry": "重新加载房间",
+    "environmentBounds": "显示范围边界",
+    "focusRoom": "查看整个房间",
+    "metres": "米",
+    "environmentInvalid": "房间边界无效",
+    "environmentReady": "房间已加载",
+    "environmentFailed": "无法加载房间",
+    "environmentLoading": "正在加载房间…",
+    "environmentWait": "发布前请等待房间成功加载"
   },
   "roomSeatsEditor": {
     "title": "座位",

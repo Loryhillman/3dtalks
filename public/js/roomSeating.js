@@ -22,7 +22,7 @@
     previewTarget=new THREE.Vector3((min.x+max.x)/2,(min.y+max.y)/2+.45,(min.z+max.z)/2);
     const radius=item ? 2.8 : Math.max(4,Math.hypot(max.x-min.x,max.z-min.z)*.8);
     const desired=previewTarget.clone().add(new THREE.Vector3(Math.sin(previewAngle)*radius,Math.min(3.5,radius*.5),Math.cos(previewAngle)*radius));
-    // Only the room shell bounds constrain this camera. Raycasting the entire
+    // Only the room boundary constrains this camera. Raycasting the entire
     // scene touches detailed/skinned GLBs and their BVHs before updating the UI.
     const world=window.gameWorld;
     if(world?.generatedBuildings){
@@ -30,6 +30,11 @@
       let nearest=previewTarget.distanceTo(desired);
       const ray=new THREE.Ray(previewTarget,direction);
       for(const entry of world.generatedBuildings.values()){
+        if(entry.data?.is_room_environment && window.RoomEnvironmentView){
+          const constrained=RoomEnvironmentView.constrain(previewTarget,desired,entry.data);
+          nearest=Math.min(nearest,previewTarget.distanceTo(constrained));
+          continue;
+        }
         if(!entry.data?.is_room_shell || !entry.model)continue;
         entry.model.updateWorldMatrix(true,true);
         entry.model.traverse(mesh=>{

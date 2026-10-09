@@ -5307,7 +5307,18 @@
     "appliedDraft": "Changes applied. Save the draft",
     "deleteSeatsChoice": "This object has seats. Enter 1 to keep them detached, or 2 to delete them with the object.",
     "search": "Find objects and seats",
-    "properties": "Selected element properties"
+    "properties": "Selected element properties",
+    "environmentTitle": "GLB room environment",
+    "environmentMaterials": "Furniture and materials inside the file belong to one model. Surface settings apply to a built room.",
+    "environmentRetry": "Retry room loading",
+    "environmentBounds": "Show service bounds",
+    "focusRoom": "Show entire room",
+    "metres": "m",
+    "environmentInvalid": "Invalid room bounds",
+    "environmentReady": "Room loaded",
+    "environmentFailed": "Could not load the room",
+    "environmentLoading": "Loading room…",
+    "environmentWait": "Wait for the room to load successfully before publishing"
   },
   "roomSeatsEditor": {
     "title": "Seats",

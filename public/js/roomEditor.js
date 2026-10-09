@@ -6,6 +6,7 @@
   const message = document.getElementById('message');
   const viewport = document.getElementById('viewport');
   const objects = new Map();
+  let environmentHelper, environmentSignature, framedEnvironment, frameId;
   let seatPreview = [], selectedSeat = -1, selectionMode = 'objects';
   const seatLabels = new RoomSeatLabels(index => {if(selectionMode==='seats')window.dispatchEvent(new CustomEvent('room-seat-picked',{detail:Number(index)}));}, 5);
   const seatMarkers = new Map();
@@ -148,7 +149,8 @@
   const draco = new THREE.DRACOLoader().setDecoderPath('/js/libs/draco/');
   loader.setDRACOLoader(draco);
   const decoderReady = import('/js/libs/meshopt/meshopt_decoder.module.js')
-    .then(m => loader.setMeshoptDecoder(m.MeshoptDecoder));
+    .then(m => loader.setMeshoptDecoder(m.MeshoptDecoder))
+    .catch(error => { console.warn('[RoomEditor] Meshopt decoder unavailable:',error); });
 
   function resize() {
     const w = viewport.clientWidth, h = viewport.clientHeight;
@@ -160,7 +162,7 @@
   new ResizeObserver(resize).observe(viewport);
   resize();
   function frame() {
-    requestAnimationFrame(frame);
+    frameId = requestAnimationFrame(frame);
     orbit.update();
     if (selectionBox.visible) selectionBox.update();
     renderer.render(scene, camera);
@@ -265,7 +267,7 @@
     return action(async () => {
       await applyCurrent();
       window.RoomSeatEditor?.deselect();
-      if (object.is_room_shell) { selectObject(null); showPanel('room'); return; }
+      if (object.is_room_shell || object.is_room_environment) { selectObject(null); showPanel('room'); return; }
       showPanel('objects'); selectObject(objects.get(object.id)?.data);
     });
   }
@@ -299,6 +301,7 @@
       while (node && node.userData.roomObjectId == null) node = node.parent;
       if (node) {
         const object = objects.get(node.userData.roomObjectId)?.data;
+        if(object?.is_room_environment){if(selectionMode==='room'){showPanel('room');return;}continue;}
         if(object?.is_room_shell){
           if(selectionMode==='room') {showPanel('room');if(hit.object.userData.roomSurface)window.dispatchEvent(new CustomEvent('room-surface-picked',{detail:hit.object.userData.roomSurface}));return;}
           continue;
@@ -316,34 +319,90 @@
     group.position.set(object.position_x || 0, object.position_y || 0, object.position_z || 0);
     group.rotation.set(object.rotation_x || 0, object.rotation_y || 0, object.rotation_z || 0);
     group.scale.set(object.scale_x ?? 1, object.scale_y ?? 1, object.scale_z ?? 1);
+    const entry = { data: object, group, state: 'ready' };
+    scene.add(group); objects.set(object.id,entry);
     if (object.type === 'geometry_building' && object.geometry_data?.components?.length) {
       group.add(GeometryRenderer.renderFromComponents(object.geometry_data.components, THREE));
     } else if (object.type === 'uploaded_model' && object.model_path?.toLowerCase().endsWith('.glb')) {
-      const placeholder = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1),
-        new THREE.MeshStandardMaterial({ color: 0x5b9dca, wireframe: true }));
-      group.add(placeholder);
-      decoderReady.then(() => loader.load(object.model_path, gltf => {
-        if (objects.get(object.id)?.group !== group) { disposeGroup(gltf.scene); return; }
-        group.remove(placeholder);
-        disposeGroup(placeholder);
-        group.add(gltf.scene);
-      }, undefined, () => { message.textContent = `${tr('modelLoadError', 'Не загрузилась модель')}: ${object.model_path}`; }))
-        .catch(error => { message.textContent = error.message; });
+      if (!object.is_room_environment) {
+        entry.placeholder = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1),new THREE.MeshStandardMaterial({color:0x5b9dca,wireframe:true}));
+        group.add(entry.placeholder);
+      }
+      loadModel(entry);
     } else {
       group.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1),
         new THREE.MeshStandardMaterial({ color: 0x5b9dca, wireframe: true })));
     }
-    scene.add(group);
-    objects.set(object.id, { data: object, group });
   }
 
+  async function loadModel(entry) {
+    entry.controller?.abort();
+    if (message.textContent === entry.errorMessage) message.textContent = '';
+    const controller = new AbortController(); entry.controller = controller; entry.state = 'loading'; entry.error = '';
+    syncEnvironmentView();
+    let root;
+    try {
+      if (!entry.data.is_room_environment) await decoderReady;
+      const response = await fetch(entry.data.model_path,{signal:controller.signal});
+      if (!response.ok) throw new Error('HTTP '+response.status);
+      const buffer = await response.arrayBuffer();
+      if (controller.signal.aborted || objects.get(entry.data.id) !== entry) return;
+      const directory = new URL('.',new URL(entry.data.model_path,document.baseURI)).href;
+      root = (await loader.parseAsync(buffer,directory)).scene;
+      if (controller.signal.aborted || objects.get(entry.data.id) !== entry) { disposeGroup(root); return; }
+      if (!root) throw new Error('GLB scene missing');
+      if (entry.placeholder) {entry.group.remove(entry.placeholder);disposeGroup(entry.placeholder);entry.placeholder=null;}
+      entry.group.add(root);entry.state='ready';syncEnvironmentView();
+    } catch (error) {
+      if (controller.signal.aborted || objects.get(entry.data.id) !== entry) return;
+      entry.state='error';entry.error=error.message;
+      entry.errorMessage=tr('modelLoadError','Не загрузилась модель')+': '+entry.data.name+' ('+error.message+')';
+      message.textContent=entry.errorMessage;
+      syncEnvironmentView();
+    }
+  }
+
+  function removeVisual(entry) {
+    entry.controller?.abort();scene.remove(entry.group);disposeGroup(entry.group);
+  }
+
+  function syncEnvironmentView() {
+    const entry=[...objects.values()].find(e=>e.data.is_room_environment);
+    document.getElementById('room-environment-preview').hidden=!entry;
+    if (!entry) {
+      if(environmentHelper){scene.remove(environmentHelper);disposeGroup(environmentHelper);environmentHelper=null;}
+      environmentSignature=null;framedEnvironment=null;return;
+    }
+    const object=entry.data, box=RoomEnvironmentView.bounds(object);
+    const signature=JSON.stringify([object.room_environment,...['position','rotation','scale'].flatMap(p=>['x','y','z'].map(a=>object[p+'_'+a]))]);
+    if(signature!==environmentSignature){
+      if(environmentHelper){scene.remove(environmentHelper);disposeGroup(environmentHelper);}
+      environmentHelper=RoomEnvironmentView.helper(object);environmentSignature=signature;if(environmentHelper)scene.add(environmentHelper);
+    }
+    if(environmentHelper)environmentHelper.visible=!preview&&document.getElementById('environment-bounds').checked;
+    document.getElementById('environment-name').textContent=object.name;
+    const b=object.room_environment?.bounds,s=Number(object.scale_x);
+    const size=box&&new THREE.Vector3((b.max.x-b.min.x)*s,(b.max.y-b.min.y)*s,(b.max.z-b.min.z)*s);
+    document.getElementById('environment-size').textContent=size ? [size.x,size.y,size.z].map(n=>Number(n.toFixed(2))).join(' × ')+' '+tr('metres','м') : tr('environmentInvalid','Некорректные границы помещения');
+    document.getElementById('environment-load-status').textContent=entry.state==='ready'?tr('environmentReady','Помещение загружено'):entry.state==='error'?tr('environmentFailed','Не удалось загрузить помещение')+' ('+entry.error+')':tr('environmentLoading','Загрузка помещения…');
+    document.getElementById('environment-retry').hidden=entry.state!=='error';
+    const key=object.id+':'+object.model_path;
+    if(box && framedEnvironment!==key){framedEnvironment=key;RoomEnvironmentView.fit(camera,orbit,box);}
+  }
+  document.getElementById('environment-bounds').addEventListener('change',syncEnvironmentView);
+  document.getElementById('environment-retry').addEventListener('click',()=>{
+    if(busy)return;const entry=[...objects.values()].find(e=>e.data.is_room_environment);if(entry?.state==='error')loadModel(entry);
+  });
+
   function disposeGroup(group) {
-    group.traverse(node => { node.geometry?.dispose();
+    if(!group)return;
+    const geometries=new Set(),materials=new Set(),textures=new Set();
+    group.traverse(node => { if(node.geometry)geometries.add(node.geometry);
       for (const material of Array.isArray(node.material) ? node.material : [node.material]) if (material) {
-        for (const value of Object.values(material)) if (value?.isTexture) value.dispose();
-        material.dispose();
+        materials.add(material);for (const value of Object.values(material)) if (value?.isTexture) textures.add(value);
       }
     });
+    for(const value of textures)value.dispose();for(const value of materials)value.dispose();for(const value of geometries)value.dispose();
   }
   const visualSignature = object => JSON.stringify([object.type, object.model_path, object.geometry_data]);
   async function loadObjects(selectId = selected?.id) {
@@ -352,7 +411,7 @@
     const ids = new Set(data.objects.map(object => object.id));
     for (const [key, entry] of objects) if (!ids.has(key)) {
       if (transform.object === entry.group) transform.detach();
-      scene.remove(entry.group); disposeGroup(entry.group); objects.delete(key);
+      removeVisual(entry); objects.delete(key);
     }
     for (const object of data.objects) {
       const entry = objects.get(object.id);
@@ -360,7 +419,7 @@
         Object.assign(entry.data, object);
         for (const prefix of ['position','rotation','scale']) entry.group[prefix].set(...['x','y','z'].map(a => object[prefix+'_'+a] ?? (prefix==='scale'?1:0)));
       } else {
-        if (entry) { transform.detach(); scene.remove(entry.group); disposeGroup(entry.group); objects.delete(object.id); }
+        if (entry) { transform.detach(); removeVisual(entry); objects.delete(object.id); }
         visualFor(object);
       }
     }
@@ -368,7 +427,7 @@
     const list = document.getElementById('object-list');
     list.replaceChildren();
     for (const object of data.objects) {
-      if(object.is_room_shell)continue;
+      if(object.is_room_shell||object.is_room_environment)continue;
       const button = document.createElement('button');
       button.className = 'item';
       button.dataset.id = object.id;
@@ -378,7 +437,9 @@
       button.addEventListener('dblclick', async () => {await choose(object);focusObject(object.id);});
       list.append(button);
     }
-    selectObject(objects.get(selectId)?.data);
+    const selection=objects.get(selectId)?.data;
+    selectObject(selection?.is_room_environment||selection?.is_room_shell?null:selection);
+    syncEnvironmentView();
     renderSeatPreview();filterElements();
     window.dispatchEvent(new CustomEvent('room-editor-loaded', { detail: { room, objects: data.objects } }));
   }
@@ -416,6 +477,11 @@
   }
 
   document.getElementById('move-mode').addEventListener('click', () => transform.setMode('translate'));
+  document.getElementById('focus-room').addEventListener('click',()=>{
+    const entry=[...objects.values()].find(e=>e.data.is_room_environment||e.data.is_room_shell);if(!entry)return;
+    const box=entry.data.is_room_environment?RoomEnvironmentView.bounds(entry.data):new THREE.Box3().setFromObject(entry.group);
+    RoomEnvironmentView.fit(camera,orbit,box);
+  });
   function focusObject(id) {
     const group=objects.get(id)?.group;if(!group)return;
     const box=new THREE.Box3().setFromObject(group),target=box.getCenter(new THREE.Vector3());
@@ -462,6 +528,7 @@
   document.getElementById('preview-mode').addEventListener('click', () => action(async () => {
     await applyCurrent(); window.RoomSeatEditor?.flush();
     preview = !preview; grid.visible = !preview;
+    syncEnvironmentView();
     transform.detach();
     showPanel(selectionMode);
     renderSeatPreview();
@@ -539,7 +606,10 @@
   }));
   document.getElementById('template-publish').addEventListener('click', () => {
     if (!confirm(tr('confirmPublish', 'Опубликовать обстановку для новых комнат?'))) return;
-    action(async () => { await prepareTemplate(); const version = await template.publish();
+    action(async () => { await prepareTemplate();
+      const environment=[...objects.values()].find(e=>e.data.is_room_environment);
+      if(environment && environment.state!=='ready')throw new Error(tr('environmentWait','Дождитесь успешной загрузки помещения перед публикацией'));
+      const version = await template.publish();
       message.textContent = `${tr('publishedVersion', 'Опубликованная версия')}: ${version}`;
     });
   });
@@ -558,6 +628,11 @@
   }));
   window.addEventListener('beforeunload', event => {
     if (objectDirty || template?.dirty) { event.preventDefault(); event.returnValue = ''; }
+  });
+  window.addEventListener('pagehide',event=>{
+    if(event.persisted)return;
+    cancelAnimationFrame(frameId);for(const entry of objects.values())removeVisual(entry);objects.clear();
+    if(environmentHelper)disposeGroup(environmentHelper);orbit.dispose();transform.dispose();renderer.dispose();
   });
   init();
 })();

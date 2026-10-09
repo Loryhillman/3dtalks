@@ -57,7 +57,8 @@
     if(room?.status!=='draft')throw new Error(tr('readOnly','Комната недоступна для редактирования'));
     if(!$('seat-form').checkValidity())throw new Error(tr('invalid','Проверьте параметры места'));
     const object_id=$('seat-object').value===''?null:Number($('seat-object').value);
-    if(object_id!==null && !object(object_id))throw new Error(tr('invalid','Проверьте параметры места'));
+    const parent=object(object_id);
+    if(object_id!==null && (!parent || parent.is_room_shell || parent.is_room_environment))throw new Error(tr('invalid','Проверьте параметры места'));
     const p={position:Object.fromEntries(['x','y','z'].map(a=>[a,Number($('seat-'+a).value)])),
       rotation:{...worldRotation,y:Number($('seat-yaw').value)*Math.PI/180}};
     const seat={...(seats[selected]||{}),object_id,label:$('seat-label').value.trim(),
@@ -71,7 +72,7 @@
     room=event.detail.room;
     $('seat-object').replaceChildren();
     const free=document.createElement('option');free.value='';free.textContent=tr('unattached','Без привязки к предмету');$('seat-object').append(free);
-    for(const o of event.detail.objects){const option=document.createElement('option');option.value=o.id;option.textContent=`${o.name||o.type} (#${o.id})`;$('seat-object').append(option);}
+    for(const o of event.detail.objects){if(o.is_room_shell||o.is_room_environment)continue;const option=document.createElement('option');option.value=o.id;option.textContent=`${o.name||o.type} (#${o.id})`;$('seat-object').append(option);}
     $('seat-new').hidden=room.status!=='draft';$('seat-form').hidden=room.status!=='draft';$('seat-save').hidden=room.status!=='draft';$('seat-mode').disabled=room.status!=='draft';
     if(!loaded)$('seat-mode').checked=room.seating_mode==='seated';
     $('room-return-draft').hidden=room.status!=='closed'||room.allow_rejoin;

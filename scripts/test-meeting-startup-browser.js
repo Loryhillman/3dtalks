@@ -3,10 +3,15 @@
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs/promises'),path=require('node:path');
 const {chromium}=require('playwright');const root=path.resolve(__dirname,'../public');
 const {renderMeetingPage}=require('../src/services/meetingPage');
+const {officeGlb}=require('./room-environment-fixtures');
+const environmentMode=process.argv.includes('--environment');
 const apiCalls=[];
 const {getPrefab}=require('../src/services/worldPrefabs');
 const objects=['room','table'].map((kind,i)=>({id:i+1,type:'geometry_building',name:kind,geometry_data:{components:getPrefab(kind).components},position_x:0,position_y:0,position_z:0,scale_x:1,scale_y:1,scale_z:1,has_collision:true}));
 objects.push({id:3,type:'uploaded_model',model_type:'gltf',name:'Fixture chair',model_path:'/models/fixture-chair.glb',position_x:2,position_y:0,position_z:0,scale_x:1,scale_y:1,scale_z:1,has_collision:true});
+if(environmentMode)objects[0]={id:1,type:'uploaded_model',model_type:'gltf',name:'Office',model_path:'/models/fixture-office.glb',is_room_environment:true,has_collision:false,
+ position_x:0,position_y:0,position_z:0,rotation_x:0,rotation_y:.6,rotation_z:0,scale_x:.001,scale_y:.001,scale_z:.001,
+ room_environment:{version:1,bounds:{min:{x:-4000,y:0,z:-3000},max:{x:4000,y:3000,z:3000}}}};
 const binary=Buffer.alloc(36);[-1,0,0,1,0,0,0,1,0].forEach((v,i)=>binary.writeFloatLE(v,i*4));
 let json=Buffer.from(JSON.stringify({asset:{version:'2.0'},scene:0,scenes:[{nodes:[0]}],nodes:[{mesh:0}],meshes:[{primitives:[{attributes:{POSITION:0}}]}],buffers:[{byteLength:36}],bufferViews:[{buffer:0,byteOffset:0,byteLength:36}],accessors:[{bufferView:0,componentType:5126,count:3,type:'VEC3',min:[-1,0,0],max:[1,1,0]}]}));
 json=Buffer.concat([json,Buffer.alloc((4-json.length%4)%4,32)]);
@@ -15,6 +20,7 @@ const binHeader=Buffer.alloc(8);binHeader.writeUInt32LE(binary.length,0);binHead
 const room={id:'fixture-room',slug:'fixture',name:'Meeting fixture',status:'open',capacity:6,seating_mode:'seated',spawn_position:{x:0,y:1,z:0}};
 const server=http.createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://fixture').pathname;
+ if(url==='/models/fixture-office.glb'){res.setHeader('Content-Type','model/gltf-binary');res.end(officeGlb({units:1000}));return;}
  if(url==='/models/fixture-chair.glb'){res.setHeader('Content-Type','model/gltf-binary');res.end(chairGlb);return;}
  if(url.startsWith('/api/')){
   apiCalls.push({url,method:req.method});res.setHeader('Content-Type','application/json');
@@ -71,6 +77,14 @@ let browser;
  await page.waitForFunction(() => gameWorld.players.get('peer')?.group.userData.accountAvatarConfig?.headType === 'cube');
  assert.equal(await page.evaluate(() => gameWorld.players.get('peer').group.userData.roomSeat?.id), 'two');
  assert.equal(await page.evaluate(()=>gameWorld.generatedBuildings.size),3,'room geometry and uploaded GLB render with the lean script set');
+ if(environmentMode){
+  const office=await page.evaluate(()=>{
+   const entry=gameWorld.generatedBuildings.get(1);let meshes=0;entry.model.traverse(n=>{if(n.isMesh)meshes++;});
+   return {meshes,scale:entry.model.scale.x,yaw:entry.model.rotation.y,geometry:entry.isGeometry,environment:entry.data.is_room_environment,
+    shells:[...gameWorld.generatedBuildings.values()].filter(e=>e.data.is_room_shell).length};
+  });
+  assert.deepEqual(office,{meshes:8,scale:.001,yaw:.6,geometry:false,environment:true,shells:0});
+ }
  // Allow delayed legacy initializers to run, then exercise their old shortcuts.
  await page.waitForTimeout(1700);
  for(const key of ['p','i','v','m'])await page.keyboard.press(key);
