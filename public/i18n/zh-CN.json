@@ -5437,7 +5437,21 @@
     "joinHeading": "收到邀请了吗？",
     "joinDescription": "打开与您分享的房间。链接必须来自本站。",
     "coverIllustration": "示意图",
-    "roomActions": "房间“{{name}}”的操作"
+    "roomActions": "房间“{{name}}”的操作",
+    "closeDialog": "关闭",
+    "cancel": "取消",
+    "save": "保存",
+    "standardTemplate": "标准会议室",
+    "singleTemplate": "目前仅提供此模板。",
+    "nameValidation": "请输入1到120个字符的名称。",
+    "capacityValidation": "请输入1到6之间的整数，包括您自己。",
+    "endConsequences": "所有参与者将断开连接，座位将释放。保存的房间可以重新开放，仍计入房间数量限制。",
+    "deleteConsequences": "所有参与者将断开连接。房间将被归档并从列表中移除，释放一个房间名额。此操作不会删除已上传的模型文件。",
+    "roomCreated": "房间已创建。",
+    "roomUpdated": "房间已更新。",
+    "meetingEnded": "会议已结束。",
+    "roomDeleted": "房间已删除。",
+    "savedRefreshFailed": "更改已保存，但无法刷新列表。请刷新列表，不要重复操作。"
   },
   "roomEnvelope": {
     "title": "房间结构",

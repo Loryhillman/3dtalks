@@ -5437,7 +5437,21 @@
     "joinHeading": "Have an invitation?",
     "joinDescription": "Open a room shared with you. The link must be from this site.",
     "coverIllustration": "Illustration",
-    "roomActions": "Actions for {{name}}"
+    "roomActions": "Actions for {{name}}",
+    "closeDialog": "Close",
+    "cancel": "Cancel",
+    "save": "Save",
+    "standardTemplate": "Standard meeting room",
+    "singleTemplate": "This is the only template currently available.",
+    "nameValidation": "Enter a name of 1–120 characters.",
+    "capacityValidation": "Enter a whole number from 1 to 6, including you.",
+    "endConsequences": "All participants will be disconnected and seats released. The saved room can be opened again; it still counts toward your room limit.",
+    "deleteConsequences": "All participants will be disconnected. The room will be archived and removed from your list, freeing a room slot. Uploaded model files are not deleted by this action.",
+    "roomCreated": "Room created.",
+    "roomUpdated": "Room updated.",
+    "meetingEnded": "Meeting ended.",
+    "roomDeleted": "Room deleted.",
+    "savedRefreshFailed": "The change was saved, but the list could not be refreshed. Refresh the list; do not repeat the operation."
   },
   "roomEnvelope": {
     "title": "Room shell",

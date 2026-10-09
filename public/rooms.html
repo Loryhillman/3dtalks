@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>3DTalks</title>
-<link rel="stylesheet" href="/css/rooms.css"><link rel="stylesheet" href="/css/app-ui.css"><link rel="stylesheet" href="/css/rooms-ui.css"><link rel="stylesheet" href="/css/app-shell.css"><script src="/i18n/i18n.js?v=english-default-1" defer></script><script src="/js/appShell.js?v=1" defer></script><script src="/js/roomsLobby.js?v=6" defer></script></head>
+<link rel="stylesheet" href="/css/rooms.css"><link rel="stylesheet" href="/css/app-ui.css"><link rel="stylesheet" href="/css/rooms-ui.css"><link rel="stylesheet" href="/css/app-shell.css"><script src="/i18n/i18n.js?v=english-default-1" defer></script><script src="/js/app-ui.js?v=1" defer></script><script src="/js/appShell.js?v=1" defer></script><script src="/js/roomsLobby.js?v=7" defer></script></head>
 <body class="app-ui rooms-ui app-shell" data-app-page="rooms"><main><header><h1>3DTalks</h1><label class="lobby-language"><span data-t="language"></span><select id="lobby-language"><option value="en-US">English</option><option value="ru-RU">Русский</option><option value="zh-CN">中文</option></select></label><button class="ui-button ui-button--ghost" id="logout" hidden data-t="logout"></button></header>
 <p id="message" role="status" aria-live="polite"></p>
 <section id="auth" hidden><h2 data-t="welcome"></h2><form id="auth-form">
@@ -13,11 +13,30 @@
 <button class="ui-button ui-button--primary" type="submit" id="auth-submit" data-t="login"></button><button class="ui-button ui-button--ghost" type="button" id="auth-toggle" data-t="register"></button>
 </form></section>
 <section id="cabinet" hidden><div class="rooms-dashboard-heading"><div><h1 data-t="myRooms"></h1><p class="ui-text-muted" data-t="dashboardDescription"></p><p id="quota"></p></div><div class="rooms-dashboard-tools"><button class="ui-button ui-button--primary" type="button" id="create-launcher" data-t="create"></button><button class="ui-button" id="refresh" data-t="refresh"></button></div></div>
-<details id="create-panel" class="rooms-create-panel"><summary data-t="create"></summary>
-<form id="create"><label><span data-t="name"></span><input name="name" maxlength="120" required></label>
-<label><span data-t="capacity"></span><input name="capacity" type="number" min="1" max="6" value="6" required></label>
-<p data-t="template"></p><button class="ui-button ui-button--primary" type="submit" data-t="create"></button></form></details>
 <div id="rooms" class="rooms-grid"></div>
 <div class="rooms-invitation-block"><h2 data-t="joinHeading"></h2><p class="ui-text-muted" data-t="joinDescription"></p><form id="join"><label><span data-t="invite"></span><input name="link" required></label><button class="ui-button" type="submit" data-t="join"></button></form></div></section>
 <section id="invitation" hidden><h2 id="invite-name"></h2><p id="invite-info"></p><a class="ui-button ui-button--primary" id="enter" data-t="enter"></a><p><a href="/rooms" data-t="back"></a></p></section>
-</main></body></html>
+</main>
+<dialog id="create-dialog" class="ui-dialog" aria-labelledby="create-title" aria-describedby="create-description">
+<div class="ui-dialog-heading"><h2 id="create-title" data-t="create"></h2><button type="button" class="ui-button ui-button--ghost ui-dialog-close" data-dialog-close><img src="/icons/lucide/x.svg" width="20" height="20" alt=""><span class="ui-sr-only" data-t="closeDialog"></span></button></div>
+<p id="create-description" class="ui-text-muted" data-t="dashboardDescription"></p>
+<form id="create" novalidate>
+<label><span data-t="name"></span><input name="name" maxlength="120" required autofocus aria-describedby="create-name-error"><span id="create-name-error" class="ui-field-error"></span></label>
+<label><span data-t="capacity"></span><input name="capacity" type="number" min="1" max="6" step="1" value="6" required aria-describedby="create-capacity-error"><span id="create-capacity-error" class="ui-field-error"></span></label>
+<div class="room-template-preview"><img src="/images/room-covers/neutral-v1.svg" width="640" height="360" alt=""><div><strong data-t="standardTemplate"></strong><p class="ui-text-muted" data-t="singleTemplate"></p></div></div>
+<p class="ui-text-muted" data-t="template"></p><p class="ui-field-error ui-dialog-error" role="alert" data-dialog-error></p>
+<div class="ui-dialog-actions"><button type="button" class="ui-button" data-dialog-close data-t="cancel"></button><button class="ui-button ui-button--primary" type="submit" data-t="create"></button></div>
+</form></dialog>
+<dialog id="edit-dialog" class="ui-dialog ui-dialog--compact" aria-labelledby="edit-title" aria-describedby="edit-room-name">
+<div class="ui-dialog-heading"><h2 id="edit-title"></h2><button type="button" class="ui-button ui-button--ghost ui-dialog-close" data-dialog-close><img src="/icons/lucide/x.svg" width="20" height="20" alt=""><span class="ui-sr-only" data-t="closeDialog"></span></button></div>
+<p id="edit-room-name" class="ui-text-muted"></p><form id="edit-room" novalidate>
+<label id="edit-name-field"><span data-t="name"></span><input name="name" maxlength="120" aria-describedby="edit-name-error"><span id="edit-name-error" class="ui-field-error"></span></label>
+<label id="edit-capacity-field"><span data-t="capacity"></span><input name="capacity" type="number" min="1" max="6" step="1" aria-describedby="edit-capacity-error"><span id="edit-capacity-error" class="ui-field-error"></span></label>
+<p class="ui-field-error ui-dialog-error" role="alert" data-dialog-error></p><div class="ui-dialog-actions"><button type="button" class="ui-button" data-dialog-close data-t="cancel"></button><button class="ui-button ui-button--primary" type="submit" data-t="save"></button></div>
+</form></dialog>
+<dialog id="confirm-dialog" class="ui-dialog ui-dialog--compact" aria-labelledby="confirm-title" aria-describedby="confirm-description">
+<div class="ui-dialog-heading"><h2 id="confirm-title"></h2><button type="button" class="ui-button ui-button--ghost ui-dialog-close" data-dialog-close><img src="/icons/lucide/x.svg" width="20" height="20" alt=""><span class="ui-sr-only" data-t="closeDialog"></span></button></div>
+<p id="confirm-room-name" class="ui-dialog-room-name"></p><p id="confirm-description" class="ui-text-muted"></p>
+<form id="confirm-room"><p class="ui-field-error ui-dialog-error" role="alert" data-dialog-error></p><div class="ui-dialog-actions"><button type="button" class="ui-button" data-dialog-close data-t="cancel" autofocus></button><button id="confirm-submit" class="ui-button ui-button--danger" type="submit"></button></div></form>
+</dialog>
+</body></html>

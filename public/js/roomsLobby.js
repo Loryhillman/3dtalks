@@ -2,12 +2,18 @@
   const $ = id => document.getElementById(id);
   const t = (key, values) => window.i18n.tp('roomsLobby.' + key, values || {});
   let registering = false, createKey = null, createPayload = null, busy = false;
+  const dialogFallback = () => $('auth').hidden ? $('create-launcher') : $('auth-submit');
+  const createDialog = new window.AppDialog($('create-dialog'), dialogFallback);
+  const editDialog = new window.AppDialog($('edit-dialog'), dialogFallback);
+  const confirmDialog = new window.AppDialog($('confirm-dialog'), dialogFallback);
+  let editedRoom, editedField, confirmedRoom, confirmedVerb;
   const slug = location.pathname.startsWith('/join/') ? decodeURIComponent(location.pathname.slice(6)) : null;
   function message(text = '') { $('message').textContent = text; }
   function clearSession() {
     for (const key of ['token', 'userId', 'characterId', 'userInfo']) localStorage.removeItem(key);
   }
   function showAuth() {
+    for (const dialog of [createDialog, editDialog, confirmDialog]) dialog.close(true);
     $('cabinet').hidden = $('invitation').hidden = $('logout').hidden = true;
     $('auth').hidden = false;
   }
@@ -29,7 +35,7 @@
           ? window.i18n.tp('authLimits.rateLimited', { seconds: Math.ceil(seconds) })
           : window.i18n.t('authLimits.rateLimitedUnknown');
       }
-      throw Object.assign(new Error(errorMessage), { status: response.status });
+      throw Object.assign(new Error(errorMessage), { status: response.status, code: key });
     }
     return data;
   }
@@ -41,10 +47,10 @@
     try { await fn(); } catch (error) { message(error.message); }
     finally { controls.forEach((c, i) => { if (c.isConnected) c.disabled = disabled[i]; }); busy = false; }
   }
-  function button(parent, label, handler, className = '') {
+  function button(parent, label, handler, className = '', opensDialog = false) {
     const element = document.createElement('button'); element.textContent = t(label);
     element.className = 'ui-button' + (['delete', 'end'].includes(label) ? ' ui-button--destructive' : '') + (className ? ' ' + className : '');
-    element.addEventListener('click', () => action(handler)); parent.append(element);
+    element.addEventListener('click', () => { if (opensDialog) { if (!busy) handler(); } else action(handler); }); parent.append(element);
   }
   // The API has no cover/template metadata: use an explicitly generic illustration.
   const ROOM_COVER = '/images/room-covers/neutral-v1.svg';
@@ -107,6 +113,53 @@
     });
     await load();
   }
+  function dialogError(controller, error) {
+    const text = error.status ? error.message : t('failed');
+    controller.dialog.querySelector('[data-dialog-error]').textContent = text;
+    if (error.code === 'INVALID_CAPACITY') {
+      const field = controller.dialog.querySelector('[name=capacity]');
+      if (field && !field.closest('label').hidden) controller.fieldError(field, text);
+    }
+  }
+  function validate(controller, form, fields) {
+    controller.clearErrors();
+    let firstInvalid;
+    for (const key of fields) {
+      const field = form.elements[key], value = field.value.trim();
+      const invalid = key === 'name' ? !value || value.length > 120 : !value || !Number.isInteger(Number(value)) || Number(value) < 1 || Number(value) > 6;
+      if (invalid) { controller.fieldError(field, t(key === 'name' ? 'nameValidation' : 'capacityValidation')); firstInvalid ||= field; }
+    }
+    firstInvalid?.focus();
+    return !firstInvalid;
+  }
+  async function refreshAfterChange(successKey) {
+    message(t(successKey));
+    try { await load(); if (document.activeElement === document.body) dialogFallback()?.focus({ preventScroll: true }); }
+    catch (_) { message(t('savedRefreshFailed')); }
+  }
+  function openEdit(room, field, opener) {
+    if (busy || editDialog.busy) return;
+    editedRoom = room; editedField = field;
+    if (openRoomMenu) { openRoomMenu.open = false; openRoomMenu = null; }
+    const form = $('edit-room');
+    for (const key of ['name', 'capacity']) {
+      $('edit-' + key + '-field').hidden = key !== field;
+      form.elements[key].disabled = key !== field;
+      form.elements[key].value = String(room[key]);
+    }
+    $('edit-title').textContent = t(field === 'name' ? 'rename' : 'capacity');
+    $('edit-room-name').textContent = room.name;
+    editDialog.open(opener); form.elements[field].focus();
+  }
+  function openConfirm(room, verb, opener) {
+    if (busy || confirmDialog.busy) return;
+    confirmedRoom = room; confirmedVerb = verb;
+    if (openRoomMenu) { openRoomMenu.open = false; openRoomMenu = null; }
+    $('confirm-title').textContent = $('confirm-submit').textContent = t(verb);
+    $('confirm-room-name').textContent = room.name;
+    $('confirm-description').textContent = t(verb === 'end' ? 'endConsequences' : 'deleteConsequences');
+    confirmDialog.open(opener);
+  }
   async function load() {
     const data = await api('/api/my/rooms');
     $('auth').hidden = true; $('logout').hidden = false;
@@ -148,20 +201,38 @@
         await copyInvitation(invitationUrl(room));
         message(t('copied'));
       }, 'room-copy');
-      const { menu, items } = roomMenu(room);
+      const { menu, items, summary } = roomMenu(room);
       actions.append(menu);
-      button(items, 'rename', async () => { const name = prompt(t('name'), room.name); if (name !== null) await mutate(room, '', { name }, 'PATCH'); });
+      button(items, 'rename', () => openEdit(room, 'name', summary), '', true);
       if (room.status === 'draft' || (room.status === 'closed' && !room.allow_rejoin)) {
-        button(items, 'capacity', async () => { const value = prompt(t('capacity'), String(room.capacity)); if (value !== null) await mutate(room, '', { capacity: Number(value) }, 'PATCH'); });
+        button(items, 'capacity', () => openEdit(room, 'capacity', summary), '', true);
       }
       if (['closed', 'draft'].includes(room.status)) button(items, 'openAction', () => mutate(room, 'open'));
       if (room.status === 'open') button(items, 'closeAction', () => mutate(room, 'close'));
-      if (room.status === 'open' || (room.status === 'closed' && room.allow_rejoin)) button(items, 'end', async () => { if (confirm(t('confirmEnd', { name: room.name }))) await mutate(room, 'end'); });
-      button(items, 'delete', async () => { if (confirm(t('confirmDelete', { name: room.name }))) await mutate(room, '', {}, 'DELETE'); });
+      if (room.status === 'open' || (room.status === 'closed' && room.allow_rejoin)) button(items, 'end', () => openConfirm(room, 'end', summary), '', true);
+      button(items, 'delete', () => openConfirm(room, 'delete', summary), '', true);
       $('rooms').append(card);
     }
   }
-  $('create-launcher').onclick = () => { $('create-panel').open = true; $('create').elements.name.focus(); };
+  $('create-launcher').onclick = () => { if (!busy) createDialog.open(); };
+  $('edit-room').onsubmit = event => {
+    event.preventDefault();
+    if (editDialog.busy || !validate(editDialog, event.target, [editedField])) return;
+    const value = event.target.elements[editedField].value.trim();
+    const room = editedRoom, field = editedField;
+    editDialog.submit(async () => {
+      await api('/api/my/rooms/' + room.id, { method: 'PATCH', body: JSON.stringify({ revision: room.revision, [field]: field === 'capacity' ? Number(value) : value }) });
+      editDialog.close(true); await refreshAfterChange('roomUpdated');
+    }, error => dialogError(editDialog, error));
+  };
+  $('confirm-room').onsubmit = event => {
+    event.preventDefault();
+    const room = confirmedRoom, verb = confirmedVerb;
+    confirmDialog.submit(async () => {
+      await api('/api/my/rooms/' + room.id + (verb === 'end' ? '/end' : ''), { method: verb === 'delete' ? 'DELETE' : 'POST', body: JSON.stringify({ revision: room.revision }) });
+      confirmDialog.close(true); await refreshAfterChange(verb === 'end' ? 'meetingEnded' : 'roomDeleted');
+    }, error => dialogError(confirmDialog, error));
+  };
   $('auth-toggle').onclick = () => {
     registering = !registering; $('registration').hidden = !registering;
     for (const field of $('registration').querySelectorAll('input,select')) field.required = registering;
@@ -178,7 +249,9 @@
     event.target.elements.password.value = ''; event.target.elements.securityAnswer.value = '';
     await load();
   }); };
-  $('create').onsubmit = event => { event.preventDefault(); action(async () => {
+  $('create').onsubmit = event => { event.preventDefault();
+    if (createDialog.busy || !validate(createDialog, event.target, ['name', 'capacity'])) return;
+    createDialog.submit(async () => {
     const body = { name: event.target.elements.name.value.trim(), capacity: Number(event.target.elements.capacity.value) };
     const serialized = JSON.stringify(body);
     const storageKey = 'room-create:' + localStorage.getItem('userId');
@@ -195,8 +268,9 @@
     }
     sessionStorage.setItem(storageKey, JSON.stringify({ key: createKey, payload: serialized }));
     await api('/api/my/rooms', { method: 'POST', body: JSON.stringify({ ...body, request_key: createKey }) });
-    sessionStorage.removeItem(storageKey); createKey = createPayload = null; event.target.reset(); await load();
-  }); };
+    sessionStorage.removeItem(storageKey); createKey = createPayload = null; event.target.reset(); createDialog.close(true);
+    await refreshAfterChange('roomCreated');
+  }, error => dialogError(createDialog, error)); };
   $('join').onsubmit = event => { event.preventDefault(); action(async () => {
     const url = new URL(event.target.elements.link.value.trim(), location.origin);
     const match = /^\/join\/([a-z0-9-]+)$/.exec(url.pathname);

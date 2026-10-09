@@ -7,6 +7,7 @@ function node() { return { hidden: false, isConnected: true, children: [], datas
   append(...items) { this.children.push(...items); }, replaceChildren() { this.children = []; },
   addEventListener(event, fn) { this['on' + event] = fn; }, querySelectorAll() { return []; },
   setAttribute(key, value) { this[key] = value; },
+  querySelector() { return node(); },
   focus() {}, select() {}, setSelectionRange() {}, remove() { this.isConnected = false; },
   reset() {}, elements: {} }; }
 const $ = id => { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); };
@@ -23,7 +24,11 @@ const context = { console, URL, Uint8Array, crypto: webcrypto, localStorage: sto
    execCommand(command) { assert.equal(command, 'copy'); copiedText = body.children.at(-1).value; return copyAllowed; } },
  location: { pathname: '/rooms', origin: 'http://local', assign: url => navigation.push(url), reload() {} },
  navigator: {}, prompt: () => null, confirm: () => false,
- window: { addEventListener() {}, i18n: { init: async () => {}, currentLocale: 'ru-RU', tp: key => key, t: key => key } },
+ window: { addEventListener() {}, AppDialog: class {
+   constructor(dialog) { this.dialog = dialog; this.busy = false; }
+   open() { this.dialog.open = true; } close() { this.dialog.open = false; } clearErrors() {} fieldError() {}
+   async submit(fn, onError) { if (this.busy || !this.dialog.open) return; this.busy = true; try { await fn(); } catch(error) { onError(error); } finally { this.busy = false; } }
+ }, i18n: { init: async () => {}, currentLocale: 'ru-RU', tp: key => key, t: key => key } },
  fetch: async (url, options = {}) => {
    requests.push({ url, options });
    if (url === '/api/my/rooms' && options.method === 'POST' && failCreate) { failCreate = false; throw new Error('Network lost'); }
@@ -54,6 +59,7 @@ const settle = () => new Promise(resolve => setImmediate(resolve));
   copyButton.onclick(); await settle();
   assert.equal(modernCopy, 'http://local/join/room-one');
   assert.equal($('message').textContent, 'roomsLobby.copied');
+  $('create-launcher').onclick();
   $('create').onsubmit({ preventDefault() {}, target: $('create') }); await settle();
   assert.equal(session.size, 1, 'uncertain request keeps idempotency key');
   $('create').onsubmit({ preventDefault() {}, target: $('create') }); await settle();

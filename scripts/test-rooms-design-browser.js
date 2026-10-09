@@ -11,13 +11,14 @@ app.get(['/rooms', '/join/:slug'], (_req, res) => res.sendFile(path.resolve(__di
 app.use(express.static(path.resolve(__dirname, '../public')));
 const mutations = [];
 const commands = [];
+let commandFailure, commandGate, releaseCommand, failNextList = false;
 const fixtureRooms = [
   { id: 'room', slug: 'test-room', name: 'Переговорная ' + 'ОченьДлинноеИмя'.repeat(6), status: 'open', capacity: 6, revision: 1, active: 2, held: 1, available: 3 },
   { id: 'closed', slug: 'closed-room', name: 'Закрытая комната', status: 'closed', allow_rejoin: true, capacity: 3, revision: 2, active: 1, held: 1, available: 1 },
   { id: 'ended', slug: 'ended-room', name: 'Завершённая встреча', status: 'closed', allow_rejoin: false, capacity: 4, revision: 3, active: 0, held: 0, available: 4 },
   { id: 'draft', slug: 'draft-room', name: 'Черновик', status: 'draft', capacity: 6, revision: 4, active: 0, held: 0, available: 6 }
 ];
-app.use('/api', (req, res) => {
+app.use('/api', async (req, res) => {
   if (req.path === '/config/language') return res.json({ language: 'ru-RU' });
   if (req.path === '/auth/security-questions') return res.json({ questions: [{ id: 1, question_text: 'Test question' }] });
   if (req.path === '/auth/login') return res.json({ token: 'fixture', userId: 'user', characterId: 'character' });
@@ -25,9 +26,15 @@ app.use('/api', (req, res) => {
   if (req.path === '/auth/me') return res.json({ user: { id: 'user' }, characterId: 'character' });
   if (req.path === '/my/rooms') {
     if (req.method === 'POST') { mutations.push(req.body); return res.json({ room: { id: 'room' } }); }
+    if (failNextList) { failNextList = false; return res.status(500).json({ code: 'ROOM_SERVICE_ERROR' }); }
     return res.json({ quota: { used: fixtureRooms.length, limit: 5 }, rooms: fixtureRooms });
   }
-  if (req.path.startsWith('/my/rooms/') && req.method !== 'GET') { commands.push({ path: req.path, method: req.method, body: req.body }); return res.json({ success: true }); }
+  if (req.path.startsWith('/my/rooms/') && req.method !== 'GET') {
+    commands.push({ path: req.path, method: req.method, body: req.body });
+    if (commandGate) await commandGate;
+    if (commandFailure) return res.status(409).json({ code: commandFailure });
+    return res.json({ success: true });
+  }
   if (req.path === '/rooms/test-room') return res.json({ room: { name: 'Переговорная', capacity: 6 } });
   res.sendStatus(404);
 });
@@ -87,11 +94,70 @@ let server, browser;
   assert.equal(await firstMenu.getAttribute('open'), null, 'opening another menu closes the previous one');
   await page.locator('.rooms-dashboard-heading h1').click();
   assert.equal(await page.locator('.room-menu[open]').count(), 0);
-  page.once('dialog', dialog => dialog.accept('Renamed room'));
   await firstMenu.locator('summary').click();
   await firstMenu.getByRole('button', { name: text.rename, exact: true }).click();
-  await page.waitForFunction(() => !document.querySelector('#refresh').disabled);
+  await page.locator('#edit-dialog').waitFor();
+  await page.locator('#edit-room [name=name]').fill('Renamed room');
+  await page.locator('#edit-room [type=submit]').click();
+  await page.locator('#edit-dialog').waitFor({ state: 'hidden' });
   assert.deepEqual(commands[0], { path: '/my/rooms/room', method: 'PATCH', body: { revision: 1, name: 'Renamed room' } });
+  const openAction = async (index, label) => {
+    const menu = page.locator('.room-menu').nth(index);
+    await menu.locator('summary').click();
+    await menu.getByRole('button', { name: label, exact: true }).click();
+  };
+  await openAction(0, text.rename);
+  const beforeInvalid = commands.length;
+  await page.locator('#edit-room [name=name]').fill('   ');
+  await page.locator('#edit-room [type=submit]').click();
+  assert.equal(await page.locator('#edit-room [name=name]').getAttribute('aria-invalid'), 'true');
+  assert.equal(commands.length, beforeInvalid, 'whitespace name sends no request');
+  commandFailure = 'ROOM_CHANGED';
+  await page.locator('#edit-room [name=name]').fill('Retry name');
+  await page.locator('#edit-room [type=submit]').click();
+  await page.waitForFunction(() => !document.querySelector('#edit-dialog').hasAttribute('aria-busy'));
+  assert.equal(await page.locator('#edit-dialog').isVisible(), true, 'failed save leaves dialog open');
+  assert.equal(await page.locator('#edit-dialog [data-dialog-error]').textContent(), text.ROOM_CHANGED);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.evaluate(() => document.activeElement.matches('.room-menu summary')), true, 'cancel restores room action focus');
+  commandFailure = null;
+  await openAction(2, text.capacity);
+  await page.locator('#edit-room [name=capacity]').fill('1.5');
+  await page.locator('#edit-room [type=submit]').click();
+  assert.equal(await page.locator('#edit-room [name=capacity]').getAttribute('aria-invalid'), 'true');
+  await page.locator('#edit-room [name=capacity]').fill('2');
+  await page.locator('#edit-room [type=submit]').click();
+  await page.locator('#edit-dialog').waitFor({ state: 'hidden' });
+  assert.deepEqual(commands.at(-1), { path: '/my/rooms/ended', method: 'PATCH', body: { revision: 3, capacity: 2 } });
+  await openAction(0, text.end);
+  assert.equal(await page.locator('#confirm-description').textContent(), text.endConsequences);
+  assert.equal(await page.evaluate(() => document.activeElement.textContent), text.cancel, 'dangerous dialog initially focuses Cancel');
+  const beforeEnd = commands.length;
+  commandGate = new Promise(resolve => { releaseCommand = resolve; });
+  await page.locator('#confirm-submit').click();
+  await page.waitForFunction(() => document.querySelector('#confirm-dialog').getAttribute('aria-busy') === 'true');
+  await page.evaluate(() => document.querySelector('#confirm-room').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })));
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#confirm-dialog').isVisible(), true, 'in-flight operation cannot be accidentally dismissed');
+  releaseCommand(); commandGate = null;
+  await page.locator('#confirm-dialog').waitFor({ state: 'hidden' });
+  assert.equal(commands.length, beforeEnd + 1, 'double submit sends one mutation');
+  assert.deepEqual(commands.at(-1), { path: '/my/rooms/room/end', method: 'POST', body: { revision: 1 } });
+  await openAction(0, text.delete);
+  assert.equal(await page.locator('#confirm-description').textContent(), text.deleteConsequences);
+  await page.locator('#confirm-dialog [data-dialog-close]').first().click();
+  assert.equal(await page.locator('#confirm-dialog').isVisible(), false);
+  await openAction(0, text.delete);
+  commandFailure = 'ROOM_CHANGED';
+  await page.locator('#confirm-submit').click();
+  await page.waitForFunction(() => !document.querySelector('#confirm-dialog').hasAttribute('aria-busy'));
+  assert.equal(await page.locator('#confirm-dialog').isVisible(), true);
+  commandFailure = null; failNextList = true;
+  await page.locator('#confirm-submit').click();
+  await page.locator('#confirm-dialog').waitFor({ state: 'hidden' });
+  await page.waitForFunction(expected => document.querySelector('#message').textContent === expected, text.savedRefreshFailed);
+  assert.deepEqual(commands.at(-1), { path: '/my/rooms/room', method: 'DELETE', body: { revision: 1 } });
+  assert.equal(await page.locator('.room-card').count(), 4, 'failed refresh retains previous cards after successful mutation');
   await page.setViewportSize({ width: 1440, height: 900 });
   const toggle = page.locator('.shell-toggle');
   await toggle.click();
@@ -145,12 +211,28 @@ let server, browser;
   await page.setViewportSize({ width: 1440, height: 900 });
   assert.equal(await page.locator('main').evaluate(node => node.inert), false, 'breakpoint change releases drawer focus/scroll lock');
   await page.locator('#create-launcher').click();
+  await page.locator('#create-dialog').waitFor();
+  await page.locator('#create-dialog [data-dialog-close]').first().focus();
+  await page.keyboard.press('Shift+Tab');
+  assert.equal(await page.evaluate(() => document.activeElement.matches('#create [type=submit]')), true, 'dialog traps reverse Tab');
+  await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(() => document.activeElement.matches('#create-dialog [data-dialog-close]')), true, 'dialog traps forward Tab');
+  assert.equal(await page.locator('#create [name=template_key]').count(), 0, 'single standard template sends no invented field');
+  for (const viewport of [{ width: 320, height: 360 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    const bounds = await page.locator('#create-dialog').evaluate(node => {
+      const rect = node.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, fitsContent: node.scrollWidth <= node.clientWidth };
+    });
+    assert(bounds.left >= 0 && bounds.right <= viewport.width && bounds.top >= 0 && bounds.bottom <= viewport.height && bounds.fitsContent, 'modal fits narrow/short viewport');
+  }
+  await page.screenshot({ path: '/tmp/rooms-create-dialog-mobile.png', animations: 'disabled' });
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.locator('#create [name=name]').fill('New room');
   await page.locator('#create [type=submit]').click();
-  await page.waitForFunction(() => !document.querySelector('#create button').disabled);
+  await page.locator('#create-dialog').waitFor({ state: 'hidden' });
   assert.deepEqual(Object.keys(mutations[0]).sort(), ['capacity', 'name', 'request_key']);
   assert.equal(mutations[0].capacity, 6);
-  await page.locator('#create-panel > summary').click();
   // Hidden form retains its native controls; use the invitation field for focus checks.
   await page.locator('#join input[name=link]').focus();
   await page.keyboard.press('Tab');
@@ -180,8 +262,9 @@ let server, browser;
   assert.equal(await page.locator('.shell-sidebar').isVisible(), false, 'account navigation hides on logout');
   assert.equal(await page.evaluate(() => localStorage.getItem('token')), null);
   assert.deepEqual(errors, []);
-  console.log('Rooms design: responsive cards/covers/fallback, state-based actions/revision, menus, auth/invitation/creation, shell, keyboard, logout and reduced motion OK (fixture API)');
+  console.log('Rooms design: modal validation/errors/revision, distinct destructive actions, duplicate-submit guard, saved-but-refresh-failed, focus/keyboard/mobile, cards and existing flows OK (fixture API)');
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {
+  releaseCommand?.();
   await browser?.close();
   if (server) await new Promise(resolve => server.close(resolve));
 });
