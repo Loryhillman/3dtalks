@@ -78,6 +78,29 @@
   <aside id="properties-panel">
     <h2 data-i18n="roomEditor.properties">Свойства выбранного элемента</h2>
     <section id="room-properties" hidden>
+      <section id="environment-import" hidden>
+        <h2 data-i18n="roomEnvironmentEditor.title">Способ создания помещения</h2>
+        <p data-i18n="roomEnvironmentEditor.hint">Соберите стены или выберите готовый статический офис GLB. Мебель и места сохраняются при переключении.</p>
+        <button id="environment-shell" type="button" data-i18n="roomEnvironmentEditor.shell">Собранное помещение</button>
+        <label><span data-i18n="roomEnvironmentEditor.library">GLB из библиотеки</span><select id="environment-model"></select></label>
+        <button id="environment-prepare" type="button" data-i18n="roomEnvironmentEditor.prepare">Подготовить модель</button>
+        <label><span data-i18n="roomEnvironmentEditor.upload">Загрузить офис GLB (до 100 МБ)</span><input id="environment-file" type="file" accept=".glb"></label>
+        <p id="environment-import-status" role="status"></p>
+        <button id="environment-cancel" type="button" hidden data-i18n="roomEnvironmentEditor.cancel">Отменить подготовку</button>
+        <form id="environment-settings" hidden>
+          <p id="environment-source"></p>
+          <label><span data-i18n="roomEnvironmentEditor.width">Ширина границ, м (меняет общий масштаб)</span><input id="environment-width" type="number" step="any" min="1" max="200" required></label>
+          <label><span data-i18n="roomEnvironmentEditor.yaw">Поворот вокруг Y, °</span><input id="environment-yaw" type="number" step="any" required></label>
+          <label><span data-i18n="roomEnvironmentEditor.floor">Уровень поверхности пола в модели, м</span><input id="environment-floor" type="number" step="any" required></label>
+          <div class="coords"><label>X<input id="environment-x" type="number" step="any" required></label><label>Z<input id="environment-z" type="number" step="any" required></label></div>
+          <button id="environment-center" type="button" data-i18n="roomEnvironmentEditor.center">Центрировать по границам</button>
+          <p data-i18n="roomEnvironmentEditor.bounds">Внутренние границы в координатах модели, м. Габариты файла могут включать стены и декор: подтвердите пригодную для посадки область.</p>
+          <div class="coords"><label>Min X<input id="environment-min-x" type="number" step="any" required></label><label>Min Y<input id="environment-min-y" type="number" step="any" required></label><label>Min Z<input id="environment-min-z" type="number" step="any" required></label></div>
+          <div class="coords"><label>Max X<input id="environment-max-x" type="number" step="any" required></label><label>Max Y<input id="environment-max-y" type="number" step="any" required></label><label>Max Z<input id="environment-max-z" type="number" step="any" required></label></div>
+          <label><input id="environment-confirm" type="checkbox" required style="width:auto"><span data-i18n="roomEnvironmentEditor.confirmBounds">Подтверждаю уровень пола и внутренние границы</span></label>
+          <button type="submit" data-i18n="roomEnvironmentEditor.apply">Применить помещение</button>
+        </form>
+      </section>
       <section id="room-environment-preview" hidden>
         <h2 data-i18n="roomEditor.environmentTitle">Готовое GLB-помещение</h2>
         <p id="environment-name"></p><p id="environment-size"></p>
@@ -160,9 +183,10 @@
   <script src="js/roomEnvelopeEditor.js?v=2"></script>
   <script src="js/roomSeatLabels.js?v=1"></script>
   <script src="js/roomSeatCoordinates.js?v=1"></script>
-  <script src="js/roomTemplateSession.js?v=4"></script>
+  <script src="js/roomTemplateSession.js?v=5"></script>
   <script src="js/roomSeatEditor.js?v=6"></script>
-  <script src="js/roomModelUpload.js?v=1"></script>
-  <script src="js/roomEditor.js?v=10"></script>
+  <script src="js/roomModelUpload.js?v=2"></script>
+  <script src="js/roomEnvironmentEditor.js?v=1"></script>
+  <script src="js/roomEditor.js?v=11"></script>
 </body>
 </html>

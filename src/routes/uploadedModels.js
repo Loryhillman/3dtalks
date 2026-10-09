@@ -40,7 +40,7 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
+    const ext = path.extname(file.originalname).toLowerCase();
     cb(null, 'model-' + uniqueSuffix + ext);
   }
 });
@@ -223,7 +223,21 @@ router.post('/admin/rooms/models/upload', authenticateAdminToken, (req, res, nex
     res.status(400).json({ success: false, error: 'Model upload rejected',
       errorKey: error.code === 'LIMIT_FILE_SIZE' ? 'roomEditor.modelTooLarge' : error.errorKey || 'uploadedModelsApi.uploadFailed' });
   });
-}, uploadModel);
+}, async (req,res) => {
+  if (!req.body.profile || req.body.profile === 'furniture') return uploadModel(req,res);
+  try {
+    if (req.body.profile !== 'room_environment') {
+      if(req.file)await fs.unlink(req.file.path);
+      return res.status(400).json({success:false,error:'Unknown model import profile'});
+    }
+    const result=await require('../services/roomEnvironmentImport').store(pool,req.file,req.body);
+    res.status(201).json({success:true,...result});
+  } catch(error) {
+    if(!error.status)console.error('[roomEnvironmentImport] Upload failed:',error);
+    res.status(error.status||500).json({success:false,code:error.code||'ENVIRONMENT_IMPORT_FAILED',
+      errorKey:'roomEnvironmentErrors.'+(error.status?error.code:'ENVIRONMENT_IMPORT_FAILED')});
+  }
+});
 
 /**
  * POST /api/upload-models-batch

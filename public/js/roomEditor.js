@@ -6,7 +6,7 @@
   const message = document.getElementById('message');
   const viewport = document.getElementById('viewport');
   const objects = new Map();
-  let environmentHelper, environmentSignature, framedEnvironment, frameId;
+  let environmentHelper, environmentSignature, framedEnvironment, frameId, environmentProposal;
   let seatPreview = [], selectedSeat = -1, selectionMode = 'objects';
   const seatLabels = new RoomSeatLabels(index => {if(selectionMode==='seats')window.dispatchEvent(new CustomEvent('room-seat-picked',{detail:Number(index)}));}, 5);
   const seatMarkers = new Map();
@@ -367,6 +367,7 @@
   }
 
   function syncEnvironmentView() {
+    if(environmentProposal?.helper)environmentProposal.helper.visible=!preview&&document.getElementById('environment-bounds').checked;
     const entry=[...objects.values()].find(e=>e.data.is_room_environment);
     document.getElementById('room-environment-preview').hidden=!entry;
     if (!entry) {
@@ -379,7 +380,8 @@
       if(environmentHelper){scene.remove(environmentHelper);disposeGroup(environmentHelper);}
       environmentHelper=RoomEnvironmentView.helper(object);environmentSignature=signature;if(environmentHelper)scene.add(environmentHelper);
     }
-    if(environmentHelper)environmentHelper.visible=!preview&&document.getElementById('environment-bounds').checked;
+    if(environmentHelper)environmentHelper.visible=!environmentProposal&&!preview&&document.getElementById('environment-bounds').checked;
+    entry.group.visible=!environmentProposal;
     document.getElementById('environment-name').textContent=object.name;
     const b=object.room_environment?.bounds,s=Number(object.scale_x);
     const size=box&&new THREE.Vector3((b.max.x-b.min.x)*s,(b.max.y-b.min.y)*s,(b.max.z-b.min.z)*s);
@@ -478,6 +480,7 @@
 
   document.getElementById('move-mode').addEventListener('click', () => transform.setMode('translate'));
   document.getElementById('focus-room').addEventListener('click',()=>{
+    if(environmentProposal){RoomEnvironmentView.fit(camera,orbit,RoomEnvironmentView.bounds(environmentProposal.data));return;}
     const entry=[...objects.values()].find(e=>e.data.is_room_environment||e.data.is_room_shell);if(!entry)return;
     const box=entry.data.is_room_environment?RoomEnvironmentView.bounds(entry.data):new THREE.Box3().setFromObject(entry.group);
     RoomEnvironmentView.fit(camera,orbit,box);
@@ -601,12 +604,72 @@
   window.addEventListener('room-template-changed', updateTemplateStatus);
   window.addEventListener('room-seat-dirty', updateTemplateStatus);
   async function prepareTemplate() { await window.RoomEnvelopeEditor?.flush(); window.RoomSeatEditor?.flush(); await applyCurrent(); await window.RoomSeatEditor?.save(); }
+  function clearEnvironmentProposal(){
+    if(environmentProposal){scene.remove(environmentProposal.group);disposeGroup(environmentProposal.group);
+      if(environmentProposal.helper){scene.remove(environmentProposal.helper);disposeGroup(environmentProposal.helper);}environmentProposal=null;}
+    for(const entry of objects.values())if(entry.data.is_room_environment||entry.data.is_room_shell)entry.group.visible=true;
+    syncEnvironmentView();
+  }
+  window.RoomEditorEnvironment = {
+    available:()=>!!template,
+    get:()=>template?.draft.layout.find(i=>i.kind==='room'),
+    models:()=>template?.models||[],
+    previousShell:()=>template?.previousShell,
+    clearPreview:clearEnvironmentProposal,
+    preview(item,root){
+      if(!RoomEnvironment.validTransform(item)){if(root)disposeGroup(root);return;}
+      const fitNewModel=!!root;
+      if(!root&&!environmentProposal){
+        const current=[...objects.values()].find(e=>e.data.is_room_environment&&e.state==='ready');
+        const source=current?.group.children[0];
+        if(source){
+          // A preview owns its copies. Disposing it must never invalidate the
+          // applied model, including shared meshes, materials and textures.
+          root=source.clone(true);
+          const geometries=new Map(),materials=new Map(),textures=new Map();
+          const materialCopy=m=>{
+            if(!materials.has(m)){const copy=m.clone();
+              for(const [key,value] of Object.entries(copy))if(value?.isTexture){if(!textures.has(value))textures.set(value,value.clone());copy[key]=textures.get(value);}
+              materials.set(m,copy);
+            }return materials.get(m);
+          };
+          root.traverse(n=>{
+            if(n.geometry){if(!geometries.has(n.geometry))geometries.set(n.geometry,n.geometry.clone());n.geometry=geometries.get(n.geometry);}
+            if(n.material)n.material=Array.isArray(n.material)?n.material.map(materialCopy):materialCopy(n.material);
+          });
+        }
+      }
+      const data={room_environment:item.environment};
+      for(const p of ['position','rotation','scale'])for(const a of ['x','y','z'])data[p+'_'+a]=item[p][a];
+      if(root){clearEnvironmentProposal();const group=new THREE.Group();group.userData.officeProposal=true;group.add(root);scene.add(group);environmentProposal={group,data};}
+      if(!environmentProposal)return;
+      environmentProposal.data=data;
+      const group=environmentProposal.group;
+      for(const p of ['position','rotation','scale'])group[p].set(...['x','y','z'].map(a=>item[p][a]));
+      if(environmentProposal.helper){scene.remove(environmentProposal.helper);disposeGroup(environmentProposal.helper);}
+      environmentProposal.helper=RoomEnvironmentView.helper(data);if(environmentProposal.helper){scene.add(environmentProposal.helper);environmentProposal.helper.visible=!preview&&document.getElementById('environment-bounds').checked;}
+      for(const entry of objects.values())if(entry.data.is_room_environment||entry.data.is_room_shell)entry.group.visible=false;
+      if(environmentHelper)environmentHelper.visible=false;
+      if(fitNewModel)RoomEnvironmentView.fit(camera,orbit,RoomEnvironmentView.bounds(data));
+    },
+    register(model){if(!template)return;if(!template.models.some(m=>m.id===model.id)){template.models.push(model);addModelOption(model);}window.RoomEnvironmentEditor?.refreshModels();},
+    async apply(item){
+      if(!template || busy)return false;
+      let applied=false;
+      await action(async()=>{await prepareTemplate();await api('/environment',{method:'PATCH',body:JSON.stringify({item})});clearEnvironmentProposal();
+        framedEnvironment=null;await loadObjects(null);message.textContent=window.i18n.t('roomEnvironmentEditor.applied');applied=true;});
+      return applied;
+    }
+  };
   document.getElementById('template-save').addEventListener('click', () => action(async () => {
+    if(window.RoomEnvironmentEditor?.isPending())throw new Error(window.i18n.t('roomEnvironmentEditor.pending'));
     await prepareTemplate(); await template.save(); message.textContent = tr('draftSaved', 'Черновик сохранён');
   }));
   document.getElementById('template-publish').addEventListener('click', () => {
     if (!confirm(tr('confirmPublish', 'Опубликовать обстановку для новых комнат?'))) return;
-    action(async () => { await prepareTemplate();
+    action(async () => {
+      if(window.RoomEnvironmentEditor?.isPending())throw new Error(window.i18n.t('roomEnvironmentEditor.pending'));
+      await prepareTemplate();
       const environment=[...objects.values()].find(e=>e.data.is_room_environment);
       if(environment && environment.state!=='ready')throw new Error(tr('environmentWait','Дождитесь успешной загрузки помещения перед публикацией'));
       const version = await template.publish();
@@ -632,6 +695,7 @@
   window.addEventListener('pagehide',event=>{
     if(event.persisted)return;
     cancelAnimationFrame(frameId);for(const entry of objects.values())removeVisual(entry);objects.clear();
+    if(environmentProposal){disposeGroup(environmentProposal.group);disposeGroup(environmentProposal.helper);}
     if(environmentHelper)disposeGroup(environmentHelper);orbit.dispose();transform.dispose();renderer.dispose();
   });
   init();

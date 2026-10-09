@@ -57,6 +57,21 @@
         if(JSON.stringify(item.envelope)!==JSON.stringify(body.envelope)){item.envelope=clone(body.envelope);this.changed();}
         return {room:this.room};
       }
+      if(path==='/environment' && method==='PATCH') {
+        const replacement=clone(body.item);
+        const current=this.draft.layout.find(i=>i.kind==='room');
+        const valid=replacement.type==='room_environment'?RoomEnvironment.validItem(replacement):
+          replacement.type==='room_shell' && replacement.kind==='room' && replacement.collision===true && RoomEnvelope.valid(replacement.envelope) &&
+          ['x','y','z'].every(a=>Number.isFinite(replacement.position?.[a]) && Math.abs(replacement.position[a])<=10000 &&
+            Number.isFinite(replacement.rotation?.[a]) && Math.abs(replacement.rotation[a])<=10000 && replacement.scale?.[a]===1);
+        if(!valid || replacement.seats?.length)throw new Error('INVALID_ROOM_ENVIRONMENT');
+        if(current?.seats?.length)throw new Error('Detach room seats before replacing the environment');
+        if(!current && this.draft.layout.length>=100)throw new Error('Template object limit reached');
+        if(current && current.type!=='room_environment')this.previousShell=clone(current);
+        replacement.editor_id=current?.editor_id ?? Math.max(0,...this.draft.layout.map(i=>i.editor_id))+1;
+        if(current)this.draft.layout[this.draft.layout.indexOf(current)]=replacement;else this.draft.layout.unshift(replacement);
+        this.changed();return {room:this.room};
+      }
       if (path === '/models') return { models: this.models };
       if (path === '/objects' && method === 'GET') return { objects: this.objects() };
       if (path === '/seats' && method === 'GET') return { seats: this.seats() };
