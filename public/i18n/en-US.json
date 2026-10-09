@@ -5346,7 +5346,9 @@
     "unattached": "No object attachment",
     "overlap": "Some seats overlap or are too close. Move the marked seats apart.",
     "limit": "Maximum 100 seats",
-    "readOnly": "This room is read-only"
+    "readOnly": "This room is read-only",
+    "avatarPreview": "Show a seated character at the selected seat",
+    "avatarHint": "The standard character uses the game scale. Check seat height, facing direction and feet placement."
   },
   "meetingUi": {
     "communication": "Chat and microphone",
@@ -5664,5 +5666,20 @@
     "ENVIRONMENT_MUST_BE_STATIC_TRIANGLES": "Office geometry must use static triangle meshes.",
     "ENVIRONMENT_SINGLE_SCENE_REQUIRED": "The office GLB must contain exactly one scene.",
     "UNSUPPORTED_ENVIRONMENT_ACCESSOR": "Unsupported geometry data format. Export ordinary GLB without sparse accessors."
+  },
+  "roomPlacement": {
+    "title": "Placement check",
+    "hint": "Checks enabled seats and object anchors. Inspect mesh intersections and head/feet placement in the preview.",
+    "review": "Review the listed positions before publishing.",
+    "valid": "Seat positions and object anchors pass the bounds check.",
+    "invalidBounds": "Invalid room bounds",
+    "unavailableBounds": "This room has no recognised service bounds; check placement visually",
+    "invalidObject": "Invalid object position",
+    "objectOutside": "Object anchor is outside the room",
+    "seatOutside": "Seat is outside the room",
+    "invalidSeat": "Invalid seat position or missing attached object",
+    "seatOverlap": "Seats are too close (less than 0.2 m)",
+    "more": "Additional issues",
+    "blocked": "Fix the placement issues before publishing. See Placement check."
   }
 }

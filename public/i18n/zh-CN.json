@@ -5346,7 +5346,9 @@
     "unattached": "不关联物体",
     "overlap": "部分座位重叠或距离过近，请移开标记的座位。",
     "limit": "最多100个座位",
-    "readOnly": "此房间不可编辑"
+    "readOnly": "此房间不可编辑",
+    "avatarPreview": "在选中座位显示坐姿角色",
+    "avatarHint": "标准角色使用游戏比例。请检查座位高度、朝向和脚的位置。"
   },
   "meetingUi": {
     "communication": "聊天和麦克风",
@@ -5664,5 +5666,20 @@
     "ENVIRONMENT_MUST_BE_STATIC_TRIANGLES": "办公室几何体必须使用静态三角形网格。",
     "ENVIRONMENT_SINGLE_SCENE_REQUIRED": "办公室 GLB 必须只有一个场景。",
     "UNSUPPORTED_ENVIRONMENT_ACCESSOR": "几何数据格式不受支持。请导出不含稀疏访问器的普通 GLB。"
+  },
+  "roomPlacement": {
+    "title": "位置检查",
+    "hint": "检查启用的座位和物体锚点。请在预览中检查网格交叉和头脚位置。",
+    "review": "发布前请检查列出的位置。",
+    "valid": "座位位置和物体锚点通过边界检查。",
+    "invalidBounds": "房间边界无效",
+    "unavailableBounds": "未识别房间边界，请目视检查位置",
+    "invalidObject": "物体位置无效",
+    "objectOutside": "物体锚点位于房间外",
+    "seatOutside": "座位位于房间外",
+    "invalidSeat": "座位位置无效或附着物体不存在",
+    "seatOverlap": "座位距离过近（小于 0.2 米）",
+    "more": "其他问题",
+    "blocked": "发布前请修正位置错误，请参阅位置检查。"
   }
 }

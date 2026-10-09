@@ -6,7 +6,8 @@
   const message = document.getElementById('message');
   const viewport = document.getElementById('viewport');
   const objects = new Map();
-  let environmentHelper, environmentSignature, framedEnvironment, frameId, environmentProposal;
+  let environmentHelper, environmentSignature, framedEnvironment, frameId, environmentProposal, seatAvatar;
+  let placementIssues=[];
   let seatPreview = [], selectedSeat = -1, selectionMode = 'objects';
   const seatLabels = new RoomSeatLabels(index => {if(selectionMode==='seats')window.dispatchEvent(new CustomEvent('room-seat-picked',{detail:Number(index)}));}, 5);
   const seatMarkers = new Map();
@@ -36,6 +37,41 @@
       marker.visible=!preview;
     });
     if (selectedSeat < 0 && transform.object?.userData.seatIndex !== undefined) transform.detach();
+    const seat=seatPreview[selectedSeat];
+    const show=!!seat&&selectionMode==='seats'&&document.getElementById('seat-avatar-preview').checked;
+    if(show){
+      if(!seatAvatar){seatAvatar=AvatarBase.create().characterGroup;seatAvatar.userData.editorSeatAvatar=true;scene.add(seatAvatar);}
+      const pose=RoomSeatCoordinates.world(seat,window.RoomEditorObjects.get(seat.object_id));
+      seatAvatar.position.set(pose.position.x,pose.position.y,pose.position.z);
+      seatAvatar.rotation.set(pose.rotation.x,pose.rotation.y,pose.rotation.z);
+      RoomSeatAvatar.apply(seatAvatar); // Reset to the seat before the procedural hip offset.
+    }
+    if(seatAvatar)seatAvatar.visible=show;
+    updatePlacementCheck();
+  }
+  document.getElementById('seat-avatar-preview').addEventListener('change',renderSeatPreview);
+
+  function updatePlacementCheck(){
+    const rows=[...objects.values()].map(entry=>window.RoomEditorObjects.get(entry.data.id));
+    if(environmentProposal){
+      const i=rows.findIndex(o=>o.is_room_shell||o.is_room_environment);
+      const row={...environmentProposal.data,id:i<0?'proposal':rows[i].id,is_room_environment:true};
+      if(i<0)rows.push(row);else rows[i]=row;
+    }
+    placementIssues=RoomPlacementCheck.check(rows,seatPreview,(seat,object)=>RoomSeatCoordinates.world(seat,object));
+    const tr=key=>window.i18n.t('roomPlacement.'+key);
+    document.getElementById('placement-summary').textContent=placementIssues.length?tr('review'):tr('valid');
+    const list=document.getElementById('placement-issues');list.replaceChildren();
+    for(const issue of placementIssues.slice(0,20)){
+      const li=document.createElement('li');li.dataset.type=issue.type;
+      li.textContent=tr(issue.type)+(issue.label!=null?': '+issue.label:issue.name!=null?': '+issue.name:'');list.append(li);
+    }
+    if(placementIssues.length>20){const li=document.createElement('li');li.textContent=tr('more')+': '+(placementIssues.length-20);list.append(li);}
+    const badSeats=new Set(placementIssues.filter(i=>i.index!=null).map(i=>i.index));
+    for(const [index,marker]of seatMarkers)marker.children[0].material.color.set(badSeats.has(index)?0xff6655:index===selectedSeat?0x44ff99:seatPreview[index]?.enabled?0xffcc33:0x888888);
+    const badObjects=new Set(placementIssues.filter(i=>i.id!=null).map(i=>String(i.id)));
+    for(const button of document.querySelectorAll('#object-list .item'))button.classList.toggle('placement-error',badObjects.has(button.dataset.id));
+    [...document.getElementById('seat-list').children].forEach((button,index)=>button.classList.toggle('placement-error',badSeats.has(index)));
   }
   window.addEventListener('room-seat-preview',event=>{seatPreview=event.detail.seats;selectedSeat=event.detail.selected;renderSeatPreview();updateSelection();});
   window.addEventListener('room-seat-selected',event=>{
@@ -508,7 +544,7 @@
     document.getElementById('seat-properties').hidden=panel!=='seats';
     document.getElementById('show-objects').setAttribute('aria-pressed',String(panel==='objects'));
     document.getElementById('show-seats').setAttribute('aria-pressed',String(panel==='seats'));
-    transform.detach(); updateSelection();
+    transform.detach(); updateSelection();renderSeatPreview();
     if(!preview && room?.status==='draft') {
       if(panel==='objects' && selected)transform.attach(objects.get(selected.id).group);
       if(panel==='seats' && selectedSeat>=0){transform.setMode('translate');transform.attach(seatMarkers.get(selectedSeat));}
@@ -532,6 +568,7 @@
     await applyCurrent(); window.RoomSeatEditor?.flush();
     preview = !preview; grid.visible = !preview;
     syncEnvironmentView();
+    updatePlacementCheck();
     transform.detach();
     showPanel(selectionMode);
     renderSeatPreview();
@@ -609,6 +646,7 @@
       if(environmentProposal.helper){scene.remove(environmentProposal.helper);disposeGroup(environmentProposal.helper);}environmentProposal=null;}
     for(const entry of objects.values())if(entry.data.is_room_environment||entry.data.is_room_shell)entry.group.visible=true;
     syncEnvironmentView();
+    updatePlacementCheck();
   }
   window.RoomEditorEnvironment = {
     available:()=>!!template,
@@ -651,6 +689,7 @@
       for(const entry of objects.values())if(entry.data.is_room_environment||entry.data.is_room_shell)entry.group.visible=false;
       if(environmentHelper)environmentHelper.visible=false;
       if(fitNewModel)RoomEnvironmentView.fit(camera,orbit,RoomEnvironmentView.bounds(data));
+      updatePlacementCheck();
     },
     register(model){if(!template)return;if(!template.models.some(m=>m.id===model.id)){template.models.push(model);addModelOption(model);}window.RoomEnvironmentEditor?.refreshModels();},
     async apply(item){
@@ -672,6 +711,8 @@
       await prepareTemplate();
       const environment=[...objects.values()].find(e=>e.data.is_room_environment);
       if(environment && environment.state!=='ready')throw new Error(tr('environmentWait','Дождитесь успешной загрузки помещения перед публикацией'));
+      updatePlacementCheck();
+      if(placementIssues.some(i=>i.severity==='error'))throw new Error(window.i18n.t('roomPlacement.blocked'));
       const version = await template.publish();
       message.textContent = `${tr('publishedVersion', 'Опубликованная версия')}: ${version}`;
     });
@@ -696,6 +737,7 @@
     if(event.persisted)return;
     cancelAnimationFrame(frameId);for(const entry of objects.values())removeVisual(entry);objects.clear();
     if(environmentProposal){disposeGroup(environmentProposal.group);disposeGroup(environmentProposal.helper);}
+    disposeGroup(seatAvatar);
     if(environmentHelper)disposeGroup(environmentHelper);orbit.dispose();transform.dispose();renderer.dispose();
   });
   init();

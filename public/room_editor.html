@@ -20,6 +20,7 @@
     #element-tabs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}#show-room{grid-column:1/-1}#element-tabs button{min-width:0;overflow-wrap:anywhere}
     #seat-save{position:sticky;bottom:0;width:100%;margin-top:10px}#template-object-actions button{margin:4px 0}body.saving aside,body.saving main,body.saving #editor-header{pointer-events:none;opacity:.65}
     @media(max-width:1050px){body{grid-template-columns:210px minmax(0,1fr) 270px}aside{padding:10px}#room-status{display:none}}
+    .item.placement-error{border-color:#ff6655}#placement-check{margin-top:16px;font-size:12px}#placement-check li{margin-bottom:5px}
     @media(max-width:760px){body{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto minmax(220px,50dvh) minmax(0,1fr)}main{grid-row:2;grid-column:1/-1}#element-panel{grid-row:3;grid-column:1}#properties-panel{grid-row:3;grid-column:2}#template-status,#message{font-size:11px}#toolbar button{font-size:12px;padding:6px}}
   </style>
 </head>
@@ -73,6 +74,12 @@
       <p id="seat-overlap" role="status" style="color:#f0d280"></p>
     </section>
 
+    <section id="placement-check">
+      <h2 data-i18n="roomPlacement.title">Проверка расположения</h2>
+      <p id="placement-summary" role="status"></p>
+      <ul id="placement-issues" style="padding-left:20px"></ul>
+      <p data-i18n="roomPlacement.hint">Проверяются доступные места и точки привязки предметов. Пересечения моделей и положение головы/ног проверяйте по предпросмотру.</p>
+    </section>
   </aside>
   <main><div id="viewport"></div><div id="toolbar"><button id="focus-room" type="button" data-i18n="roomEditor.focusRoom">Показать помещение целиком</button><button id="move-mode" type="button" data-i18n="roomEditor.move">Перемещение</button><button id="rotate-mode" type="button" data-i18n="roomEditor.rotate">Поворот</button><button id="scale-mode" type="button" data-i18n="roomEditor.scale">Масштаб</button><button id="deselect" type="button" disabled data-i18n="roomEditor.deselect">Снять выделение (Esc)</button><button id="preview-mode" type="button" data-i18n="roomEditor.preview">Предпросмотр</button></div></main>
   <aside id="properties-panel">
@@ -157,7 +164,9 @@
       </div>
       <div class="row"><button type="submit" data-i18n="roomEditor.savePosition">Сохранить положение</button><button id="delete-object" type="button" data-i18n="roomEditor.delete">Удалить</button></div>
     </form></section>
-    <section id="seat-properties" hidden>      <form id="seat-form">
+    <section id="seat-properties" hidden>
+      <label><input id="seat-avatar-preview" type="checkbox" checked style="width:auto"><span data-i18n="roomSeatsEditor.avatarPreview">Показывать сидящего персонажа на выбранном месте</span></label>
+      <p data-i18n="roomSeatsEditor.avatarHint">Стандартный персонаж показан в масштабе игры. Проверьте высоту сиденья, направление и положение ног.</p>      <form id="seat-form">
         <label><span data-i18n="roomSeatsEditor.object">Привязка к предмету (необязательно)</span><select id="seat-object"></select></label>
         <label><span data-i18n="roomSeatsEditor.label">Номер / название места</span><input id="seat-label" maxlength="40" required></label>
         <div class="coords"><label>X<input id="seat-x" type="number" step="any" value="0" required></label><label>Y<input id="seat-y" type="number" step="any" value="1" required></label><label>Z<input id="seat-z" type="number" step="any" value="0" required></label></div>
@@ -180,6 +189,9 @@
   <script src="js/roomEnvelope.js?v=1"></script>
   <script src="js/roomEnvironment.js?v=1"></script>
   <script src="js/roomEnvironmentView.js?v=1"></script>
+  <script src="js/roomPlacementCheck.js?v=1"></script>
+  <script src="js/avatarBase.js?v=1"></script>
+  <script src="js/roomSeatAvatar.js?v=3"></script>
   <script src="js/roomEnvelopeEditor.js?v=2"></script>
   <script src="js/roomSeatLabels.js?v=1"></script>
   <script src="js/roomSeatCoordinates.js?v=1"></script>
@@ -187,6 +199,6 @@
   <script src="js/roomSeatEditor.js?v=6"></script>
   <script src="js/roomModelUpload.js?v=2"></script>
   <script src="js/roomEnvironmentEditor.js?v=1"></script>
-  <script src="js/roomEditor.js?v=11"></script>
+  <script src="js/roomEditor.js?v=12"></script>
 </body>
 </html>
