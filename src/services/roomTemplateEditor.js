@@ -1,4 +1,5 @@
 const RoomEnvelope = require('../../public/js/roomEnvelope');
+const RoomEnvironment = require('../../public/js/roomEnvironment');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { validLayout, modelPath, transform } = require('./roomTemplateLayout');
@@ -10,12 +11,14 @@ const publicDir = path.resolve(__dirname, '../../public');
 function publicationErrors(layout, key) {
   const errors = [];
   if (!validLayout(layout)) return ['Неверные параметры предметов или мест'];
-  if (!layout.some(i => i.kind === 'room' && ['geometry_building','room_shell'].includes(i.type || 'geometry_building'))) {
+  if (!layout.some(i => i.kind === 'room' && ['geometry_building','room_shell','room_environment'].includes(i.type || 'geometry_building'))) {
     errors.push('Сохраните геометрию помещения: пол, стены и потолок');
   }
   const poses = [];
   const shell = layout.find(i=>i.type==='room_shell');
-  if(shell) for(const item of layout) if(!['room_shell','seat'].includes(item.type) && !RoomEnvelope.contains(item.position,shell)) errors.push('Предмет находится за пределами помещения: '+item.name);
+  const imported = layout.find(i => i.type === 'room_environment');
+  const contains = shell ? point => RoomEnvelope.contains(point, shell) : imported ? point => RoomEnvironment.contains(point, imported.environment, imported) : null;
+  if(contains) for(const item of layout) if(item.kind !== 'room' && item.type !== 'seat' && !contains(item.position)) errors.push('Предмет находится за пределами помещения: '+item.name);
   for (const item of layout) {
     const t = transform(item), object = {};
     for (const prefix of ['position', 'rotation', 'scale']) for (const a of ['x', 'y', 'z']) object[prefix + '_' + a] = t[prefix][a];
@@ -25,7 +28,7 @@ function publicationErrors(layout, key) {
         if (poses.some(p => Math.hypot(p.x - position.x, p.y - position.y, p.z - position.z) < .2)) {
           errors.push('Слишком близко расположены места: ' + seat.label);
         }
-        if(shell && !RoomEnvelope.contains(position,shell)) errors.push('Посадка находится за пределами помещения: '+seat.label);
+        if(contains && !contains(position)) errors.push('Посадка находится за пределами помещения: '+seat.label);
         poses.push(position);
       } catch (_) { errors.push('Некорректное положение места: ' + seat.label); }
     }
@@ -42,7 +45,7 @@ function normalizeDraft(draft) {
   draft.layout=draft.layout.map(item=>RoomEnvelope.fromLegacy(item)||item);
   return draft;
 }
-function createRoomTemplateEditor(pool, stat = fs.stat) {
+function createRoomTemplateEditor(pool, stat = fs.stat, { readFile = fs.readFile } = {}) {
   async function transaction(key, operation) {
     if (!KEY.test(key || '')) fail('INVALID_TEMPLATE_KEY', 'Неверный шаблон', 400);
     const client = await pool.connect();
@@ -56,7 +59,8 @@ function createRoomTemplateEditor(pool, stat = fs.stat) {
     finally { client.release(); }
   }
   async function models(client, layout, checkFiles = false) {
-    const ids = [...new Set(layout.filter(i => i.type === 'uploaded_model').map(i => i.model_id))].sort((a, b) => a - b);
+    const modelItems = layout.filter(i => ['uploaded_model','room_environment'].includes(i.type));
+    const ids = [...new Set(modelItems.map(i => i.model_id))].sort((a, b) => a - b);
     for(const item of layout.filter(i=>i.type==='room_shell')) {
       if(!RoomEnvelope.valid(item.envelope))fail('INVALID_ROOM_ENVELOPE','Проверьте размеры и оформление помещения',400);
       if(checkFiles) for(const surface of Object.values(item.envelope.surfaces)) if(surface.mode!=='color') {
@@ -68,16 +72,22 @@ function createRoomTemplateEditor(pool, stat = fs.stat) {
     if (ids.some(id => !Number.isSafeInteger(id) || id < 1)) fail('INVALID_MODEL', 'Выберите модель из библиотеки', 400);
     const rows = (await client.query('SELECT id, path, file_type FROM uploaded_models WHERE id=ANY($1::int[]) ORDER BY id FOR SHARE', [ids])).rows;
     if (rows.length !== ids.length) fail('MODEL_NOT_FOUND', 'Одна из моделей удалена из библиотеки', 422);
-    for (const item of layout.filter(i => i.type === 'uploaded_model')) {
+    for (const item of modelItems) {
       const row = rows.find(r => r.id === item.model_id);
       if (row.file_type?.toLowerCase() !== 'glb' || !modelPath(row.path)) fail('INVALID_MODEL', 'Редактор поддерживает GLB из библиотеки', 422);
       // A draft may submit an arbitrary URL; only the library path is authoritative.
       item.model_path = row.path;
       if (checkFiles) {
+        const absolute = path.join(publicDir, row.path);
         try {
-          const file = await stat(path.join(publicDir, row.path));
+          const file = await stat(absolute);
           if (!file.isFile() || file.size < 12) throw new Error('Empty model');
-        } catch (_) { fail('MODEL_FILE_MISSING', 'Не найден файл модели: ' + item.name, 422); }
+          if (item.type === 'room_environment' && file.size > 100 * 1024 * 1024) fail('ENVIRONMENT_FILE_TOO_LARGE','Файл помещения превышает 100 МБ',422);
+        } catch (error) { if (error.status) throw error; fail('MODEL_FILE_MISSING', 'Не найден файл модели: ' + item.name, 422); }
+        if (item.type === 'room_environment') {
+          try { await require('./roomEnvironmentAsset').inspect(await readFile(absolute)); }
+          catch (error) { fail(error.code || 'INVALID_ENVIRONMENT_GLB', 'Модель помещения не подходит: ' + item.name + ' (' + (error.code || 'INVALID_ENVIRONMENT_GLB') + ')', 422); }
+        }
       }
     }
     return ids;

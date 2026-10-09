@@ -27,7 +27,7 @@ async function main() {
         rotation_x float DEFAULT 0,rotation_y float DEFAULT 0,rotation_z float DEFAULT 0,
         scale_x float DEFAULT 1,scale_y float DEFAULT 1,scale_z float DEFAULT 1,has_collision boolean,
         created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now());`);
-    for (const file of ['add_rooms.sql','add_room_seats.sql','add_user_rooms.sql','add_room_template_editor.sql','add_room_template_editor.sql','add_independent_room_seats.sql','add_independent_room_seats.sql']) {
+    for (const file of ['add_rooms.sql','add_room_seats.sql','add_user_rooms.sql','add_room_template_editor.sql','add_room_template_editor.sql','add_independent_room_seats.sql','add_independent_room_seats.sql','add_room_environment.sql','add_room_environment.sql']) {
       await pool.query(readFileSync(path.join(__dirname, '../database/migrations', file), 'utf8'));
     }
     await pool.query("INSERT INTO admin_users VALUES (1); INSERT INTO uploaded_models VALUES (1,'/models/uploaded/check.glb','glb')");
@@ -144,6 +144,31 @@ async function main() {
     console.log('Room envelope PostgreSQL: compiled snapshots, draft-only settings, revision conflicts and old-room isolation: OK');
     await pool.query('DELETE FROM room_template_draft_model_refs');
     await assert.rejects(pool.query('DELETE FROM uploaded_models WHERE id=1'), e => ['23503','23001'].includes(e.code));
+    // New format exercises the actual SQL constraint and old-room isolation when explicitly run on a test DB.
+    const beforeOffice = (await pool.query('SELECT * FROM world_objects WHERE room_id=$1 ORDER BY id',[before.id])).rows;
+    const environmentDraft = await service.getDraft('meeting-six', 1);
+    environmentDraft.layout = [{ editor_id: 1, type:'room_environment',kind:'room',name:'Office',collision:false,
+      model_id:1,model_path:'/models/uploaded/check.glb',position:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1},
+      environment:{version:1,bounds:{min:{x:-4,y:0,z:-3},max:{x:4,y:3,z:3}}}},
+      {editor_id:2,type:'seat',kind:'seat',name:'Office seats',collision:false,
+        position:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1},
+        seats:Array.from({length:6},(_,index)=>({label:String(index+1),sort_order:index,enabled:true,
+          coordinate_space:'rigid',map_x:index-2.5,map_y:0,local_position:{x:index-2.5,y:1,z:0},local_rotation:{x:0,y:0,z:0}}))}];
+    const environmentService=createRoomTemplateEditor(pool,stat,{readFile:async()=>require('./room-environment-fixtures').officeGlb()});
+    const environmentSaved=await environmentService.save('meeting-six',environmentDraft,1);
+    await environmentService.publish('meeting-six',environmentSaved.revision);
+    const officeRoom=(await createRoom()).room;
+    const officeObjects=await require('../src/services/roomObjects').listRoomObjects(officeRoom.id,pool);
+    assert.equal(officeObjects.length,1);assert.equal(officeObjects[0].type,'uploaded_model');
+    assert.equal(officeObjects[0].is_room_environment,true);assert.equal(officeObjects[0].has_collision,false);
+    assert.deepEqual(officeObjects[0].room_environment,environmentDraft.layout[0].environment);
+    await assert.rejects(pool.query('UPDATE world_objects SET has_collision=true WHERE id=$1',[officeObjects[0].id]),e=>e.code==='23514');
+    await assert.rejects(pool.query("UPDATE world_objects SET room_environment='{}'::jsonb WHERE id=$1",[officeObjects[0].id]),e=>e.code==='23514');
+    const guarded=require('../src/services/roomModelMutation');
+    let processed=false;
+    await assert.rejects(guarded.withMutableRoomModel(pool,1,async()=>{processed=true;}),{status:409});assert.equal(processed,false);
+    assert.deepEqual((await pool.query('SELECT * FROM world_objects WHERE room_id=$1 ORDER BY id',[before.id])).rows,beforeOffice);
+    console.log('GLB office PostgreSQL: repeated additive migration, published refs, runtime metadata, constraint guards and old-room isolation: OK');
     console.log('PostgreSQL: isolated drafts, save/publish races, model protection, GLB transforms, seat cloning, old rooms preserved: OK');
   } finally {
     if (pool) await pool.end();

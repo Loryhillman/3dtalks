@@ -126,7 +126,7 @@ router.post('/:id/objects', async (req, res) => {
         $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), now()
       FROM rooms r JOIN uploaded_models m ON m.id = $2
       WHERE r.id = $1 AND r.status = 'draft'
-      FOR UPDATE OF r
+      FOR UPDATE OF r FOR SHARE OF m
       RETURNING *
     `, [req.params.id, body.model_id, name,
       body.position_x, body.position_y, body.position_z,
@@ -158,6 +158,7 @@ router.patch('/:id/objects/:objectId', async (req, res) => {
         scale_x = $9, scale_y = $10, scale_z = $11,
         has_collision = $12, updated_at = now()
       WHERE id = $2 AND room_id = $1
+        AND room_environment IS NULL
         AND NOT EXISTS (SELECT 1 FROM geometry_buildings g WHERE world_objects.model_path='geometry_building:'||g.id::text AND g.template_id='room_room')
         AND EXISTS (SELECT 1 FROM rooms WHERE id = $1 AND status = 'draft' FOR UPDATE)
       RETURNING *

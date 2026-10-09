@@ -462,26 +462,16 @@ router.delete('/uploaded-models/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 获取模型信息
-    const modelQuery = await pool.query(
-      'SELECT * FROM uploaded_models WHERE id = $1',
-      [id]
-    );
-
-    if (modelQuery.rows.length === 0) {
-      return res.status(404).json({ error: '模型不存在', errorKey: 'uploadedModelsApi.notFound' });
-    }
-
-    const model = modelQuery.rows[0];
-
     // Remove the record first: template foreign keys must reject deletion
-    // before any file is touched. Live room objects also keep their model.
+    // before any file is touched. Lock first, then check refs in a fresh statement.
+    let model;
     try {
-      const deleted = await pool.query(`DELETE FROM uploaded_models WHERE id=$1
-        AND NOT EXISTS (SELECT 1 FROM world_objects WHERE model_path=$2) RETURNING id`, [id, model.path]);
-      if (!deleted.rows.length) return res.status(409).json({ success: false,
-        error: 'Модель используется в комнате', errorKey: 'uploadedModelsApi.inUse' });
+      model = await require('../services/roomModelMutation').withMutableRoomModel(pool, id, async (client, lockedModel) => {
+        await client.query('DELETE FROM uploaded_models WHERE id=$1', [id]);
+        return lockedModel;
+      }, { includeGlobalObjects: true });
     } catch (error) {
+      if (error.status) return res.status(error.status).json({ success: false, error: error.message, errorKey: error.errorKey });
       if (['23503', '23001'].includes(error.code)) return res.status(409).json({ success: false,
         error: 'Модель используется в шаблоне или его черновике', errorKey: 'uploadedModelsApi.inUse' });
       throw error;
@@ -531,52 +521,50 @@ router.delete('/uploaded-models/:id', async (req, res) => {
 router.post('/uploaded-models/:id/decimate', async (req, res) => {
   try {
     const { id } = req.params;
-    const modelQuery = await pool.query('SELECT * FROM uploaded_models WHERE id = $1', [id]);
-    if (modelQuery.rows.length === 0) {
-      return res.status(404).json({ success: false, error: '模型不存在', errorKey: 'uploadedModelsApi.notFound' });
-    }
-    const model = modelQuery.rows[0];
+    const response = await require('../services/roomModelMutation').withMutableRoomModel(pool, id, async (client, model) => {
+      if (model.file_type !== 'glb') {
+        return { status: 400, body: { success: false, error: '仅 GLB 模型支持减面', errorKey: 'uploadedModelsApi.glbOnly' } };
+      }
+      if (String(model.path).endsWith('_dec.glb')) {
+        return { body: { success: true, message: '该模型已是减面版', messageKey: 'uploadedModelsApi.alreadyReduced', model, skipped: 'already' } };
+      }
 
-    if (model.file_type !== 'glb') {
-      return res.status(400).json({ success: false, error: '仅 GLB 模型支持减面', errorKey: 'uploadedModelsApi.glbOnly' });
-    }
-    if (String(model.path).endsWith('_dec.glb')) {
-      return res.json({ success: true, message: '该模型已是减面版', messageKey: 'uploadedModelsApi.alreadyReduced', model, skipped: 'already' });
-    }
+      const absPath = path.join(__dirname, '../../public', model.path);
+      const dec = await decimateIfNeeded(absPath, { mode: 'on' }); // 手动触发，小模型也强制减（无效自动回退）
 
-    const absPath = path.join(__dirname, '../../public', model.path);
-    const dec = await decimateIfNeeded(absPath, { mode: 'on' }); // 手动触发，小模型也强制减（无效自动回退）
+      if (!dec.decimated) {
+        const reasonMsg = {
+          'low-poly': '该模型面数较少，无需减面',
+          'not-reduced': '减面未生效（输出面数未减少），已保留原文件',
+          'no-output': '减面失败（无输出），已保留原文件',
+          'error': '减面失败，已保留原文件'
+        }[dec.reason] || '减面跳过';
+        return { body: { success: true, message: reasonMsg, decimated: false, reason: dec.reason } };
+      }
 
-    if (!dec.decimated) {
-      const reasonMsg = {
-        'low-poly': '该模型面数较少，无需减面',
-        'not-reduced': '减面未生效（输出面数未减少），已保留原文件',
-        'no-output': '减面失败（无输出），已保留原文件',
-        'error': '减面失败，已保留原文件'
-      }[dec.reason] || '减面跳过';
-      return res.json({ success: true, message: reasonMsg, decimated: false, reason: dec.reason });
-    }
+      const decStat = await fs.stat(dec.decimatedPath);
+      const newSavedName = path.basename(dec.decimatedPath);
+      const newFilePath = `/models/uploaded/${newSavedName}`;
 
-    const decStat = await fs.stat(dec.decimatedPath);
-    const newSavedName = path.basename(dec.decimatedPath);
-    const newFilePath = `/models/uploaded/${newSavedName}`;
+      await client.query(
+        `UPDATE uploaded_models SET saved_file_name = $1, path = $2, file_size = $3, updated_at = NOW() WHERE id = $4`,
+        [newSavedName, newFilePath, decStat.size, id]
+      );
+      // 同步场景中所有已放置的该模型对象指向减面版
+      await client.query('UPDATE world_objects SET model_path = $1 WHERE model_path = $2', [newFilePath, model.path]);
 
-    await pool.query(
-      `UPDATE uploaded_models SET saved_file_name = $1, path = $2, file_size = $3, updated_at = NOW() WHERE id = $4`,
-      [newSavedName, newFilePath, decStat.size, id]
-    );
-    // 同步场景中所有已放置的该模型对象指向减面版
-    await pool.query('UPDATE world_objects SET model_path = $1 WHERE model_path = $2', [newFilePath, model.path]);
-
-    const updated = (await pool.query('SELECT * FROM uploaded_models WHERE id = $1', [id])).rows[0];
-    console.log(`✂️ 模型减面成功: ID ${id}, ${dec.origTris} → ${dec.newTris} 面`);
-    res.json({
-      success: true,
-      message: `减面成功: ${dec.origTris.toLocaleString()} → ${dec.newTris.toLocaleString()} 面`,
-      model: updated,
-      decimated: true
+      const updated = (await client.query('SELECT * FROM uploaded_models WHERE id = $1', [id])).rows[0];
+      console.log(`✂️ 模型减面成功: ID ${id}, ${dec.origTris} → ${dec.newTris} 面`);
+      return { body: {
+        success: true,
+        message: `减面成功: ${dec.origTris.toLocaleString()} → ${dec.newTris.toLocaleString()} 面`,
+        model: updated,
+        decimated: true
+      } };
     });
+    res.status(response.status || 200).json(response.body);
   } catch (error) {
+    if (error.status) return res.status(error.status).json({ success: false, error: error.message, errorKey: error.errorKey });
     console.error('❌ 减面失败:', error);
     res.status(500).json({ success: false, error: '减面失败', errorKey: 'uploadedModelsApi.reduceFailed', details: error.message });
   }
@@ -590,35 +578,33 @@ router.post('/uploaded-models/:id/decimate', async (req, res) => {
 router.post('/uploaded-models/:id/restore', async (req, res) => {
   try {
     const { id } = req.params;
-    const modelQuery = await pool.query('SELECT * FROM uploaded_models WHERE id = $1', [id]);
-    if (modelQuery.rows.length === 0) {
-      return res.status(404).json({ success: false, error: '模型不存在', errorKey: 'uploadedModelsApi.notFound' });
-    }
-    const model = modelQuery.rows[0];
+    const response = await require('../services/roomModelMutation').withMutableRoomModel(pool, id, async (client, model) => {
+      if (!String(model.path).endsWith('_dec.glb')) {
+        return { body: { success: true, message: '该模型已是原版，无需还原', messageKey: 'uploadedModelsApi.alreadyOriginal', model, skipped: 'already' } };
+      }
 
-    if (!String(model.path).endsWith('_dec.glb')) {
-      return res.json({ success: true, message: '该模型已是原版，无需还原', messageKey: 'uploadedModelsApi.alreadyOriginal', model, skipped: 'already' });
-    }
+      const originalPath = String(model.path).replace('_dec.glb', '.glb');
+      const originalName = String(model.saved_file_name).replace('_dec.glb', '.glb');
+      const absOriginal = path.join(__dirname, '../../public', originalPath);
+      const stat = await fs.stat(absOriginal).catch(() => null);
+      if (!stat) {
+        return { status: 404, body: { success: false, error: '原始文件不存在，无法还原', errorKey: 'uploadedModelsApi.originalMissing' } };
+      }
 
-    const originalPath = String(model.path).replace('_dec.glb', '.glb');
-    const originalName = String(model.saved_file_name).replace('_dec.glb', '.glb');
-    const absOriginal = path.join(__dirname, '../../public', originalPath);
-    const stat = await fs.stat(absOriginal).catch(() => null);
-    if (!stat) {
-      return res.status(404).json({ success: false, error: '原始文件不存在，无法还原', errorKey: 'uploadedModelsApi.originalMissing' });
-    }
+      await client.query(
+        `UPDATE uploaded_models SET saved_file_name = $1, path = $2, file_size = $3, updated_at = NOW() WHERE id = $4`,
+        [originalName, originalPath, stat.size, id]
+      );
+      // 同步场景中所有已放置的该模型对象回到完整细节版
+      await client.query('UPDATE world_objects SET model_path = $1 WHERE model_path = $2', [originalPath, model.path]);
 
-    await pool.query(
-      `UPDATE uploaded_models SET saved_file_name = $1, path = $2, file_size = $3, updated_at = NOW() WHERE id = $4`,
-      [originalName, originalPath, stat.size, id]
-    );
-    // 同步场景中所有已放置的该模型对象回到完整细节版
-    await pool.query('UPDATE world_objects SET model_path = $1 WHERE model_path = $2', [originalPath, model.path]);
-
-    const updated = (await pool.query('SELECT * FROM uploaded_models WHERE id = $1', [id])).rows[0];
-    console.log(`🔄 模型已还原原版: ID ${id}`);
-    res.json({ success: true, message: '已还原为完整细节版', messageKey: 'uploadedModelsApi.restored', model: updated, restored: true });
+      const updated = (await client.query('SELECT * FROM uploaded_models WHERE id = $1', [id])).rows[0];
+      console.log(`🔄 模型已还原原版: ID ${id}`);
+      return { body: { success: true, message: '已还原为完整细节版', messageKey: 'uploadedModelsApi.restored', model: updated, restored: true } };
+    });
+    res.status(response.status || 200).json(response.body);
   } catch (error) {
+    if (error.status) return res.status(error.status).json({ success: false, error: error.message, errorKey: error.errorKey });
     console.error('❌ 还原模型失败:', error);
     res.status(500).json({ success: false, error: '还原失败', errorKey: 'uploadedModelsApi.restoreFailed', details: error.message });
   }

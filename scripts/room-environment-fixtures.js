@@ -33,4 +33,20 @@ function officeGlb({ units = 1 } = {}) {
   binHeader.writeUInt32LE(binary.length, 0); binHeader.writeUInt32LE(0x004e4942, 4);
   return Buffer.concat([header, padded, binHeader, binary]);
 }
-module.exports = { officeGlb };
+function rewriteGlb(buffer, update) {
+  const length = buffer.readUInt32LE(12);
+  const document = JSON.parse(buffer.subarray(20, 20 + length).toString('utf8'));
+  const binLength = buffer.readUInt32LE(20 + length);
+  let binary = buffer.subarray(28 + length, 28 + length + binLength);
+  binary = update(document, binary) || binary;
+  const json = Buffer.from(JSON.stringify(document));
+  const padded = Buffer.concat([json, Buffer.alloc((4 - json.length % 4) % 4, 0x20)]);
+  const bin = Buffer.concat([binary, Buffer.alloc((4 - binary.length % 4) % 4)]);
+  const header = Buffer.alloc(20), binHeader = Buffer.alloc(8);
+  header.writeUInt32LE(0x46546c67, 0); header.writeUInt32LE(2, 4);
+  header.writeUInt32LE(28 + padded.length + bin.length, 8);
+  header.writeUInt32LE(padded.length, 12); header.writeUInt32LE(0x4e4f534a, 16);
+  binHeader.writeUInt32LE(bin.length, 0); binHeader.writeUInt32LE(0x004e4942, 4);
+  return Buffer.concat([header, padded, binHeader, bin]);
+}
+module.exports = { officeGlb, rewriteGlb };

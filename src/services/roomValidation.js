@@ -1,6 +1,7 @@
 const fs = require('node:fs').promises;
 const path = require('node:path');
 const { listRoomObjects } = require('./roomObjects');
+const RoomEnvironment = require('../../public/js/roomEnvironment');
 
 const publicDir = path.resolve(__dirname, '../../public');
 
@@ -8,14 +9,23 @@ async function validateRoom(roomId, dbPool, stat = fs.stat) {
   const objects = await listRoomObjects(roomId, dbPool);
   const errors = [];
   const envelopeObject=objects.find(o=>o.room_envelope);
+  const environments = objects.filter(o => o.room_environment != null);
+  const imported = environments[0];
+  const importedTransform = imported && Object.fromEntries(['position','rotation','scale'].map(prefix =>
+    [prefix, Object.fromEntries(['x','y','z'].map(axis => [axis, Number(imported[prefix+'_'+axis])]))]));
+  const validImported = imported && imported.type === 'uploaded_model' && imported.has_collision === false &&
+    RoomEnvironment.modelPath(imported.model_path) && RoomEnvironment.valid(imported.room_environment, importedTransform);
+  if (environments.length > 1 || imported && objects.some(o => o.is_room_shell)) errors.push('В комнате должно быть только одно помещение');
+  if (imported && !validImported) errors.push('Некорректные параметры GLB-помещения');
   let shell;
   if(envelopeObject){
     shell={envelope:envelopeObject.room_envelope,position:{},rotation:{},scale:{x:1,y:1,z:1}};
     for(const a of ['x','y','z']){shell.position[a]=Number(envelopeObject['position_'+a]||0);shell.rotation[a]=Number(envelopeObject['rotation_'+a]||0);}
-    for(const o of objects)if(!o.is_room_shell&&!require('../../public/js/roomEnvelope').contains({x:Number(o.position_x),y:Number(o.position_y),z:Number(o.position_z)},shell))errors.push('Предмет за пределами помещения: '+o.name);
   }
+  const contains = validImported ? point => RoomEnvironment.contains(point, imported.room_environment, importedTransform) : shell ? point => require('../../public/js/roomEnvelope').contains(point,shell) : null;
+  if(contains) for(const o of objects) if(!o.is_room_shell && !o.is_room_environment && !contains({x:Number(o.position_x),y:Number(o.position_y),z:Number(o.position_z)})) errors.push('Предмет за пределами помещения: '+o.name);
   if (!objects.length) errors.push('В комнате нет предметов');
-  if (!objects.some(object => object.type === 'geometry_building' &&
+  if (!validImported && !objects.some(object => object.type === 'geometry_building' &&
       object.geometry_data?.components?.length > 0)) {
     errors.push('Отсутствует геометрия помещения');
   }
@@ -57,11 +67,12 @@ async function validateRoom(roomId, dbPool, stat = fs.stat) {
       try {
         const object = seat.object_id === null ? {} : objects.find(o => o.id === seat.object_id);
         if (!object) throw new Error('Missing object');
+        if (object.room_environment != null) throw new Error('Seats must not attach to a room environment');
         const { position } = require('./roomSeatPose').roomSeatPose(seat, object);
         if (poses.some(p => Math.hypot(p.x-position.x, p.y-position.y, p.z-position.z) < .2)) {
           errors.push(`Совпадают посадочные места: ${seat.label}`);
         }
-        if(shell&&!require('../../public/js/roomEnvelope').contains(position,shell))errors.push('Посадка за пределами помещения: '+seat.label);
+        if(contains&&!contains(position))errors.push('Посадка за пределами помещения: '+seat.label);
         poses.push(position);
       } catch (_) { errors.push(`Неверная посадочная точка: ${seat.label}`); }
     }

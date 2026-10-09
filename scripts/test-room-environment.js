@@ -10,8 +10,8 @@ const item = { type: 'room_environment', kind: 'room', name: 'Office', model_id:
   model_path: '/models/uploaded/office.glb', collision: false, environment, ...transform };
 const close = (a, b) => assert(Math.abs(a - b) < 1e-8, `${a} != ${b}`);
 assert.equal(E.validItem(item), true);
-// New data is not accepted by production layout until the complete persistence path is implemented.
-assert.equal(validLayout([item]), false);
+assert.equal(validLayout([item]), true);
+assert.equal(validLayout([item, { ...item, name: 'Second office' }]), false, 'one room only');
 for (const invalid of [null, { ...environment, version: 2 }, { ...environment, bounds: { min: environment.bounds.max, max: environment.bounds.min } }]) {
   assert.equal(E.valid(invalid, transform), false);
 }

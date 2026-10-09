@@ -1,4 +1,5 @@
 const RoomEnvelope = require('../../public/js/roomEnvelope');
+const RoomEnvironment = require('../../public/js/roomEnvironment');
 const { validSeatLayout } = require('./roomSeatLayout');
 const vector = (v, scale = false) => v && ['x', 'y', 'z'].every(a =>
   typeof v[a] === 'number' && Number.isFinite(v[a]) &&
@@ -29,6 +30,11 @@ function validLayout(layout) {
         typeof item.name !== 'string' || !item.name.trim() || item.name.length > 120 ||
         typeof item.collision !== 'boolean') return false;
     const t = transform(item);
+    if (item.type === 'room_environment') {
+      if (!RoomEnvironment.validItem(item)) return false;
+      continue;
+    }
+    if (item.environment !== undefined) return false;
     if (!vector(t.position) || !vector(t.rotation) || !vector(t.scale, true)) return false;
     if (item.rotation !== undefined && !vector(item.rotation) ||
         item.scale !== undefined && !vector(item.scale, true) ||
@@ -38,6 +44,7 @@ function validLayout(layout) {
     } else if (item.type === 'seat') {
       if (item.kind !== 'seat' || item.collision || ['x','y','z'].some(a => t.position[a] !== 0 || t.rotation[a] !== 0 || t.scale[a] !== 1)) return false;
     } else if (item.type === 'uploaded_model') {
+      if (item.kind === 'room') return false;
       if (!Number.isSafeInteger(item.model_id) || item.model_id < 1 || !modelPath(item.model_path)) return false;
     } else if ((item.type && item.type !== 'geometry_building') ||
         !Array.isArray(item.components) || !item.components.length || item.components.length > 100 ||

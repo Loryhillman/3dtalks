@@ -21,6 +21,7 @@ function createRoomObjectSeats(pool) {
       if(!room||room.status!=='draft')fail('ROOM_CHANGED_OR_ACTIVE');
       const object=(await client.query('SELECT * FROM world_objects WHERE room_id=$1 AND id=$2 FOR UPDATE',[roomId,objectId])).rows[0];
       if(!object)fail('ROOM_OBJECT_NOT_FOUND',404);
+      if(object.room_environment != null)fail('USE_ROOM_ENVIRONMENT_SETTINGS');
       if((await client.query("SELECT 1 FROM geometry_buildings WHERE $1='geometry_building:'||id::text AND template_id='room_room'",[object.model_path])).rows.length)fail('USE_ROOM_ENVELOPE_SETTINGS');
       const seats=(await client.query('SELECT * FROM room_seats WHERE room_id=$1 ORDER BY sort_order,id',[roomId])).rows;
       const attached=seats.filter(s=>s.object_id===objectId);

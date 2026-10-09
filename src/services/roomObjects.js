@@ -4,6 +4,7 @@ async function listRoomObjects(roomId, dbPool) {
     SELECT * FROM world_objects WHERE room_id = $1
     ORDER BY created_at DESC, id DESC
   `, [roomId])).rows;
+  for (const object of objects) if (object.room_environment != null) object.is_room_environment = true;
   const ids = [...new Set(objects.filter(o => o.type === 'geometry_building')
     .map(o => /^geometry_building:(\d+)$/.exec(o.model_path || '')?.[1] || o.building_id)
     .map(Number).filter(id => Number.isInteger(id) && id > 0))];
