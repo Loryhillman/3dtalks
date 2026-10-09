@@ -34,6 +34,7 @@ let browser;
   await page.addInitScript(()=>{localStorage.setItem('token','fixture-token');localStorage.setItem('locale','ru-RU');});
   const base='http://127.0.0.1:'+server.address().port;
   await page.goto(base+'/avatar.html');await page.locator('#avatar-save').waitFor();await page.waitForFunction(()=>!document.getElementById('avatar-save').disabled);
+  assert.equal(await page.locator('.shell-nav a[aria-current=page]').getAttribute('href'),'/avatar.html','avatar navigation is active');
   assert.equal(await page.locator('[name=mode]').inputValue(),'standard');
   await page.selectOption('[name=headType]','cube');await page.waitForFunction(()=>!document.getElementById('avatar-save').disabled);
   await page.locator('#avatar-save').click();await page.waitForFunction(()=>document.getElementById('avatar-status').textContent.includes('saved')||document.getElementById('avatar-status').textContent.includes('сохранён'));
