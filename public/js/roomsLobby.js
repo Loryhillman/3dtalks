@@ -2,25 +2,47 @@
   const $ = id => document.getElementById(id);
   const t = (key, values) => window.i18n.tp('roomsLobby.' + key, values || {});
   let registering = false, createKey = null, createPayload = null, busy = false;
+  let hasRooms = false, loading = false, quota = null, loadPromise = null, sessionVerified = false;
+  let lastRecovery = 0;
+  const toasts = new window.AppToasts(() => t('closeNotification'));
   const dialogFallback = () => $('auth').hidden ? $('create-launcher') : $('auth-submit');
-  const createDialog = new window.AppDialog($('create-dialog'), dialogFallback);
-  const editDialog = new window.AppDialog($('edit-dialog'), dialogFallback);
-  const confirmDialog = new window.AppDialog($('confirm-dialog'), dialogFallback);
+  const createDialog = new window.AppDialog($('create-dialog'), dialogFallback, syncControls);
+  const editDialog = new window.AppDialog($('edit-dialog'), dialogFallback, syncControls);
+  const confirmDialog = new window.AppDialog($('confirm-dialog'), dialogFallback, syncControls);
   let editedRoom, editedField, confirmedRoom, confirmedVerb;
   const slug = location.pathname.startsWith('/join/') ? decodeURIComponent(location.pathname.slice(6)) : null;
-  function message(text = '') { $('message').textContent = text; }
+  function message(text = '', type = 'info') { if (text) toasts.show(text, type); }
+  const isOnline = () => navigator.onLine !== false;
+  function syncControls() {
+    const full = quota && quota.used >= quota.limit;
+    $('offline-notice').hidden = isOnline();
+    $('quota-notice').hidden = !full;
+    for (const node of document.querySelectorAll('[data-requires-online]')) {
+      const blocked = !isOnline() || busy || loading || node.closest('dialog')?.getAttribute('aria-busy') === 'true';
+      if (node.tagName === 'A') node.setAttribute('aria-disabled', String(!isOnline()));
+      else node.disabled = blocked;
+    }
+    for (const id of ['create-launcher', 'empty-create']) $(id).disabled = !isOnline() || busy || loading || !quota || full;
+    if (!createDialog.busy) $('create').querySelector('[type=submit]').disabled = !isOnline() || Boolean(full);
+  }
   function clearSession() {
     for (const key of ['token', 'userId', 'characterId', 'userInfo']) localStorage.removeItem(key);
+    toasts.clear(); sessionVerified = false; hasRooms = false; quota = null;
   }
   function showAuth() {
     for (const dialog of [createDialog, editDialog, confirmDialog]) dialog.close(true);
     $('cabinet').hidden = $('invitation').hidden = $('logout').hidden = true;
     $('auth').hidden = false;
+    syncControls();
   }
   async function api(url, options = {}) {
-    const response = await fetch(url, { ...options, headers: {
-      'Content-Type': 'application/json', Authorization: 'Bearer ' + (localStorage.getItem('token') || ''), ...options.headers
-    } });
+    if (!isOnline()) throw new Error(t('offlineNotice'));
+    let response;
+    try {
+      response = await fetch(url, { ...options, headers: {
+        'Content-Type': 'application/json', Authorization: 'Bearer ' + (localStorage.getItem('token') || ''), ...options.headers
+      } });
+    } catch (_) { throw new Error(isOnline() ? t('failed') : t('offlineNotice')); }
     const data = await response.json().catch(() => ({}));
     const renewed = response.headers.get('X-Renewed-Token');
     if (renewed) localStorage.setItem('token', renewed);
@@ -44,12 +66,13 @@
     busy = true; message();
     const controls = [...document.querySelectorAll('button:not([data-shell-control])')];
     const disabled = controls.map(c => c.disabled); controls.forEach(c => { c.disabled = true; });
-    try { await fn(); } catch (error) { message(error.message); }
-    finally { controls.forEach((c, i) => { if (c.isConnected) c.disabled = disabled[i]; }); busy = false; }
+    try { await fn(); } catch (error) { if (!error.uiHandled) message(error.message, 'error'); }
+    finally { controls.forEach((c, i) => { if (c.isConnected) c.disabled = disabled[i]; }); busy = false; syncControls(); }
   }
   function button(parent, label, handler, className = '', opensDialog = false) {
     const element = document.createElement('button'); element.textContent = t(label);
     element.className = 'ui-button' + (['delete', 'end'].includes(label) ? ' ui-button--destructive' : '') + (className ? ' ' + className : '');
+    if (label !== 'copy') element.dataset.requiresOnline = '';
     element.addEventListener('click', () => { if (opensDialog) { if (!busy) handler(); } else action(handler); }); parent.append(element);
   }
   // The API has no cover/template metadata: use an explicitly generic illustration.
@@ -111,10 +134,10 @@
     await api('/api/my/rooms/' + room.id + (verb ? '/' + verb : ''), {
       method, body: JSON.stringify({ revision: room.revision, ...body })
     });
-    await load();
+    await refreshAfterChange('roomUpdated');
   }
   function dialogError(controller, error) {
-    const text = error.status ? error.message : t('failed');
+    const text = !isOnline() ? t('offlineNotice') : error.status ? error.message : t('failed');
     controller.dialog.querySelector('[data-dialog-error]').textContent = text;
     if (error.code === 'INVALID_CAPACITY') {
       const field = controller.dialog.querySelector('[name=capacity]');
@@ -133,9 +156,9 @@
     return !firstInvalid;
   }
   async function refreshAfterChange(successKey) {
-    message(t(successKey));
+    message(t(successKey), 'success');
     try { await load(); if (document.activeElement === document.body) dialogFallback()?.focus({ preventScroll: true }); }
-    catch (_) { message(t('savedRefreshFailed')); }
+    catch (_) { message(t('savedRefreshFailed'), 'error'); }
   }
   function openEdit(room, field, opener) {
     if (busy || editDialog.busy) return;
@@ -160,12 +183,49 @@
     $('confirm-description').textContent = t(verb === 'end' ? 'endConsequences' : 'deleteConsequences');
     confirmDialog.open(opener);
   }
+  function showLoadError(error) {
+    if ([401, 403, 404].includes(error.status) && !localStorage.getItem('token')) return;
+    if (slug) {
+      $('invitation').hidden = false; $('enter').hidden = true; $('invite-retry').hidden = false;
+      $('invite-info').textContent = t('invitationLoadFailed');
+      error.uiHandled = true; return;
+    }
+    $('rooms-error').hidden = false;
+    $('rooms-error-text').textContent = t(hasRooms ? 'staleRooms' : 'loadRoomsFailed');
+    if (!hasRooms) $('rooms').replaceChildren();
+    error.uiHandled = true;
+  }
   async function load() {
+    if (loadPromise) return loadPromise;
+    loading = true;
+    $('auth').hidden = true; $('logout').hidden = false;
+    $('cabinet').hidden = Boolean(slug);
+    if (!hasRooms && !slug) {
+      $('rooms').replaceChildren(); $('rooms-empty').hidden = true;
+      for (let i = 0; i < 3; i++) {
+        const card = document.createElement('div'); card.className = 'room-skeleton'; card.setAttribute('aria-hidden', 'true');
+        const cover = document.createElement('div'); cover.className = 'room-skeleton-cover';
+        const lines = document.createElement('div'); lines.className = 'room-skeleton-lines';
+        for (let j = 0; j < 3; j++) { const line = document.createElement('div'); line.className = 'room-skeleton-line'; lines.append(line); }
+        card.append(cover, lines); $('rooms').append(card);
+      }
+    }
+    $('rooms').setAttribute('aria-busy', 'true'); $('rooms').setAttribute('aria-label', t('loadingRooms'));
+    syncControls();
+    loadPromise = (async () => {
+      try { await fetchRooms(); $('rooms-error').hidden = true; }
+      catch (error) { showLoadError(error); throw error; }
+      finally { loading = false; loadPromise = null; $('rooms').setAttribute('aria-busy', 'false'); $('rooms').removeAttribute('aria-label'); syncControls(); }
+    })();
+    return loadPromise;
+  }
+  async function fetchRooms() {
     const data = await api('/api/my/rooms');
     $('auth').hidden = true; $('logout').hidden = false;
     if (slug) {
       $('cabinet').hidden = true; $('invitation').hidden = false;
       $('enter').hidden = true;
+      $('invite-retry').hidden = true;
       const result = await api('/api/rooms/' + encodeURIComponent(slug) + '?characterId=' + encodeURIComponent(localStorage.getItem('characterId') || ''));
       $('invite-name').textContent = result.room.name;
       $('invite-info').textContent = t('capacity') + ': ' + result.room.capacity;
@@ -174,9 +234,10 @@
     }
     $('cabinet').hidden = false; $('invitation').hidden = true;
     $('quota').textContent = t('quota', { used: data.quota.used, limit: data.quota.limit });
+    quota = data.quota; hasRooms = true;
     if (openRoomMenu) { openRoomMenu.open = false; openRoomMenu = null; }
     $('rooms').replaceChildren();
-    if (!data.rooms.length) $('rooms').textContent = t('empty');
+    $('rooms-empty').hidden = data.rooms.length > 0;
     for (const room of data.rooms) {
       const card = document.createElement('article'), name = document.createElement('h3'), info = document.createElement('span');
       card.className = 'ui-card room-card';
@@ -196,10 +257,10 @@
       occupancy.textContent = t('occupancy', { active: room.active ?? 0, held: room.held ?? 0, available: room.available ?? 0 });
       body.append(info, name, capacity, occupancy); card.append(cover, body);
       const actions = document.createElement('div'); actions.className = 'actions room-card-actions'; body.append(actions);
-      if (room.status === 'open') { const link = document.createElement('a'); link.className = 'ui-button ui-button--primary'; link.textContent = t('enter'); link.href = '/play?room=' + encodeURIComponent(room.slug); actions.append(link); }
+      if (room.status === 'open') { const link = document.createElement('a'); link.className = 'ui-button ui-button--primary'; link.dataset.requiresOnline = ''; link.textContent = t('enter'); link.href = '/play?room=' + encodeURIComponent(room.slug); actions.append(link); }
       button(actions, 'copy', async () => {
         await copyInvitation(invitationUrl(room));
-        message(t('copied'));
+        message(t('copied'), 'success');
       }, 'room-copy');
       const { menu, items, summary } = roomMenu(room);
       actions.append(menu);
@@ -214,7 +275,8 @@
       $('rooms').append(card);
     }
   }
-  $('create-launcher').onclick = () => { if (!busy) createDialog.open(); };
+  $('create-launcher').onclick = () => { if (!busy && isOnline() && quota && quota.used < quota.limit) createDialog.open(); };
+  $('empty-create').onclick = () => $('create-launcher').click();
   $('edit-room').onsubmit = event => {
     event.preventDefault();
     if (editDialog.busy || !validate(editDialog, event.target, [editedField])) return;
@@ -246,11 +308,13 @@
     const data = await api('/api/auth/' + (registering ? 'register' : 'login'), { method: 'POST', body: JSON.stringify(body) });
     clearSession();
     for (const key of ['token', 'userId', 'characterId']) localStorage.setItem(key, data[key]);
+    sessionVerified = true;
     event.target.elements.password.value = ''; event.target.elements.securityAnswer.value = '';
     await load();
   }); };
   $('create').onsubmit = event => { event.preventDefault();
     if (createDialog.busy || !validate(createDialog, event.target, ['name', 'capacity'])) return;
+    if (!isOnline() || (quota && quota.used >= quota.limit)) return;
     createDialog.submit(async () => {
     const body = { name: event.target.elements.name.value.trim(), capacity: Number(event.target.elements.capacity.value) };
     const serialized = JSON.stringify(body);
@@ -277,18 +341,42 @@
     if (url.origin !== location.origin || !match) throw new Error(t('invalidLink'));
     location.assign('/join/' + match[1]);
   }); };
-  $('refresh').onclick = () => action(load);
+  async function verifyAndLoad() {
+    if (!sessionVerified) {
+      try {
+        const session = await api('/api/auth/me');
+        localStorage.setItem('userId', session.user.id); localStorage.setItem('characterId', session.characterId);
+        sessionVerified = true;
+      } catch (error) {
+        if ([401, 403, 404].includes(error.status)) { clearSession(); showAuth(); }
+        else { $('auth').hidden = true; $('cabinet').hidden = Boolean(slug); $('logout').hidden = false; showLoadError(error); }
+        throw error;
+      }
+    }
+    await load();
+  }
+  $('refresh').onclick = $('rooms-retry').onclick = $('invite-retry').onclick = () => action(verifyAndLoad);
   $('logout').onclick = () => { clearSession(); showAuth(); message(); };
   $('lobby-language').onchange = event => action(async () => {
     await window.i18n.setLocaleLocal(event.target.value);
     location.reload();
   });
   window.addEventListener('storage', event => { if (['token', 'userId'].includes(event.key)) location.reload(); });
+  window.addEventListener('offline', syncControls);
+  window.addEventListener('online', () => {
+    syncControls();
+    if (busy || loading || !localStorage.getItem('token') || Date.now() - lastRecovery < 2000) return;
+    lastRecovery = Date.now();
+    action(async () => { await verifyAndLoad(); message(t('connectionRestored')); });
+  });
+  document.addEventListener('click', event => { if (!isOnline() && event.target.closest('[data-requires-online]')) event.preventDefault(); });
   (async () => {
     await window.i18n.init();
     document.documentElement.lang = window.i18n.currentLocale;
     $('lobby-language').value = window.i18n.currentLocale;
     for (const element of document.querySelectorAll('[data-t]')) element.textContent = t(element.dataset.t);
+    for (const selector of ['#auth-submit', '#refresh', '#rooms-retry', '#invite-retry', '#join [type=submit]', '#enter', 'dialog [type=submit]']) for (const node of document.querySelectorAll(selector)) node.dataset.requiresOnline = '';
+    syncControls();
     try {
       const data = await api('/api/auth/security-questions');
       for (const question of data.questions || []) {
@@ -298,16 +386,6 @@
         $('auth-form').elements.securityQuestionId.append(option);
       }
     } catch (_) { /* Login remains available if questions cannot be loaded. */ }
-    if (localStorage.getItem('token')) await action(async () => {
-      try {
-        const session = await api('/api/auth/me');
-        localStorage.setItem('userId', session.user.id);
-        localStorage.setItem('characterId', session.characterId);
-      } catch (error) {
-        if (error.status === 401 || error.status === 404) { clearSession(); showAuth(); }
-        throw error;
-      }
-      await load();
-    }); else showAuth();
-  })().catch(error => message(error.message));
+    if (localStorage.getItem('token')) await action(verifyAndLoad); else showAuth();
+  })().catch(error => message(t('failed'), 'error'));
 })();

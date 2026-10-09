@@ -2,7 +2,8 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>3DTalks</title>
 <link rel="stylesheet" href="/css/rooms.css"><link rel="stylesheet" href="/css/app-ui.css"><link rel="stylesheet" href="/css/rooms-ui.css"><link rel="stylesheet" href="/css/app-shell.css"><script src="/i18n/i18n.js?v=english-default-1" defer></script><script src="/js/app-ui.js?v=1" defer></script><script src="/js/appShell.js?v=1" defer></script><script src="/js/roomsLobby.js?v=7" defer></script></head>
 <body class="app-ui rooms-ui app-shell" data-app-page="rooms"><main><header><h1>3DTalks</h1><label class="lobby-language"><span data-t="language"></span><select id="lobby-language"><option value="en-US">English</option><option value="ru-RU">Русский</option><option value="zh-CN">中文</option></select></label><button class="ui-button ui-button--ghost" id="logout" hidden data-t="logout"></button></header>
-<p id="message" role="status" aria-live="polite"></p>
+<p id="message" hidden></p>
+<div id="offline-notice" class="rooms-notice" hidden role="status" data-t="offlineNotice"></div>
 <section id="auth" hidden><h2 data-t="welcome"></h2><form id="auth-form">
 <label><span data-t="username"></span><input name="username" autocomplete="username" required maxlength="100"></label>
 <label><span data-t="password"></span><input name="password" type="password" autocomplete="current-password" required></label>
@@ -13,9 +14,12 @@
 <button class="ui-button ui-button--primary" type="submit" id="auth-submit" data-t="login"></button><button class="ui-button ui-button--ghost" type="button" id="auth-toggle" data-t="register"></button>
 </form></section>
 <section id="cabinet" hidden><div class="rooms-dashboard-heading"><div><h1 data-t="myRooms"></h1><p class="ui-text-muted" data-t="dashboardDescription"></p><p id="quota"></p></div><div class="rooms-dashboard-tools"><button class="ui-button ui-button--primary" type="button" id="create-launcher" data-t="create"></button><button class="ui-button" id="refresh" data-t="refresh"></button></div></div>
+<p id="quota-notice" class="rooms-notice" hidden data-t="quotaNotice"></p>
+<div id="rooms-error" class="rooms-notice" hidden role="status"><p id="rooms-error-text"></p><button type="button" class="ui-button" id="rooms-retry" data-t="retry"></button></div>
+<div id="rooms-empty" class="rooms-empty" hidden><h2 data-t="emptyTitle"></h2><p class="ui-text-muted" data-t="emptyDescription"></p><button type="button" class="ui-button ui-button--primary" id="empty-create" data-t="create"></button></div>
 <div id="rooms" class="rooms-grid"></div>
 <div class="rooms-invitation-block"><h2 data-t="joinHeading"></h2><p class="ui-text-muted" data-t="joinDescription"></p><form id="join"><label><span data-t="invite"></span><input name="link" required></label><button class="ui-button" type="submit" data-t="join"></button></form></div></section>
-<section id="invitation" hidden><h2 id="invite-name"></h2><p id="invite-info"></p><a class="ui-button ui-button--primary" id="enter" data-t="enter"></a><p><a href="/rooms" data-t="back"></a></p></section>
+<section id="invitation" hidden><h2 id="invite-name"></h2><p id="invite-info"></p><a class="ui-button ui-button--primary" id="enter" data-t="enter"></a><button id="invite-retry" class="ui-button" type="button" hidden data-t="retry"></button><p><a href="/rooms" data-t="back"></a></p></section>
 </main>
 <dialog id="create-dialog" class="ui-dialog" aria-labelledby="create-title" aria-describedby="create-description">
 <div class="ui-dialog-heading"><h2 id="create-title" data-t="create"></h2><button type="button" class="ui-button ui-button--ghost ui-dialog-close" data-dialog-close><img src="/icons/lucide/x.svg" width="20" height="20" alt=""><span class="ui-sr-only" data-t="closeDialog"></span></button></div>

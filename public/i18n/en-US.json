@@ -5451,7 +5451,18 @@
     "roomUpdated": "Room updated.",
     "meetingEnded": "Meeting ended.",
     "roomDeleted": "Room deleted.",
-    "savedRefreshFailed": "The change was saved, but the list could not be refreshed. Refresh the list; do not repeat the operation."
+    "savedRefreshFailed": "The change was saved, but the list could not be refreshed. Refresh the list; do not repeat the operation.",
+    "closeNotification": "Dismiss notification",
+    "offlineNotice": "No connection. You can view saved information, but server actions are unavailable.",
+    "quotaNotice": "Your saved room limit is reached. Delete a room to create another.",
+    "retry": "Try again",
+    "emptyTitle": "No rooms yet",
+    "emptyDescription": "Create your first meeting room or open an invitation below.",
+    "loadingRooms": "Loading rooms",
+    "staleRooms": "Could not refresh rooms. The cards below may be out of date.",
+    "loadRoomsFailed": "Could not load your rooms. Try again.",
+    "connectionRestored": "Connection restored. Room information refreshed.",
+    "invitationLoadFailed": "Could not open this invitation. Check your connection or try again."
   },
   "roomEnvelope": {
     "title": "Room shell",

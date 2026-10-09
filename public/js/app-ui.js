@@ -1,10 +1,11 @@
 /* Native modal dialogs for ordinary web pages. No transport or business rules. */
 (() => {
   class AppDialog {
-    constructor(dialog, fallbackFocus) {
+    constructor(dialog, fallbackFocus, onSettled = () => {}) {
       this.dialog = dialog;
       this.fallbackFocus = fallbackFocus;
       this.busy = false;
+      this.onSettled = onSettled;
       dialog.addEventListener('cancel', event => { event.preventDefault(); this.close(); });
       dialog.addEventListener('close', () => { if (!dialog.open) this.restore(); });
       for (const button of dialog.querySelectorAll('[data-dialog-close]')) button.addEventListener('click', () => this.close());
@@ -67,8 +68,61 @@
         controls.forEach((node, i) => { node.disabled = disabled[i]; });
         this.dialog.removeAttribute('aria-busy');
         this.busy = false;
+        this.onSettled();
       }
     }
   }
   window.AppDialog = AppDialog;
+  class AppToasts {
+    constructor(closeLabel) {
+      this.closeLabel = closeLabel;
+      this.queue = [];
+      this.active = new Map();
+      this.host = document.createElement('div');
+      this.host.className = 'ui-toasts';
+      document.body.append(this.host);
+      window.addEventListener('pagehide', () => this.clear(), { once: true });
+    }
+    show(text, type = 'info') {
+      if (!text) return;
+      this.queue.push({ text, type: ['success', 'info', 'error'].includes(type) ? type : 'info' });
+      this.flush();
+    }
+    flush() {
+      while (this.active.size < 3 && this.queue.length) {
+        const { text, type } = this.queue.shift();
+        const toast = document.createElement('div'); toast.className = 'ui-toast ui-toast--' + type;
+        toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+        const icon = document.createElement('span'); icon.className = 'ui-toast-icon'; icon.setAttribute('aria-hidden', 'true');
+        const content = document.createElement('span'); content.textContent = text;
+        const close = document.createElement('button'); close.type = 'button'; close.className = 'ui-button ui-button--ghost ui-toast-close';
+        close.dataset.shellControl = ''; close.setAttribute('aria-label', this.closeLabel());
+        const closeIcon = document.createElement('img'); closeIcon.src = '/icons/lucide/x.svg'; closeIcon.alt = ''; closeIcon.width = closeIcon.height = 20;
+        close.append(closeIcon);
+        close.addEventListener('click', () => this.dismiss(toast));
+        toast.append(icon, content, close); this.host.append(toast);
+        const timer = type === 'error' ? null : setTimeout(() => this.dismiss(toast), type === 'success' ? 4000 : 5000);
+        this.active.set(toast, timer);
+      }
+    }
+    dismiss(toast) {
+      if (!this.active.has(toast) || toast.dataset.dismissing) return;
+      clearTimeout(this.active.get(toast)); toast.dataset.dismissing = 'true';
+      const finish = () => {
+        const focused = toast.contains(document.activeElement);
+        this.active.delete(toast); toast.remove(); this.flush();
+        if (focused) (this.host.querySelector('button') || document.getElementById('app-content'))?.focus({ preventScroll: true });
+      };
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) finish();
+      else {
+        toast.classList.add('ui-toast--leaving');
+        this.active.set(toast, setTimeout(finish, 200));
+      }
+    }
+    clear() {
+      for (const [toast, timer] of this.active) { clearTimeout(timer); toast.remove(); }
+      this.active.clear(); this.queue = [];
+    }
+  }
+  window.AppToasts = AppToasts;
 })();

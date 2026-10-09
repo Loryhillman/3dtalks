@@ -5451,7 +5451,18 @@
     "roomUpdated": "房间已更新。",
     "meetingEnded": "会议已结束。",
     "roomDeleted": "房间已删除。",
-    "savedRefreshFailed": "更改已保存，但无法刷新列表。请刷新列表，不要重复操作。"
+    "savedRefreshFailed": "更改已保存，但无法刷新列表。请刷新列表，不要重复操作。",
+    "closeNotification": "关闭通知",
+    "offlineNotice": "无网络连接。可以查看已加载的信息，但无法执行服务器操作。",
+    "quotaNotice": "已达到保存房间的数量上限。删除一个房间后即可创建新房间。",
+    "retry": "重试",
+    "emptyTitle": "暂无房间",
+    "emptyDescription": "创建第一个会议室，或打开下方的邀请链接。",
+    "loadingRooms": "正在加载房间",
+    "staleRooms": "无法刷新房间。下方卡片的信息可能已过期。",
+    "loadRoomsFailed": "无法加载您的房间，请重试。",
+    "connectionRestored": "连接已恢复，房间信息已刷新。",
+    "invitationLoadFailed": "无法打开此邀请。请检查连接或重试。"
   },
   "roomEnvelope": {
     "title": "房间结构",

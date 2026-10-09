@@ -48,6 +48,18 @@
 .rooms-ui .rooms-invitation-block h2 { font-size: 18px; margin: 0 0 8px; }
 .rooms-ui .rooms-invitation-block > p { margin: 0; }
 .rooms-ui .rooms-invitation-block form { padding: 0; margin: 20px 0 0; border: 0; background: transparent; }
+.rooms-ui .rooms-notice { padding: 16px; margin: 0 0 24px; border: 1px solid #E9D9B6; border-radius: 12px; background: #FFF8EA; color: #77500B; }
+.rooms-ui .rooms-notice p { margin: 0 0 12px; }
+.rooms-ui .rooms-empty { padding: 40px 24px; text-align: center; background: white; border: 1px dashed var(--color-control-border); border-radius: 12px; }
+.rooms-ui .rooms-empty h2 { margin-top: 0; }
+.rooms-ui .room-skeleton { border: 1px solid var(--color-border); border-radius: 12px; overflow: hidden; background: white; min-height: 420px; }
+.rooms-ui .room-skeleton-cover { aspect-ratio: 16 / 9; background: #E9EEF1; }
+.rooms-ui .room-skeleton-lines { padding: 24px; display: grid; gap: 16px; }
+.rooms-ui .room-skeleton-line { height: 16px; border-radius: 4px; background: #E9EEF1; }
+.rooms-ui .room-skeleton-line:last-child { width: 60%; }
+.rooms-ui .room-skeleton { animation: rooms-skeleton-pulse 1500ms ease-in-out infinite; }
+@keyframes rooms-skeleton-pulse { 50% { opacity: .55; } }
+.rooms-ui a[aria-disabled=true] { opacity: .5; cursor: default; }
 @media (max-width: 1100px) { .rooms-ui .rooms-dashboard-heading { flex-direction: column; } }
 @media (max-width: 767px) {
   .rooms-ui main { padding: var(--space-4); }
@@ -61,4 +73,4 @@
   .rooms-ui .room-card-body, .rooms-ui .rooms-invitation-block { padding: 20px; }
   .rooms-ui .room-menu summary { min-height: 44px; }
 }
-@media (prefers-reduced-motion: reduce) { .rooms-ui .room-menu[open] .room-menu-items { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .rooms-ui .room-menu[open] .room-menu-items, .rooms-ui .room-skeleton { animation: none; } }

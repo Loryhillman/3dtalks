@@ -12,6 +12,7 @@ app.use(express.static(path.resolve(__dirname, '../public')));
 const mutations = [];
 const commands = [];
 let commandFailure, commandGate, releaseCommand, failNextList = false;
+let listGate, releaseList, roomOverride, quotaOverride, listGets = 0;
 const fixtureRooms = [
   { id: 'room', slug: 'test-room', name: 'Переговорная ' + 'ОченьДлинноеИмя'.repeat(6), status: 'open', capacity: 6, revision: 1, active: 2, held: 1, available: 3 },
   { id: 'closed', slug: 'closed-room', name: 'Закрытая комната', status: 'closed', allow_rejoin: true, capacity: 3, revision: 2, active: 1, held: 1, available: 1 },
@@ -26,8 +27,11 @@ app.use('/api', async (req, res) => {
   if (req.path === '/auth/me') return res.json({ user: { id: 'user' }, characterId: 'character' });
   if (req.path === '/my/rooms') {
     if (req.method === 'POST') { mutations.push(req.body); return res.json({ room: { id: 'room' } }); }
+    listGets++;
+    if (listGate) await listGate;
     if (failNextList) { failNextList = false; return res.status(500).json({ code: 'ROOM_SERVICE_ERROR' }); }
-    return res.json({ quota: { used: fixtureRooms.length, limit: 5 }, rooms: fixtureRooms });
+    const rooms = roomOverride || fixtureRooms;
+    return res.json({ quota: quotaOverride || { used: rooms.length, limit: 5 }, rooms });
   }
   if (req.path.startsWith('/my/rooms/') && req.method !== 'GET') {
     commands.push({ path: req.path, method: req.method, body: req.body });
@@ -68,7 +72,15 @@ let server, browser;
   await page.locator('#auth-toggle').click();
   await page.locator('[name=username]').fill('Test user');
   await page.locator('[name=password]').fill('fixture-password');
+  listGate = new Promise(resolve => { releaseList = resolve; }); failNextList = true;
   await page.locator('#auth-submit').click();
+  await page.locator('.room-skeleton').first().waitFor();
+  assert.equal(await page.locator('.room-skeleton').count(), 3);
+  assert.equal(await page.locator('#create-launcher').isDisabled(), true, 'unknown quota blocks creation during first load');
+  releaseList(); listGate = null;
+  await page.locator('#rooms-error').waitFor();
+  assert.equal(await page.locator('.room-skeleton').count(), 0);
+  await page.locator('#rooms-retry').click();
   await page.locator('#rooms article').first().waitFor();
   assert.equal(await page.locator('#rooms a').getAttribute('href'), '/play?room=test-room');
   const text = require('../public/i18n/ru-RU.json').roomsLobby;
@@ -155,7 +167,7 @@ let server, browser;
   commandFailure = null; failNextList = true;
   await page.locator('#confirm-submit').click();
   await page.locator('#confirm-dialog').waitFor({ state: 'hidden' });
-  await page.waitForFunction(expected => document.querySelector('#message').textContent === expected, text.savedRefreshFailed);
+  await page.waitForFunction(expected => [...document.querySelectorAll('.ui-toast')].some(node => node.textContent.includes(expected)), text.savedRefreshFailed);
   assert.deepEqual(commands.at(-1), { path: '/my/rooms/room', method: 'DELETE', body: { revision: 1 } });
   assert.equal(await page.locator('.room-card').count(), 4, 'failed refresh retains previous cards after successful mutation');
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -233,6 +245,43 @@ let server, browser;
   await page.locator('#create-dialog').waitFor({ state: 'hidden' });
   assert.deepEqual(Object.keys(mutations[0]).sort(), ['capacity', 'name', 'request_key']);
   assert.equal(mutations[0].capacity, 6);
+  quotaOverride = { used: 5, limit: 5 };
+  await page.locator('#refresh').click();
+  await page.waitForFunction(() => !document.querySelector('#refresh').disabled);
+  assert.equal(await page.locator('#quota-notice').isVisible(), true);
+  assert.equal(await page.locator('#create-launcher').isDisabled(), true, 'quota is not undone by action cleanup');
+  quotaOverride = null; roomOverride = [];
+  await page.locator('#refresh').click();
+  await page.locator('#rooms-empty').waitFor();
+  await page.locator('#empty-create').click();
+  await page.locator('#create-dialog').waitFor();
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#create-dialog').isVisible(), false);
+  roomOverride = null;
+  await page.locator('#refresh').click();
+  await page.locator('.room-card').first().waitFor();
+  await page.waitForFunction(() => !document.querySelector('#refresh').disabled);
+  const oldNames = await page.locator('.room-card h3').allTextContents();
+  failNextList = true;
+  await page.locator('#refresh').click();
+  await page.locator('#rooms-error').waitFor();
+  assert.deepEqual(await page.locator('.room-card h3').allTextContents(), oldNames);
+  assert.equal(await page.locator('#rooms-error-text').textContent(), text.staleRooms);
+  await page.evaluate(() => {
+    window.testOnline = false;
+    Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => window.testOnline });
+    window.dispatchEvent(new Event('offline'));
+  });
+  await page.locator('#offline-notice').waitFor();
+  assert.equal(await page.locator('#create-launcher').isDisabled(), true);
+  assert.equal(await page.locator('#refresh').isDisabled(), true);
+  assert.equal(await page.locator('.room-copy').first().isDisabled(), false, 'cached invitations can still be copied offline');
+  const beforeRecovery = listGets;
+  await page.evaluate(() => { window.testOnline = true; window.dispatchEvent(new Event('online')); window.dispatchEvent(new Event('online')); });
+  await page.waitForFunction(() => !document.querySelector('#refresh').disabled);
+  assert.equal(listGets, beforeRecovery + 1, 'recovery triggers one read, never replays a mutation');
+  assert.equal(await page.locator('#offline-notice').isVisible(), false);
+  assert.equal(await page.locator('#rooms-error').isVisible(), false);
   // Hidden form retains its native controls; use the invitation field for focus checks.
   await page.locator('#join input[name=link]').focus();
   await page.keyboard.press('Tab');
@@ -261,10 +310,37 @@ let server, browser;
   await page.locator('#auth').waitFor();
   assert.equal(await page.locator('.shell-sidebar').isVisible(), false, 'account navigation hides on logout');
   assert.equal(await page.evaluate(() => localStorage.getItem('token')), null);
+  // Verify notification queue and lifetimes with the real shared component.
+  await page.clock.install();
+  await page.evaluate(() => {
+    window.toastFixture = new AppToasts(() => 'Dismiss');
+    toastFixture.show('Success fixture', 'success');
+    toastFixture.show('Info fixture', 'info');
+    toastFixture.show('Error fixture', 'error');
+    toastFixture.show('Queued fixture', 'info');
+  });
+  assert.equal(await page.locator('.ui-toast').count(), 3);
+  await page.clock.runFor(4000);
+  assert.equal(await page.locator('.ui-toast').count(), 3);
+  assert.equal(await page.getByText('Queued fixture', { exact: true }).isVisible(), true);
+  assert.equal(await page.getByText('Success fixture', { exact: true }).count(), 0);
+  await page.clock.runFor(1000);
+  assert.equal(await page.getByText('Info fixture', { exact: true }).count(), 0);
+  await page.clock.runFor(5000);
+  assert.equal(await page.getByText('Error fixture', { exact: true }).isVisible(), true, 'errors never auto-dismiss');
+  await page.locator('.ui-toast--error button').click();
+  assert.equal(await page.locator('.ui-toast').count(), 0);
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.evaluate(() => toastFixture.show('Animated fixture', 'success'));
+  await page.clock.runFor(4000);
+  assert.equal(await page.locator('.ui-toast--leaving').count(), 1, 'normal motion animates dismissal');
+  await page.clock.runFor(200);
+  assert.equal(await page.locator('.ui-toast').count(), 0);
   assert.deepEqual(errors, []);
-  console.log('Rooms design: modal validation/errors/revision, distinct destructive actions, duplicate-submit guard, saved-but-refresh-failed, focus/keyboard/mobile, cards and existing flows OK (fixture API)');
+  console.log('Rooms design: skeleton/retry/empty/stale/quota/offline/recovery, toast queue/lifetimes, modal contracts and existing flows OK (fixture API)');
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {
   releaseCommand?.();
+  releaseList?.();
   await browser?.close();
   if (server) await new Promise(resolve => server.close(resolve));
 });
