@@ -5562,7 +5562,7 @@
     "look": "Turn head",
     "previewHint": "Seated preview. Check the head direction before saving.",
     "saveHint": "Saved avatars are used when you next enter a room. Existing room sessions keep their current avatar.",
-    "rigHint": "GLB with a humanoid skeleton: hips, head, and both thigh–shin–foot chains. Mixamo-style bone names are supported. Static full-body models are not supported.",
+    "rigHint": "GLB with a humanoid skeleton: hips, head and both thigh–shin–foot chains. Mixamo and names such as Hips_01, Head_06 and Upper_Leg_L_063 are recognized. Body parts can use multiple skins of one skeleton. Static full-body models are not supported.",
     "imageHint": "PNG, JPEG or WebP, up to 8 MB. Images are cropped to a square from the center. On a sphere or cube, the image appears on a flat front panel.",
     "headHint": "Static, self-contained GLB, up to 20 MB and 30,000 triangles. Size is adjusted automatically.",
     "bodyHint": "Self-contained GLB, up to 40 MB and 100,000 triangles. One humanoid skeleton; textures up to 4096×4096. Draco, Meshopt and KTX2 are not supported.",

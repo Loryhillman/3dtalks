@@ -14,18 +14,20 @@
     }
     const descendant = (child, parent) => {
       for (let node = child?.parent; node; node = node.parent) if (node === parent) return true;
-      if (data.accountAvatarConfig?.mode === 'full' && data.nameSprite && state.found.head) {
-        const headPosition = group.worldToLocal(state.found.head.getWorldPosition(new THREE.Vector3()));
-        data.nameSprite.position.y = headPosition.y + .65;
-      }
       return false;
     };
     const supported = ['left', 'right'].every(side => found.hips && found[side+'Foot'] &&
       descendant(found[side+'UpLeg'], found.hips) && descendant(found[side+'Leg'], found[side+'UpLeg']) &&
-      descendant(found[side+'Foot'], found[side+'Leg']));
+      descendant(found[side+'Foot'], found[side+'Leg'])) &&
+      (data.accountAvatarConfig?.mode !== 'full' || descendant(found.head, found.hips));
     if (supported) {
       data.glbMixer?.stopAllAction(); data.sharedMixer?.stopAllAction();
-      model.traverse(node => { if (node.isSkinnedMesh) node.skeleton.pose(); });
+      // Account GLBs already supply the authored rest transforms. Calling pose()
+      // independently on several skins can overwrite shared bones with a different
+      // mesh's inverse bind matrices. Legacy animated models still need resetting.
+      if (data.accountAvatarConfig?.mode !== 'full') {
+        model.traverse(node => { if (node.isSkinnedMesh) node.skeleton.pose(); });
+      }
     }
     const bones = Object.values(found).filter(Boolean);
     const rest = bones.map(bone => ({ bone, quaternion: bone.quaternion.clone() }));
@@ -76,8 +78,18 @@
       const target = group.getWorldPosition(new THREE.Vector3());
       const parent = state.model.parent;
       state.model.position.add(parent.worldToLocal(target).sub(parent.worldToLocal(hips)));
-      if (state.found.head) state.found.head.quaternion.multiply(
-        new THREE.Quaternion().setFromEuler(new THREE.Euler(look.pitch, look.yaw, 0)));
+      if (state.found.head) {
+        const head = state.found.head;
+        head.updateWorldMatrix(true, false);
+        // Apply look in the participant's frame, not the exporter's local bone axes.
+        const lookRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(look.pitch, look.yaw, 0));
+        const delta = orientation.clone().multiply(lookRotation).multiply(orientation.clone().invert());
+        const world = head.getWorldQuaternion(new THREE.Quaternion()).premultiply(delta);
+        head.quaternion.copy(head.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(world)).normalize();
+        if (data.accountAvatarConfig?.mode === 'full' && data.nameSprite) {
+          data.nameSprite.position.y = group.worldToLocal(head.getWorldPosition(new THREE.Vector3())).y + .65;
+        }
+      }
       return false;
     }
   };

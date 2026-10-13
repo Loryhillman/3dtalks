@@ -1,11 +1,18 @@
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs/promises'),path=require('node:path');
 const {chromium}=require('playwright');const {glb}=require('./avatar-test-fixtures');
 const {DEFAULT}=require('../src/services/userAvatars');
+const {inspectGlb}=require('../src/services/avatarValidation');
 const root=path.resolve(__dirname,'../public');
 let revision=0,saved={...DEFAULT},lastSave,uploads=0;
 const assets=[{id:'head-asset',kind:'head',path:'/fixtures/head.glb',metadata:{}},{id:'body-asset',kind:'body',path:'/fixtures/body.glb',metadata:{boneMap:{}}}];
+let actualBody;
+if(process.argv[2]){
+  actualBody=require('node:fs').readFileSync(process.argv[2]);
+  assets.push({id:'actual-body',kind:'body',path:'/fixtures/actual-body.glb',metadata:inspectGlb(actualBody,'body')});
+}
 const server=http.createServer(async(req,res)=>{
   try{
+    if(req.url==='/fixtures/actual-body.glb'&&actualBody){res.setHeader('Content-Type','model/gltf-binary');res.end(actualBody);return;}
     if(req.url==='/fixtures/photo.png'){res.setHeader('Content-Type','image/png');res.end(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADElEQVQImWP4z8AAAAMBAQCc479ZAAAAAElFTkSuQmCC','base64'));return;}
     if(req.url==='/fixtures/head.glb'||req.url==='/fixtures/body.glb'){res.setHeader('Content-Type','model/gltf-binary');res.end(glb(req.url.includes('body')?'body':'head'));return;}
     if(req.url.startsWith('/api/my/avatar')){
@@ -80,6 +87,57 @@ let browser;
     return {independent,stable,staleIgnored,photoModes};
   });
   assert.deepEqual(isolation,{independent:true,stable:true,staleIgnored:true,photoModes:true},'separate player models, stable seated head turns and stale-load protection');
+  if(actualBody){
+    await page.selectOption('[name=mode]','full');
+    await page.selectOption('[name=assetId]','actual-body');
+    await page.waitForFunction(()=>!document.getElementById('avatar-save').disabled);
+    const actual=await page.evaluate(async()=>{
+      const asset=(await (await fetch('/api/my/avatar')).json()).assets.find(a=>a.id==='actual-body');
+      const group=AvatarBase.create().characterGroup;
+      await UserAvatarRenderer.apply(group,{mode:'full',bodyYaw:0,asset:{...asset,boneMap:asset.metadata.boneMap}});
+      group.position.set(0,0,0);RoomSeatAvatar.apply(group,{yaw:.4,pitch:.15});
+      const state=group.userData.roomSeatRig;
+      let skinned=0,finite=true,textured=0;
+      group.updateWorldMatrix(true,true);
+      group.traverse(node=>{
+        if(node.material?.map)textured++;
+        if(!node.isSkinnedMesh)return;
+        skinned++;node.skeleton.update();
+        const count=node.geometry.attributes.position.count;
+        for(let i=0;i<count;i++){
+          const vertex=node.getVertexPosition(i,new THREE.Vector3()).applyMatrix4(node.matrixWorld);
+          if(![vertex.x,vertex.y,vertex.z].every(Number.isFinite))finite=false;
+        }
+      });
+      const legDirections=['left','right'].map(side=>({
+        thigh:state.found[side+'Leg'].getWorldPosition(new THREE.Vector3()).sub(state.found[side+'UpLeg'].getWorldPosition(new THREE.Vector3())).normalize().z,
+        calf:state.found[side+'Foot'].getWorldPosition(new THREE.Vector3()).sub(state.found[side+'Leg'].getWorldPosition(new THREE.Vector3())).normalize().y
+      }));
+      const position=state.model.position.clone(),rotation=state.found.head.quaternion.clone();
+      for(let i=0;i<100;i++){group.position.set(0,0,0);RoomSeatAvatar.apply(group,{yaw:.4,pitch:.15});}
+      const stable=position.distanceTo(state.model.position)<1e-6&&rotation.angleTo(state.found.head.quaternion)<1e-6;
+      const hipsAligned=state.found.hips.getWorldPosition(new THREE.Vector3()).distanceTo(group.getWorldPosition(new THREE.Vector3()))<1e-6;
+      const scene=new THREE.Scene();scene.background=new THREE.Color('#202936');scene.add(group);
+      scene.add(new THREE.HemisphereLight(0xffffff,0x657183,2));
+      const camera=new THREE.PerspectiveCamera(40,1,.01,100);camera.position.set(4,2.5,6);camera.lookAt(0,.6,0);
+      const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(640,640);
+      renderer.render(scene,camera);
+      const image=renderer.domElement.toDataURL('image/png');
+      const drawnTriangles=renderer.info.render.triangles;
+      renderer.dispose();renderer.forceContextLoss();
+      const result={supported:state.supported,skinned,textured,finite,stable,hipsAligned,legDirections,error:group.userData.accountAvatarError,image,drawnTriangles};
+      UserAvatarRenderer.dispose(group);return result;
+    });
+    assert.equal(actual.supported,true);assert.equal(actual.error,null);
+    assert(actual.skinned>0&&actual.textured>0&&actual.finite&&actual.stable&&actual.hipsAligned);
+    assert(actual.legDirections.every(d=>d.thigh>.999&&d.calf<-.999));
+    assert(actual.drawnTriangles>0,'actual model reaches WebGL draw calls');
+    await fs.writeFile('/tmp/avatar-actual-render.png',Buffer.from(actual.image.split(',')[1],'base64'));
+    delete actual.image;
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+    await page.screenshot({path:'/tmp/avatar-actual-body.png',fullPage:true});
+    console.log('Actual GLB browser:',actual);
+  }
   await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/avatar-editor-mobile.png',fullPage:true});
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'mobile page does not overflow');
   assert.deepEqual(errors,[]);
