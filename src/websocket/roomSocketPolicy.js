@@ -12,11 +12,12 @@ const LIMITS = Object.freeze({
 });
 const TYPES = new Set([
   'PLAYER_JOIN', 'PING', 'POSITION_UPDATE', 'ROOM_LOOK', 'ROOM_SEAT_SELECT',
-  'ROOM_LEAVE', 'CHAT', 'VOICE_START', 'VOICE_END', 'VOICE_PROBE', 'VOICE_MESSAGE'
+  'ROOM_LEAVE', 'CHAT', 'VOICE_START', 'VOICE_END', 'VOICE_PROBE', 'VOICE_MESSAGE',
+  'ROOM_PRESENTATION_GET_STATE', 'ROOM_PRESENTATION_COMMAND'
 ]);
 const RATES = {
   all: [120, 240], bytes: [1024 * 1024, 8 * 1024 * 1024],
-  join: [0.2, 3], chat: [2, 8], seat: [2, 10], voice: [4, 12], audio: [0.5, 3]
+  join: [0.2, 3], chat: [2, 8], seat: [2, 10], voice: [4, 12], audio: [0.5, 3], presentation: [2, 6]
 };
 function record(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -52,10 +53,12 @@ function createIngress(now = () => performance.now()) {
     if (data.type !== 'VOICE_MESSAGE' && bytes > LIMITS.controlBytes) {
       return { code: 1009, reason: 'Control message too large' };
     }
+    if(data.type.startsWith('ROOM_PRESENTATION_')&&bytes>4096)return {code:1009,reason:'Presentation message too large'};
     // Removed RPG commands cannot invoke the old handlers in rooms mode.
     if (!TYPES.has(data.type) || (!joined && !['PLAYER_JOIN', 'PING'].includes(data.type))) return {};
     let bucket;
     if (data.type === 'PLAYER_JOIN') bucket = 'join';
+    else if(data.type.startsWith('ROOM_PRESENTATION_'))bucket='presentation';
     else if (data.type === 'CHAT') bucket = 'chat';
     else if (['ROOM_SEAT_SELECT', 'ROOM_LEAVE'].includes(data.type)) bucket = 'seat';
     else if (data.type === 'VOICE_MESSAGE') bucket = 'audio';

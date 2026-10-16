@@ -1,5 +1,5 @@
 const express=require('express'),multer=require('multer');
-const {createWriteStream,constants}=require('node:fs'),fs=require('node:fs/promises');
+const {createWriteStream}=require('node:fs'),fs=require('node:fs/promises');
 const {pipeline}=require('node:stream/promises'),{Transform}=require('node:stream');
 const limits=require('../services/roomMediaLimits');
 function createRoomMediaRouter(service,authenticate=require('../middleware/auth').authenticateToken,{idleMs=limits.idleMs,uploadMs=limits.uploadMs}={}){
@@ -8,7 +8,7 @@ function createRoomMediaRouter(service,authenticate=require('../middleware/auth'
   router.use(authenticate);
   const sendError=(res,e)=>{
     const code=e.code==='LIMIT_FILE_SIZE'?'FILE_TOO_LARGE':e instanceof multer.MulterError?'INVALID_UPLOAD':e.code;
-    if(!res.headersSent&&!res.destroyed)res.status(e.status||(e instanceof multer.MulterError?(code==='FILE_TOO_LARGE'?413:400):500)).json({success:false,code:e.status||e instanceof multer.MulterError?code:'MEDIA_SERVICE_ERROR'});
+    if(!res.headersSent&&!res.destroyed)res.status(e.status||(e instanceof multer.MulterError?(code==='FILE_TOO_LARGE'?413:400):500)).json({success:false,code:e.status||e instanceof multer.MulterError?code:'MEDIA_SERVICE_ERROR',...(e.state?{state:e.state}:{})});
     if(!e.status&&!(e instanceof multer.MulterError))console.warn('[roomMedia] request failed',{code:code||'INTERNAL_ERROR'});
   };
   const route=fn=>async(req,res)=>{try{await fn(req,res);}catch(e){sendError(res,e);}};
@@ -60,18 +60,9 @@ function createRoomMediaRouter(service,authenticate=require('../middleware/auth'
   }));
   router.get('/:assetId/content',route(async(req,res)=>{
     const content=await service.content(req.user.userId,req.params.id,req.params.assetId);
-    let handle;
-    try{
-      try{
-        handle=await fs.open(content.path,constants.O_RDONLY|constants.O_NOFOLLOW);
-        const stat=await handle.stat();if(!stat.isFile()||stat.size!==content.bytes)throw Error('Invalid file');
-      }catch(_){await handle?.close();throw Object.assign(new Error('MATERIAL_NOT_FOUND'),{status:404,code:'MATERIAL_NOT_FOUND'});}
-      res.set({'Content-Type':content.mime,'Content-Length':String(content.bytes),'Content-Disposition':'attachment; filename="material.'+(content.mime==='application/pdf'?'pdf':'webp')+'"',
-        'Content-Security-Policy':"sandbox; default-src 'none'"});
-      try{await pipeline(handle.createReadStream(),res,{signal:content.signal});}catch(e){if(!res.destroyed)throw e;}
-    }finally{await handle?.close().catch(()=>{});content.release();}
+    await require('./roomMediaContent').sendRoomMediaContent(res,content);
   }));
-  router.delete('/:assetId',route(async(req,res)=>res.json({success:true,...await service.remove(req.user.userId,req.params.id,req.params.assetId)})));
+  router.delete('/:assetId',route(async(req,res)=>res.json({success:true,...await service.remove(req.user.userId,req.params.id,req.params.assetId,req.body||{})})));
   return router;
 }
 module.exports={createRoomMediaRouter};

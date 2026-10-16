@@ -18,3 +18,6 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+.meeting-session .room-materials { background: #14253d; color: white; padding: 20px; border-radius: 12px; border: 1px solid #64748b; }
+.meeting-session .room-materials button,
+.meeting-session .room-materials input { color: white; background: #26384f; border: 1px solid #64748b; min-height: 44px; padding: 8px; border-radius: 6px; }

@@ -265,7 +265,21 @@ PostgreSQL 18 в Compose. Chromium проверил реальные GLB и по
 Проверки: `test-room-media-processor.js`, `check-room-media.js` (отдельная БД),
 `test-room-materials-browser.js`. Canonical startup с новой миграцией повторён
 дважды на временной PostgreSQL 14; Compose/PostgreSQL 18 и VPS не запускались.
-Общий показ ещё не реализован; следующий этап 4 требует согласования.
+Этап 4 выполнен: сохранённое в PostgreSQL состояние показа/epoch/журнал,
+адресные WS-разрешения, HTTP выдача участнику только текущего материала,
+управление владельцем, live preview/локальный zoom, reconnect и очистка клиента.
+Обязательная миграция — `add_room_presentation.sql`; revision в wire — строка.
+Claim/session/expiry и живой socket проверяются при каждой выдаче. Close
+сохраняет показ; end/delete сбрасывают его и меняют epoch атомарно. Удаление
+активного материала требует stopShowing и ожидаемых epoch/revision/requestId.
+Читателей максимум 8 на процесс / 2 пользователя; передача вне SQL-транзакции.
+Проверки: `test-room-presentation-protocol.js`, `check-room-presentation.js`
+(настоящие PostgreSQL/HTTP/JWT/WS, шесть зрителей/две комнаты; voice подменён),
+`test-room-presentation-browser.js` (Chromium, тестовые HTTP/WS),
+`test-meeting-startup-browser.js --screen --builtin` и регрессия материалов,
+посадки, голосовой изоляции, lifecycle/сцены/сокетов. PostgreSQL 14, Node 20.20.2.
+Подробные границы — раздел 11 плана; Docker/VPS не запускались.
+После коммита/push остановиться: следующий этап 5 требует согласования.
 Не изменять `meeting-six-v1` на месте: экран стандартного образца войдёт
 в новый комплект после проверки общего показа. Существующие комнаты и
 публикации не обновлять автоматически. Выполнять этапы с согласованием;

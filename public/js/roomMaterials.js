@@ -35,7 +35,7 @@
     async function request(suffix,options={}){
       if(localStorage.getItem('token')!==token)throw Error('SESSION_CHANGED');
       const res=await fetch(url+suffix,{...options,headers:{...headers(),...options.headers},cache:'no-store',signal:options.signal||controller.signal});
-      const data=await res.json().catch(()=>({}));if(!res.ok)throw Object.assign(new Error(data.code||'FAILED'),{code:data.code});return data;
+      const data=await res.json().catch(()=>({}));if(!res.ok)throw Object.assign(new Error(data.code||'FAILED'),{code:data.code,state:data.state});return data;
     }
     const report=e=>{if(!['AbortError','RenderingCancelledException'].includes(e.name)&&dialog.open)status.textContent=t(e.code||e.message)===('roomMaterials.'+(e.code||e.message))?t('failed'):t(e.code||e.message);};
     const act=async fn=>{if(busy)return;busy=true;input.disabled=true;dialog.setAttribute('aria-busy','true');try{await fn();}catch(e){report(e);}finally{busy=false;input.disabled=false;stop.hidden=true;dialog.setAttribute('aria-busy','false');}};
@@ -61,7 +61,14 @@
         if(['ready','failed','cancelled'].includes(asset.state))row.append(button('remove',()=>act(async()=>{
           if(!confirm(t('confirmRemove')))return;
           if(selected?.id===asset.id){++previewEpoch;selected=null;await renderer.clear();pager.hidden=true;}
-          await request('/'+asset.id,{method:'DELETE'});await refresh();
+          try{await request('/'+asset.id,{method:'DELETE'});}
+          catch(e){
+            if(e.code!=='MATERIAL_IN_USE'||!e.state)throw e;
+            if(!confirm(t('confirmStopRemove')))return;
+            await request('/'+asset.id,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+              stopShowing:true,requestId:requestId(),expectedEpoch:e.state.epoch,expectedRevision:e.state.revision})});
+          }
+          await refresh();
         })));
         if(['reserved','uploading','checking'].includes(asset.state))row.append(button('cancelUpload',()=>act(async()=>{await request('/uploads/'+asset.id,{method:'DELETE'});await refresh();})));
         list.append(row);

@@ -4,6 +4,8 @@ const { authenticateToken } = require('../middleware/auth');
 const { listRoomObjects } = require('../services/roomObjects');
 
 const router = express.Router();
+router.use('/:slug/presentation',require('./roomPresentation').createRoomPresentationRouter(
+  require('../services/roomPresentationRuntime').service,require('../services/roomMediaRuntime').service));
 router.use(authenticateToken);
 
 router.get('/', async (_req, res) => {

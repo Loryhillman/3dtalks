@@ -1,6 +1,8 @@
 const fs=require('node:fs/promises'),path=require('node:path'),{randomUUID}=require('node:crypto');
 const limits=require('./roomMediaLimits');
 const {createRoomMediaProcessor}=require('./roomMediaProcessor');
+const Presentation=require('./roomPresentationStore');
+const {runRoomOperation}=require('./roomOperationQueue');
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const fail=(code,status=409)=>{throw Object.assign(new Error(code),{code,status});};
 const dto=a=>({id:a.id,name:a.display_name,kind:a.kind,state:a.state,bytes:Number(a.byte_size||a.declared_bytes),
@@ -10,7 +12,8 @@ async function markRoomMediaDeleted(client,roomId){
   await client.query('SELECT id FROM room_media_budget WHERE id=1 FOR UPDATE');
   await client.query("UPDATE room_media_assets SET state='deleting',updated_at=now() WHERE room_id=$1",[roomId]);
 }
-function createRoomMediaService(pool,{directory=path.resolve(__dirname,'../../uploads/room-media'),processor=createRoomMediaProcessor()}={}){
+function createRoomMediaService(pool,{directory=path.resolve(__dirname,'../../uploads/room-media'),processor=createRoomMediaProcessor(),
+  presentationChanged=(roomId,state,previous)=>require('./roomPresentationRuntime').service.changed(roomId,state,previous)}={}){
   const transfers=new Map(),downloads=new Map();let janitor,ticking=false,stopped=false;
   // UUIDs are case-insensitive, including keys used by the local transfer maps.
   const canonical=id=>typeof id==='string'?id.toLowerCase():id;
@@ -29,8 +32,9 @@ function createRoomMediaService(pool,{directory=path.resolve(__dirname,'../../up
       await client.query('SELECT pg_advisory_xact_lock(73421, 1)');
       const room=(await client.query('SELECT * FROM rooms WHERE id=$1 AND owner_user_id=$2 FOR UPDATE',[roomId,userId])).rows[0];
       if(!room||(!deleted&&(room.deleted_at||room.status==='archived')))fail('ROOM_NOT_FOUND',404);
+      const presentation=room.presentation_initialized?await Presentation.read(client,room):null;
       await client.query('SELECT id FROM room_media_budget WHERE id=1 FOR UPDATE');
-      const result=await fn(client,room);await client.query('COMMIT');return result;
+      const result=await fn(client,room,presentation);await client.query('COMMIT');return result;
     }catch(e){await client.query('ROLLBACK').catch(()=>{});throw e;}finally{client.release();}
   }
   async function asset(client,userId,roomId,id){
@@ -125,22 +129,33 @@ function createRoomMediaService(pool,{directory=path.resolve(__dirname,'../../up
     });
     transfers.get(id)?.abort();return result;
   }
-  async function remove(userId,roomId,id){return transaction(userId,roomId,async client=>{
-    const a=await asset(client,userId,roomId,id);
-    if(['reserved','uploading','checking'].includes(a.state))fail('UPLOAD_BUSY',429);
-    await client.query("UPDATE room_media_assets SET state='deleting',lease_until=now(),updated_at=now() WHERE id=$1",[id]);
-    return {id};
-  });}
+  async function remove(userId,roomId,id,body={}){
+    if(!require('../../public/js/roomPresentationProtocol').keys(body,['stopShowing','requestId','expectedEpoch','expectedRevision'])||body.stopShowing!==undefined&&typeof body.stopShowing!=='boolean')fail('INVALID_COMMAND',400);
+    let changed;
+    const result=await transaction(userId,roomId,async(client,_room,state)=>{
+      const stopped=await Presentation.deleteActive(client,state,id,body,userId);
+      if(stopped?.error||stopped?.reused)return stopped;
+      const a=await asset(client,userId,roomId,id);
+      if(['reserved','uploading','checking'].includes(a.state))fail('UPLOAD_BUSY',429);
+      await client.query("UPDATE room_media_assets SET state='deleting',lease_until=now(),updated_at=now() WHERE id=$1",[id]);
+      if(stopped)changed=stopped.state;return stopped||{id};
+    });
+    if(result.error)Presentation.fail(result.code,result.status,result.state);
+    if(changed)presentationChanged(roomId,changed,id);return result;
+  }
+  function lease(a,userId,roomId){
+    if(stopped||downloads.size>=limits.downloads||[...downloads.values()].filter(d=>d.userId===userId).length>=limits.ownerDownloads)fail('DOWNLOAD_BUSY',429);
+    const key=randomUUID(),controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),limits.readMs);timeout.unref();
+    const release=()=>{clearTimeout(timeout);downloads.delete(key);};
+    downloads.set(key,{userId,roomId,assetId:a.id,controller});
+    return {path:files(a).final,mime:a.mime,bytes:Number(a.byte_size),signal:controller.signal,release,abort:()=>controller.abort()};
+  }
   async function content(userId,roomId,id){
     let release=()=>{};
     try{return await transaction(userId,roomId,async client=>{
       const a=await asset(client,userId,roomId,id);if(a.state!=='ready')fail('MATERIAL_NOT_FOUND',404);
-      if(stopped||downloads.size>=limits.downloads||[...downloads.values()].filter(d=>d.userId===userId).length>=limits.ownerDownloads)fail('DOWNLOAD_BUSY',429);
-      const key=randomUUID(),controller=new AbortController();
-      const timeout=setTimeout(()=>controller.abort(),limits.readMs);timeout.unref();
-      release=()=>{clearTimeout(timeout);downloads.delete(key);};
-      downloads.set(key,{userId,roomId,assetId:id,controller});
-      return {path:files(a).final,mime:a.mime,bytes:Number(a.byte_size),signal:controller.signal,release};
+      const result=lease(a,userId,roomId);release=result.release;return result;
     });}catch(e){release();throw e;}
   }
   async function cleanup(){
@@ -171,7 +186,12 @@ function createRoomMediaService(pool,{directory=path.resolve(__dirname,'../../up
     }finally{ticking=false;}
   }
   return {reserve:owned(reserve),list:owned(list),get:identified(get),begin:identified(begin),complete:owned(complete),
-    failed:identified(failed),cancel:identified(cancel),remove:identified(remove),content:identified(content),cleanup,
+    failed:identified(failed),cancel:identified(cancel),remove:identified((...args)=>runRoomOperation(()=>remove(...args))),content:identified(content),cleanup,
+    // Internal only: the presentation authorizer holds the room/state SQL locks.
+    async readPresentation(client,actor,id){
+      const row=(await client.query("SELECT * FROM room_media_assets WHERE id=$1 AND room_id=$2 AND state='ready'",[id,actor.roomId])).rows[0];
+      if(!row)fail('MATERIAL_NOT_FOUND',404);return lease(row,actor.userId,actor.roomId);
+    },
     abortRoom(roomId){
       for(const controller of transfers.values())if(controller.roomId.toLowerCase()===roomId.toLowerCase())controller.abort();
       for(const download of downloads.values())if(download.roomId.toLowerCase()===roomId.toLowerCase())download.controller.abort();

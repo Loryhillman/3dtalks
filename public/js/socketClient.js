@@ -31,6 +31,7 @@
             opened = true;
             this.connected = true;
             this.reconnectAttempts = 0;
+            window.RoomPresentation?.disconnected();
             window.RoomSeating?.connecting();
             this.flushMessageQueue();
             resolve();
@@ -53,6 +54,7 @@
             clearTimeout(timer);
             if (!opened) reject(new Error('WebSocket closed before connection completed'));
             if (socket !== this.ws) return;
+            window.RoomPresentation?.disconnected();
             this.connected = false;
             if (event.code === 4002) this.sessionReplaced = true;
             if (!this.roomEnded) window.RoomSeating?.disconnected();

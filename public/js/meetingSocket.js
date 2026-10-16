@@ -31,6 +31,9 @@
     static handleMessage(data) {
       if (!record(data) || typeof data.type !== 'string') return;
       const { type, payload } = data;
+      if(['ROOM_PRESENTATION_SESSION','ROOM_PRESENTATION_STATE','ROOM_PRESENTATION_RESULT'].includes(type)){
+        if(record(payload))window.RoomPresentation?.message(type,payload);return;
+      }
       if (seatMessages.has(type)) {
         if (record(payload)) window.RoomSeating?.message(type, payload);
       } else if (voiceMessages.has(type)) {
@@ -40,6 +43,7 @@
           if (record(payload) && Array.isArray(payload.players)) {
             this.handleWorldState(payload);
             window.RoomSeating?.message(type, payload);
+            window.RoomPresentation?.joined();
           }
           break;
         case 'PLAYER_JOINED':
@@ -55,18 +59,21 @@
           this.handleChat(payload);
           break;
         case 'ROOM_SESSION_REPLACED':
+          window.RoomPresentation?.stop();
           this.sessionReplaced = true;
           this.messageQueue.length = 0;
           window.RoomSeating?.blocked('replaced');
           this.ws?.close();
           break;
         case 'ROOM_JOIN_DENIED':
+          window.RoomPresentation?.stop();
           this.roomEnded = true;
           this.messageQueue.length = 0;
           window.RoomSeating?.blocked(payload?.code === 'ROOM_FULL' ? 'full' : 'denied');
           this.ws?.close();
           break;
         case 'ROOM_ENDED':
+          window.RoomPresentation?.stop();
           this.roomEnded = true;
           this.messageQueue.length = 0;
           this.ws?.close();

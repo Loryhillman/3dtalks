@@ -34,6 +34,7 @@
     if (stopped) return;
     stopped = true;
     controller.abort();
+    window.RoomPresentation?.stop();
     removeInput?.();
     window.voiceChat?.dispose();
     if (typeof WSClient !== 'undefined') {

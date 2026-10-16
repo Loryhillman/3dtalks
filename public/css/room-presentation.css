@@ -1,0 +1,12 @@
+.room-presentation-dialog {
+  box-sizing: border-box; width: min(600px, 95vw); max-height: 92dvh; overflow: auto;
+  padding: 20px; border: 1px solid #64748b; border-radius: 12px; background: #14253d; color: white;
+}
+.room-presentation-dialog label { display: block; margin: 12px 0; }
+.room-presentation-dialog select { box-sizing: border-box; display: block; width: 100%; min-height: 44px; }
+.room-presentation-dialog button { min-height: 44px; margin: 4px; padding: 8px 12px; }
+.room-presentation-dialog [data-current] { overflow-wrap: anywhere; }
+.meeting-session #meeting-screen-preview { grid-column: 1 / -1; }
+.meeting-session #room-presentation-controls { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.meeting-session #room-presentation-controls button { flex: 1 1 120px; min-width: 0; }
+.meeting-session #room-presentation-controls #presentation-status { flex-basis: 100%; max-width: 100% !important; }

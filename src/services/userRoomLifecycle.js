@@ -74,6 +74,7 @@ function createUserRoomLifecycle(pool, presence = () => require('../websocket/ws
               (SELECT character_id FROM room_seat_claims WHERE room_id=$1 AND expires_at > clock_timestamp())
             ON CONFLICT (room_id, character_id) DO UPDATE SET expires_at=EXCLUDED.expires_at`, [roomId, participants]);
         } else if (ending) {
+          if(room.presentation_initialized)await require('./roomPresentationStore').reset(client,roomId);
           if(action==='delete'&&room.media_initialized)await require('./roomMedia').markRoomMediaDeleted(client,roomId);
           status = action === 'delete' ? 'archived' : 'closed'; allowRejoin = false;
           await client.query('DELETE FROM room_rejoin_grants WHERE room_id=$1', [roomId]);

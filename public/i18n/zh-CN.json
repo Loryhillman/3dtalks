@@ -5705,7 +5705,9 @@
     "height": "高度，米",
     "enlarge": "放大屏幕",
     "close": "关闭",
-    "test": "测试屏幕 · 正面"
+    "test": "测试屏幕 · 正面",
+    "zoomIn": "放大",
+    "zoomOut": "缩小"
   },
   "roomMaterials": {
     "title": "会议材料",
@@ -5743,6 +5745,35 @@
     "ROOM_NOT_FOUND": "此房间不可用。",
     "UPLOAD_EXPIRED": "上传已过期，请重新选择文件。",
     "INVALID_UPLOAD": "文件传输无效，请重新选择。",
-    "SESSION_CHANGED": "会话已更改，请关闭窗口并重新登录。"
+    "SESSION_CHANGED": "会话已更改，请关闭窗口并重新登录。",
+    "confirmStopRemove": "此材料正在演示。停止共享演示并删除它？",
+    "PRESENTATION_CHANGED": "演示已更改，请刷新列表后再删除。"
+  },
+  "roomPresentation": {
+    "manage": "管理演示",
+    "connecting": "正在连接屏幕…",
+    "idle": "等待演示",
+    "refresh": "同步屏幕",
+    "loading": "正在加载演示…",
+    "renderFailed": "无法显示此材料，请同步屏幕重试。",
+    "syncFailed": "屏幕已离线，请在重新连接后同步。",
+    "commandUnconfirmed": "命令未确认，将刷新状态。",
+    "disconnected": "请进入此房间管理屏幕。",
+    "commandFailed": "无法更改演示。",
+    "close": "关闭",
+    "material": "材料",
+    "show": "开始演示",
+    "previous": "上一页",
+    "next": "下一页",
+    "stop": "停止演示",
+    "library": "上传和管理材料",
+    "libraryFailed": "无法加载您的资料库。",
+    "empty": "请先上传材料。",
+    "PRESENTATION_CHANGED": "演示已更改，请检查当前页面后再试。",
+    "PRESENTATION_FORBIDDEN": "此连接无权管理演示。",
+    "INVALID_SCREEN": "此房间没有演示屏幕。",
+    "MATERIAL_NOT_FOUND": "此材料不可用。",
+    "PRESENTATION_REQUEST_LIMIT": "已达到演示命令限制，请稍后重试。",
+    "PRESENTATION_BUSY": "命令仍在处理中，请等待并同步屏幕。"
   }
 }

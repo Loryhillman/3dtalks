@@ -5705,7 +5705,9 @@
     "height": "Height, m",
     "enlarge": "Enlarge screen",
     "close": "Close",
-    "test": "Test screen · FRONT"
+    "test": "Test screen · FRONT",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out"
   },
   "roomMaterials": {
     "title": "Room materials",
@@ -5743,6 +5745,35 @@
     "ROOM_NOT_FOUND": "This room is unavailable.",
     "UPLOAD_EXPIRED": "This upload expired. Select the file again.",
     "INVALID_UPLOAD": "The file transfer was invalid. Select the file again.",
-    "SESSION_CHANGED": "Your session changed. Close this window and sign in again."
+    "SESSION_CHANGED": "Your session changed. Close this window and sign in again.",
+    "confirmStopRemove": "This material is being shown. Stop the shared presentation and delete it?",
+    "PRESENTATION_CHANGED": "The presentation changed. Refresh the list before deleting."
+  },
+  "roomPresentation": {
+    "manage": "Manage presentation",
+    "connecting": "Connecting screen…",
+    "idle": "Waiting for presentation",
+    "refresh": "Sync screen",
+    "loading": "Loading presentation…",
+    "renderFailed": "Could not display this material. Sync the screen to retry.",
+    "syncFailed": "Screen is offline. Sync it after reconnecting.",
+    "commandUnconfirmed": "The command was not confirmed. State will be refreshed.",
+    "disconnected": "Join this room to manage its screen.",
+    "commandFailed": "Could not change the presentation.",
+    "close": "Close",
+    "material": "Material",
+    "show": "Start presentation",
+    "previous": "Previous slide",
+    "next": "Next slide",
+    "stop": "Stop presentation",
+    "library": "Upload and manage materials",
+    "libraryFailed": "Could not load your material library.",
+    "empty": "Upload a material first.",
+    "PRESENTATION_CHANGED": "The presentation changed. Check the current slide before trying again.",
+    "PRESENTATION_FORBIDDEN": "This connection cannot manage the presentation.",
+    "INVALID_SCREEN": "This room has no presentation screen.",
+    "MATERIAL_NOT_FOUND": "This material is unavailable.",
+    "PRESENTATION_REQUEST_LIMIT": "The presentation command limit was reached. Try again later.",
+    "PRESENTATION_BUSY": "A command is still pending. Wait and sync the screen."
   }
 }
