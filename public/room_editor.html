@@ -49,6 +49,7 @@
       <p id="room-envelope-warning" role="status" style="color:#f0d280"></p>
     </section>
     <section id="objects-panel">
+      <button id="add-screen" type="button" hidden data-i18n="roomScreen.add">Добавить экран</button>
     <h2 data-i18n="roomEditor.addModel">Добавить модель</h2>
     <section id="model-upload-panel" hidden>
       <label><span data-i18n="roomEditor.uploadFile">Загрузить GLB с компьютера</span><input id="model-upload-file" type="file" accept=".glb"></label>
@@ -170,9 +171,17 @@
       <div class="coords"><label>X<input id="pos-x" type="number" step="any" required></label><label>Y<input id="pos-y" type="number" step="any" required></label><label>Z<input id="pos-z" type="number" step="any" required></label></div>
       <p data-i18n="roomEditor.rotationDegrees">Поворот, градусы</p>
       <div class="coords"><label>X<input id="rot-x" type="number" step="any" required></label><label>Y<input id="rot-y" type="number" step="any" required></label><label>Z<input id="rot-z" type="number" step="any" required></label></div>
-      <p data-i18n="roomEditor.scale">Масштаб</p>
+      <p id="object-scale-label" data-i18n="roomEditor.scale">Масштаб</p>
       <div class="coords"><label>X<input id="scale-x" type="number" step="any" min="0.01" max="100" required></label><label>Y<input id="scale-y" type="number" step="any" min="0.01" max="100" required></label><label>Z<input id="scale-z" type="number" step="any" min="0.01" max="100" required></label></div>
       <label><input id="object-collision" type="checkbox" style="width:auto"> <span data-i18n="roomEditor.collision">Столкновения</span></label>
+      <section id="screen-fields" hidden>
+        <h3 data-i18n="roomScreen.settings">Настройки экрана</h3>
+        <p data-i18n="roomScreen.hint">Центр полотна, метры. Фронт — локальная +Z. Поворот только вокруг Y.</p>
+        <label><span data-i18n="roomScreen.ratio">Пропорции</span><select id="screen-ratio"><option value="custom" data-i18n="roomScreen.custom">Свой размер</option><option value="16:9">16:9</option><option value="4:3">4:3</option></select></label>
+        <label><span data-i18n="roomScreen.width">Ширина, м</span><input id="screen-width" type="number" min="0.5" max="8" step="any" value="3.2" required></label>
+        <label><span data-i18n="roomScreen.height">Высота, м</span><input id="screen-height" type="number" min="0.3" max="4.5" step="any" value="1.8" required></label>
+        <button id="screen-preview" type="button" data-i18n="roomScreen.enlarge">Увеличить экран</button>
+      </section>
       <div id="template-object-actions" hidden>
         <label id="replace-model-label"><span data-i18n="roomEditor.replacementModel">Новая модель предмета</span><select id="replace-model"></select></label>
         <button id="replace-object" type="button" data-i18n="roomEditor.replaceModel">Заменить модель, сохранив место</button>
@@ -204,18 +213,21 @@
   <script src="/i18n/i18n.js"></script>
   <script src="js/roomEnvelope.js?v=1"></script>
   <script src="js/roomEnvironment.js?v=1"></script>
+  <script src="js/roomScreen.js?v=1"></script>
+  <script src="js/roomScreenRenderer.js?v=1"></script>
+  <script src="js/roomScreenPreview.js?v=1"></script>
   <script src="js/roomEnvironmentView.js?v=1"></script>
-  <script src="js/roomPlacementCheck.js?v=1"></script>
+  <script src="js/roomPlacementCheck.js?v=1-screen"></script>
   <script src="js/avatarBase.js?v=1"></script>
   <script src="js/roomSeatAvatar.js?v=4"></script>
   <script src="js/roomEnvelopeEditor.js?v=2"></script>
   <script src="js/roomSeatLabels.js?v=1"></script>
   <script src="js/roomSeatCoordinates.js?v=1"></script>
-  <script src="js/roomObjectScale.js?v=1"></script>
-  <script src="js/roomTemplateSession.js?v=6"></script>
-  <script src="js/roomSeatEditor.js?v=6"></script>
+  <script src="js/roomObjectScale.js?v=1-screen"></script>
+  <script src="js/roomTemplateSession.js?v=6-screen"></script>
+  <script src="js/roomSeatEditor.js?v=6-screen"></script>
   <script src="js/roomModelUpload.js?v=2"></script>
   <script src="js/roomEnvironmentEditor.js?v=1"></script>
-  <script src="js/roomEditor.js?v=13"></script>
+  <script src="js/roomEditor.js?v=13-screen"></script>
 </body>
 </html>

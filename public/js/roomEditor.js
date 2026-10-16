@@ -197,7 +197,12 @@
     if (transform.object?.userData.seatIndex !== undefined) {
       const g=transform.object;
       window.dispatchEvent(new CustomEvent('room-seat-dragged',{detail:{position:{x:g.position.x,y:g.position.y,z:g.position.z},rotation:{x:g.rotation.x,y:g.rotation.y,z:g.rotation.z}}}));
-    } else {syncPositionFields();objectDirty=true;window.RoomSeatEditor?.refresh();}
+    } else {
+      if(selected?.type==='presentation_screen'&&transform.object){
+        transform.object.rotation.set(0,transform.object.rotation.y,0);transform.object.scale.set(1,1,1);
+      }
+      syncPositionFields();objectDirty=true;window.RoomSeatEditor?.refresh();
+    }
     updateTemplateStatus();
   });
   scene.add(transform.getHelper ? transform.getHelper() : transform);
@@ -252,6 +257,7 @@
   function currentBody() {
     if (!document.getElementById('edit-form').reportValidity()) throw new Error(tr('invalidTransform', 'Проверьте координаты и размеры'));
     const body = { has_collision: document.getElementById('object-collision').checked };
+    if(selected?.type==='presentation_screen')body.screen={version:1,width:Number(document.getElementById('screen-width').value),height:Number(document.getElementById('screen-height').value)};
     if (template) body.name = document.getElementById('object-name').value.trim();
     for (const a of ['x','y','z']) {
       body['position_'+a] = Number(document.getElementById('pos-'+a).value);
@@ -300,8 +306,19 @@
     document.querySelectorAll('#object-list .item').forEach(button =>
       {const active=selectedIds.has(Number(button.dataset.id));button.classList.toggle('selected',active);button.setAttribute('aria-pressed',String(active));});
     const multiple=selectedIds.size>1;
+    const screen=selected?.type==='presentation_screen';
+    document.getElementById('add-screen').hidden=!template;
+    document.getElementById('add-screen').disabled=[...objects.values()].some(e=>e.data.type==='presentation_screen');
+    document.getElementById('screen-fields').hidden=!screen;
+    for(const a of ['x','y','z']){document.getElementById('scale-'+a).disabled=screen;document.getElementById('scale-'+a).closest('.coords').hidden=screen;}
+    for(const a of ['x','z']){document.getElementById('rot-'+a).disabled=screen;document.getElementById('rot-'+a).parentElement.hidden=screen;}
+    document.getElementById('object-scale-label').hidden=screen;
+    document.getElementById('object-collision').disabled=screen;document.getElementById('object-collision').parentElement.hidden=screen;
+    document.getElementById('template-object-actions').hidden=screen||room?.status!=='draft';
+    if(screen&&transform.mode==='scale')transform.setMode('translate');
+    transform.showX=transform.showZ=!(screen&&transform.mode==='rotate');transform.showY=true;
     document.getElementById('group-scale-form').hidden=!template||!multiple||preview||room?.status!=='draft';
-    for(const id of ['move-mode','rotate-mode','scale-mode'])document.getElementById(id).disabled=multiple;
+    for(const id of ['move-mode','rotate-mode','scale-mode'])document.getElementById(id).disabled=multiple||(id==='scale-mode'&&screen);
     document.getElementById('group-selection-count').textContent=tr('groupSelected','Выбрано предметов')+': '+selectedIds.size;
     groupSelectionBox.visible=multiple&&!preview&&selectionMode==='objects';
     if(multiple){groupSelectionBox.box.makeEmpty();for(const id of selectedIds){const entry=objects.get(id);if(entry)groupSelectionBox.box.union(new THREE.Box3().setFromObject(entry.group));}}
@@ -320,11 +337,12 @@
     selectedIds.clear();if(object)selectedIds.add(object.id);
     selected = object || null;
     transform.detach();
-    document.getElementById('edit-form').hidden = !selected || room.status !== 'draft';
+    document.getElementById('edit-form').hidden = !selected || room.status !== 'draft' || (!template&&selected.type==='presentation_screen');
     if (selected) {
-      if (!preview && selectionMode === 'objects' && room.status === 'draft') transform.attach(objects.get(selected.id).group);
+      if (!preview && selectionMode === 'objects' && room.status === 'draft' && (template||selected.type!=='presentation_screen')) transform.attach(objects.get(selected.id).group);
       document.getElementById('selected-name').textContent = `${selected.name} (#${selected.id})`;
       document.getElementById('object-name').value = selected.name || '';
+      if(selected.type==='presentation_screen'){document.getElementById('screen-width').value=selected.presentation_screen.width;document.getElementById('screen-height').value=selected.presentation_screen.height;document.getElementById('screen-ratio').value='custom';}
       document.getElementById('object-collision').checked = selected.has_collision === true;
       syncPositionFields();
     }
@@ -336,13 +354,13 @@
     selectedSeat = -1; selectObject(null); renderSeatPreview();
   }
   function selectObjects(ids){
-    const rows=ids.map(id=>objects.get(id)?.data).filter(o=>o&&!o.is_room_shell&&!o.is_room_environment);
+    const rows=ids.map(id=>objects.get(id)?.data).filter(o=>o&&!o.is_room_shell&&!o.is_room_environment&&o.type!=='presentation_screen');
     selectObject(rows.length===1?rows[0]:null);
     for(const row of rows)selectedIds.add(row.id);
     updateSelection();
   }
   async function choose(object,event={}) {
-    const multiple=!!template&&(event.ctrlKey||event.metaKey||document.getElementById('multi-select').checked);
+    const multiple=!!template&&object.type!=='presentation_screen'&&!Array.from(selectedIds).some(id=>objects.get(id)?.data.type==='presentation_screen')&&(event.ctrlKey||event.metaKey||document.getElementById('multi-select').checked);
     if (busy || preview || (!multiple&&selected?.id === object.id&&selectedIds.size===1)) return;
     return action(async () => {
       await applyCurrent();
@@ -403,7 +421,8 @@
     group.scale.set(object.scale_x ?? 1, object.scale_y ?? 1, object.scale_z ?? 1);
     const entry = { data: object, group, state: 'ready' };
     scene.add(group); objects.set(object.id,entry);
-    if (object.type === 'geometry_building' && object.geometry_data?.components?.length) {
+    if(object.type==='presentation_screen'){group.add(RoomScreenRenderer.create(object.presentation_screen));
+    } else if (object.type === 'geometry_building' && object.geometry_data?.components?.length) {
       group.add(GeometryRenderer.renderFromComponents(object.geometry_data.components, THREE));
     } else if (object.type === 'uploaded_model' && object.model_path?.toLowerCase().endsWith('.glb')) {
       if (!object.is_room_environment) {
@@ -489,7 +508,7 @@
     });
     for(const value of textures)value.dispose();for(const value of materials)value.dispose();for(const value of geometries)value.dispose();
   }
-  const visualSignature = object => JSON.stringify([object.type, object.model_path, object.geometry_data]);
+  const visualSignature = object => JSON.stringify([object.type, object.model_path, object.geometry_data,object.presentation_screen]);
   async function loadObjects(selectId = selected?.id) {
     await window.RoomEnvelopeEditor?.flush();
     const data = await api('/objects');
@@ -562,7 +581,7 @@
     }
   }
 
-  document.getElementById('move-mode').addEventListener('click', () => transform.setMode('translate'));
+  document.getElementById('move-mode').addEventListener('click', () => {transform.setMode('translate');updateSelection();});
   document.getElementById('focus-room').addEventListener('click',()=>{
     if(environmentProposal){RoomEnvironmentView.fit(camera,orbit,RoomEnvironmentView.bounds(environmentProposal.data));return;}
     const entry=[...objects.values()].find(e=>e.data.is_room_environment||e.data.is_room_shell);if(!entry)return;
@@ -594,7 +613,7 @@
     document.getElementById('show-seats').setAttribute('aria-pressed',String(panel==='seats'));
     transform.detach(); updateSelection();renderSeatPreview();
     if(!preview && room?.status==='draft') {
-      if(panel==='objects' && selected)transform.attach(objects.get(selected.id).group);
+      if(panel==='objects' && selected && (template||selected.type!=='presentation_screen'))transform.attach(objects.get(selected.id).group);
       if(panel==='seats' && selectedSeat>=0){transform.setMode('translate');transform.attach(seatMarkers.get(selectedSeat));}
     }
   }
@@ -610,8 +629,8 @@
   });
   document.getElementById('show-objects').addEventListener('click',()=>switchPanel('objects'));
   document.getElementById('show-seats').addEventListener('click',()=>switchPanel('seats'));
-  document.getElementById('rotate-mode').addEventListener('click', () => transform.setMode('rotate'));
-  document.getElementById('scale-mode').addEventListener('click', () => {if(transform.object?.userData.seatIndex===undefined)transform.setMode('scale');});
+  document.getElementById('rotate-mode').addEventListener('click', () => {transform.setMode('rotate');updateSelection();});
+  document.getElementById('scale-mode').addEventListener('click', () => {if(selected?.type!=='presentation_screen'&&transform.object?.userData.seatIndex===undefined){transform.setMode('scale');updateSelection();}});
   document.getElementById('preview-mode').addEventListener('click', () => action(async () => {
     await applyCurrent(); window.RoomSeatEditor?.flush();
     preview = !preview; grid.visible = !preview;
@@ -626,6 +645,13 @@
     if (!selected) return;
     objectDirty = true;
     const group = objects.get(selected.id).group;
+    if(selected.type==='presentation_screen'){
+      const screen={version:1,width:Number(document.getElementById('screen-width').value),height:Number(document.getElementById('screen-height').value)};
+      if(RoomScreen.metadata(screen)){
+        for(const child of [...group.children]){group.remove(child);disposeGroup(child);}
+        group.add(RoomScreenRenderer.create(screen));selected.presentation_screen=screen;
+      }
+    }
     for (const a of ['x','y','z']) {
       for (const [field,prefix,multiplier] of [['position','pos',1],['rotation','rot',Math.PI/180],['scale','scale',1]]) {
         const input = document.getElementById(prefix+'-'+a);
@@ -641,6 +667,19 @@
     const bounds = new THREE.Box3().setFromObject(group);
     return { x: Math.max(bounds.max.x, group.position.x) + .5, y: group.position.y, z: group.position.z };
   }
+  document.getElementById('add-screen').addEventListener('click',()=>action(async()=>{
+    await prepareTemplate();const data=await api('/screen',{method:'POST'});showPanel('objects');await loadObjects(data.object.id);
+  }));
+  document.getElementById('screen-ratio').addEventListener('change',event=>{
+    if(event.target.value==='custom')return;
+    const [w,h]=event.target.value.split(':').map(Number);
+    document.getElementById('screen-height').value=Number(document.getElementById('screen-width').value)*h/w;
+    document.getElementById('screen-height').dispatchEvent(new Event('input',{bubbles:true}));
+  });
+  document.getElementById('screen-preview').addEventListener('click',event=>{
+    const group=objects.get(selected?.id)?.group;const canvas=group?.children.find(c=>c.userData.screenCanvas)?.userData.screenCanvas;
+    if(canvas)RoomScreenPreview.open(canvas,selected.name,event.currentTarget);
+  });
   document.getElementById('add-form').addEventListener('submit', event => {
     event.preventDefault();
     action(async () => {
@@ -797,6 +836,7 @@
   });
   window.addEventListener('pagehide',event=>{
     if(event.persisted)return;
+    RoomScreenPreview.close();
     cancelAnimationFrame(frameId);for(const entry of objects.values())removeVisual(entry);objects.clear();
     if(environmentProposal){disposeGroup(environmentProposal.group);disposeGroup(environmentProposal.helper);}
     disposeGroup(seatAvatar);

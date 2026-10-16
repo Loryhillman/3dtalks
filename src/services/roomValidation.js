@@ -2,12 +2,19 @@ const fs = require('node:fs').promises;
 const path = require('node:path');
 const { listRoomObjects } = require('./roomObjects');
 const RoomEnvironment = require('../../public/js/roomEnvironment');
+const RoomScreen = require('../../public/js/roomScreen');
 
 const publicDir = path.resolve(__dirname, '../../public');
 
 async function validateRoom(roomId, dbPool, stat = fs.stat) {
   const objects = await listRoomObjects(roomId, dbPool);
   const errors = [];
+  if(objects.filter(o=>o.type==='presentation_screen').length>1)errors.push('В комнате допустим только один экран');
+  for(const o of objects){
+    if(o.type==='presentation_screen'){
+      if(!RoomScreen.validRuntime(o))errors.push('Некорректные параметры экрана');
+    }else if(o.presentation_screen!=null)errors.push('Метаданные экрана у обычного предмета');
+  }
   const envelopeObject=objects.find(o=>o.room_envelope);
   const environments = objects.filter(o => o.room_environment != null);
   const imported = environments[0];
@@ -24,6 +31,7 @@ async function validateRoom(roomId, dbPool, stat = fs.stat) {
   }
   const contains = validImported ? point => RoomEnvironment.contains(point, imported.room_environment, importedTransform) : shell ? point => require('../../public/js/roomEnvelope').contains(point,shell) : null;
   if(contains) for(const o of objects) if(!o.is_room_shell && !o.is_room_environment && !contains({x:Number(o.position_x),y:Number(o.position_y),z:Number(o.position_z)})) errors.push('Предмет за пределами помещения: '+o.name);
+  if(contains)for(const o of objects)if(o.type==='presentation_screen'&&RoomScreen.validRuntime(o)&&!RoomScreen.points(RoomScreen.fromRuntime(o)).every(contains))errors.push('Экран за пределами помещения: '+o.name);
   if (!objects.length) errors.push('В комнате нет предметов');
   if (!validImported && !objects.some(object => object.type === 'geometry_building' &&
       object.geometry_data?.components?.length > 0)) {
@@ -67,6 +75,7 @@ async function validateRoom(roomId, dbPool, stat = fs.stat) {
       try {
         const object = seat.object_id === null ? {} : objects.find(o => o.id === seat.object_id);
         if (!object) throw new Error('Missing object');
+        if (object.type==='presentation_screen')throw new Error('A screen cannot own seats');
         if (object.room_environment != null) throw new Error('Seats must not attach to a room environment');
         const { position } = require('./roomSeatPose').roomSeatPose(seat, object);
         if (poses.some(p => Math.hypot(p.x-position.x, p.y-position.y, p.z-position.z) < .2)) {

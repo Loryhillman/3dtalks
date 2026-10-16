@@ -159,6 +159,7 @@ router.patch('/:id/objects/:objectId', async (req, res) => {
         has_collision = $12, updated_at = now()
       WHERE id = $2 AND room_id = $1
         AND room_environment IS NULL
+        AND type <> 'presentation_screen'
         AND NOT EXISTS (SELECT 1 FROM geometry_buildings g WHERE world_objects.model_path='geometry_building:'||g.id::text AND g.template_id='room_room')
         AND EXISTS (SELECT 1 FROM rooms WHERE id = $1 AND status = 'draft' FOR UPDATE)
       RETURNING *

@@ -17,6 +17,15 @@ async function populateRoom(client, room, template, { adminId = null, userId = n
         modelPath = 'geometry_building:' + geometry.rows[0].id;
       }
       const { position, rotation, scale } = transform(item);
+      if(type==='presentation_screen'){
+        if(!require('../../public/js/roomScreen').validItem(item))throw new Error('Invalid screen');
+        await client.query(`INSERT INTO world_objects
+          (room_id,type,name,model_path,position_x,position_y,position_z,rotation_y,has_collision,
+           rotation_x,rotation_z,scale_x,scale_y,scale_z,presentation_screen)
+          VALUES ($1,'presentation_screen',$2,NULL,$3,$4,$5,$6,FALSE,0,0,1,1,1,$7::jsonb)`,
+          [room.id,item.name,position.x,position.y,position.z,rotation.y,JSON.stringify(item.screen)]);
+        continue;
+      }
       const object = await client.query(`
         INSERT INTO world_objects
           (room_id, type, name, model_path, position_x, position_y, position_z,

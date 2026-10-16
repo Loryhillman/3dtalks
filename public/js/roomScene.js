@@ -41,6 +41,7 @@
       if (!run) return;
       this.current = null;
       run.controller.abort();
+      run.screenCleanup?.();
       this.world.isLoadingBuildings = false;
       for (const [id, entry] of run.entries) {
         entry.model.removeFromParent ? entry.model.removeFromParent() : entry.model.parent?.remove(entry.model);
@@ -100,7 +101,11 @@
         if (!object || object.id == null || ids.has(object.id)) throw new Error('Room object ID missing or duplicated');
         ids.add(object.id);
         let model;
-        if (object.type === 'geometry_building') {
+        if (object.type === 'presentation_screen') {
+          if(!RoomScreen.validRuntime(object)||run.hasScreen)throw new Error('INVALID_SCREEN');
+          run.hasScreen=true;model=RoomScreenRenderer.create(object.presentation_screen);
+          run.screenCleanup=RoomScreenPreview.mount(model.userData.screenCanvas,object.name,document.querySelector('#meeting-toolbar .meeting-actions'));
+        } else if (object.type === 'geometry_building') {
           const geometry = typeof object.geometry_data === 'string' ? JSON.parse(object.geometry_data) : object.geometry_data;
           if (!geometry?.components?.length) throw new Error(`Room geometry missing: ${object.id}`);
           model = GeometryRenderer.renderFromComponents(geometry.components, THREE);

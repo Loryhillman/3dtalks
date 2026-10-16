@@ -40,7 +40,8 @@ async function main() {
           has_collision boolean,created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now());`);
       for (const file of ['add_rooms.sql', 'add_room_seats.sql', 'add_user_rooms.sql',
         'add_room_template_editor.sql', 'add_independent_room_seats.sql', 'add_room_environment.sql',
-        'add_room_builtin_bundles.sql', 'add_room_builtin_bundles.sql']) {
+        'add_room_builtin_bundles.sql', 'add_room_builtin_bundles.sql',
+        'add_room_presentation_screen.sql', 'add_room_presentation_screen.sql']) {
         await pool.query(await fs.readFile(path.resolve(__dirname, '../database/migrations', file), 'utf8'));
       }
       await ensureRoomTemplates(pool);
@@ -103,6 +104,30 @@ async function main() {
       const second = (await rooms.create(owner, { name: 'Edited meeting', capacity: 6, request_key: randomUUID() })).room;
       assert.equal(second.template_version, 5);
       assert.equal((await pool.query('SELECT * FROM uploaded_models')).rows.length, 3);
+
+      // A new publication receives its own screen snapshot; old rooms stay intact.
+      draft=await editor.getDraft('meeting-six',1);
+      const screen=require('../public/js/roomScreen').create();
+      // Pick the tested interior center of this bundled GLB, rather than a global origin.
+      const environment=draft.layout.find(i=>i.type==='room_environment');
+      const bounds=environment.environment.bounds;
+      screen.position=require('../public/js/roomEnvironment').toWorld({x:(bounds.min.x+bounds.max.x)/2,y:(bounds.min.y+bounds.max.y)/2,z:(bounds.min.z+bounds.max.z)/2},environment);
+      screen.editor_id=Math.max(...draft.layout.map(i=>i.editor_id))+1;
+      draft.layout.push(screen);draft=await editor.save('meeting-six',draft,1);
+      assert.equal((await editor.publish('meeting-six',draft.revision)).version,6);
+      const third=(await rooms.create(owner,{name:'Screen meeting',capacity:6,request_key:randomUUID()})).room;
+      const stored=(await pool.query("SELECT * FROM world_objects WHERE room_id=$1 AND type='presentation_screen'",[third.id])).rows[0];
+      assert.deepEqual(stored.presentation_screen,screen.screen);assert.equal(stored.model_path,null);
+      assert.equal((await validateRoom(third.id,pool,stat)).ok,true);
+      assert.deepEqual((await pool.query('SELECT * FROM world_objects WHERE room_id=$1 ORDER BY id',[first.id])).rows,snapshot);
+      for(const update of ["scale_x=2","has_collision=true","rotation_x=1","model_path='/bad.glb'", "presentation_screen=NULL", "presentation_screen='{}'", "presentation_screen='[]'", "presentation_screen='{\"version\":1,\"width\":9,\"height\":1}'"]){
+        await assert.rejects(pool.query('UPDATE world_objects SET '+update+' WHERE id=$1',[stored.id]),e=>e.code==='23514');
+      }
+      await assert.rejects(pool.query(`INSERT INTO world_objects(room_id,type,name,has_collision,presentation_screen)
+        VALUES ($1,'presentation_screen','Second',false,$2::jsonb)`,[third.id,JSON.stringify(screen.screen)]),e=>e.code==='23505');
+      await assert.rejects(pool.query('UPDATE room_seats SET object_id=$1 WHERE room_id=$2',[stored.id,third.id]),e=>e.code==='23514');
+      await pool.query("UPDATE rooms SET status='draft' WHERE id=$1",[third.id]);
+      for(const operation of ['copy','delete'])await assert.rejects(require('../src/services/roomObjectSeats').createRoomObjectSeats(pool).mutate(third.id,stored.id,operation),/USE_TEMPLATE_SCREEN_SETTINGS/);
 
       const changedSource = path.join(temporary, 'changed-source');
       await fs.cp(source, changedSource, { recursive: true });

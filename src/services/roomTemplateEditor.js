@@ -1,5 +1,6 @@
 const RoomEnvelope = require('../../public/js/roomEnvelope');
 const RoomEnvironment = require('../../public/js/roomEnvironment');
+const RoomScreen = require('../../public/js/roomScreen');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { validLayout, modelPath, transform } = require('./roomTemplateLayout');
@@ -18,7 +19,8 @@ function publicationErrors(layout, key) {
   const shell = layout.find(i=>i.type==='room_shell');
   const imported = layout.find(i => i.type === 'room_environment');
   const contains = shell ? point => RoomEnvelope.contains(point, shell) : imported ? point => RoomEnvironment.contains(point, imported.environment, imported) : null;
-  if(contains) for(const item of layout) if(item.kind !== 'room' && item.type !== 'seat' && !contains(item.position)) errors.push('Предмет находится за пределами помещения: '+item.name);
+  if(contains) for(const item of layout) if(item.kind !== 'room' && item.type !== 'seat' &&
+    !(item.type==='presentation_screen'?RoomScreen.points(item):[item.position]).every(contains)) errors.push('Предмет находится за пределами помещения: '+item.name);
   for (const item of layout) {
     const t = transform(item), object = {};
     for (const prefix of ['position', 'rotation', 'scale']) for (const a of ['x', 'y', 'z']) object[prefix + '_' + a] = t[prefix][a];

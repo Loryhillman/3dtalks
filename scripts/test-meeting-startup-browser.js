@@ -6,6 +6,7 @@ const {renderMeetingPage}=require('../src/services/meetingPage');
 const {officeGlb}=require('./room-environment-fixtures');
 const environmentMode=process.argv.includes('--environment');
 const builtinMode=process.argv.includes('--builtin');
+const screenMode=process.argv.includes('--screen');
 const bundledFiles=new Map();let builtinSeats=[];
 const apiCalls=[];
 const {getPrefab}=require('../src/services/worldPrefabs');
@@ -51,6 +52,11 @@ let browser;
    return row;
   }));
   builtinSeats=bundle.layout.flatMap((item,index)=>(item.seats||[]).map(seat=>require('../src/services/roomSeatPose').roomSeatPose(seat,objects[index])));
+ }
+ if(screenMode){
+  const item=require('../public/js/roomScreen').create();
+  objects.push({id:100,type:item.type,name:item.name,has_collision:false,presentation_screen:item.screen,
+   ...Object.fromEntries(['position','rotation','scale'].flatMap(p=>['x','y','z'].map(a=>[p+'_'+a,item[p][a]])))});
  }
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const cache='/root/.cache/ms-playwright';let executable=process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE||chromium.executablePath();
@@ -98,7 +104,7 @@ let browser;
    let meshes=0,textures=0;entry.model.traverse(node=>{if(node.isMesh){meshes++;for(const material of [].concat(node.material||[]))if(material.map)textures++;}});
    return {name:entry.data.name,meshes,textures,scale:entry.model.scale.x,environment:entry.data.is_room_environment===true};
   }));
-  assert.equal(rendered.length,8);assert(rendered.every(entry=>entry.meshes>0));
+  assert.equal(rendered.length,screenMode?9:8);assert(rendered.every(entry=>entry.meshes>0));
   assert.equal(rendered.filter(entry=>entry.environment).length,1);
   assert(rendered.some(entry=>entry.textures>0),'the real bundled models retain their textures');
   for(let i=0;i<objects.length;i++)assert.equal(rendered[i].scale,objects[i].scale_x);
@@ -115,6 +121,21 @@ let browser;
   assert.deepEqual(office,{meshes:8,scale:.001,yaw:.6,geometry:false,environment:true,shells:0});
  }
  // Allow delayed legacy initializers to run, then exercise their old shortcuts.
+ if(screenMode){
+  assert.equal(await page.locator('#meeting-screen-preview').count(),1);
+  const before=await page.evaluate(()=>({yaw:MOUSE.targetRotationY,position:player.position.toArray(),collisions:gameWorld.collisionObjects.some(o=>o.id===100)}));
+  assert.equal(before.collisions,false);
+  await page.locator('#meeting-screen-preview').click();assert(await page.locator('dialog').isVisible());
+  await page.keyboard.press('Tab');assert(await page.evaluate(()=>!!document.activeElement.closest('dialog')));
+  await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.querySelector('dialog'));
+  assert.equal(await page.evaluate(()=>document.activeElement.id),'meeting-screen-preview');
+  assert.equal(await page.evaluate(()=>MOUSE.targetRotationY),before.yaw);
+  assert.deepEqual(await page.evaluate(()=>player.position.toArray()),before.position);
+  // Instrument owned resources, including one texture referenced by the front material.
+  await page.evaluate(()=>{window.screenDisposals={geometry:0,material:0,texture:0};const model=gameWorld.generatedBuildings.get(100).model;
+   model.traverse(n=>{if(n.geometry)n.geometry.addEventListener('dispose',()=>screenDisposals.geometry++);if(n.material){n.material.addEventListener('dispose',()=>screenDisposals.material++);n.material.map?.addEventListener('dispose',()=>screenDisposals.texture++);}});
+  });
+ }
  await page.waitForTimeout(1700);
  for(const key of ['p','i','v','m'])await page.keyboard.press(key);
  await page.waitForTimeout(150);
@@ -153,10 +174,16 @@ let browser;
  await page.keyboard.down('w');
  assert.equal(await page.evaluate(() => KEYS.w), false, 'meetings do not activate free movement');
  await page.keyboard.up('w');
+ if(screenMode)await page.locator('#meeting-screen-preview').click();
  const stoppedFrame = await page.evaluate(() => { MeetingMain.stop(); return gameWorld.frameCount; });
  await page.waitForTimeout(200);
  assert.equal(await page.evaluate(() => gameWorld.frameCount), stoppedFrame, 'stopped startup releases its rendering loop');
  assert.equal(await page.evaluate(() => gameWorld.generatedBuildings.size), 0);
+ if(screenMode){
+  assert.equal(await page.locator('#meeting-screen-preview,dialog').count(),0);
+  assert.deepEqual(await page.evaluate(()=>screenDisposals),{geometry:2,material:2,texture:1});
+  console.log('Screen meeting: mobile modal/focus, preserved seat/camera, no collisions and single GPU disposal on exit OK');
+ }
  assert.deepEqual(errors, []);
  console.log('Complete meeting page: real startup, legacy APIs disabled, RPG shortcuts inert, chat/microphone retained, no dialogs or JS errors OK');
 })().catch(e=>{console.error(e);console.error('Requests:',apiCalls);process.exitCode=1;}).finally(async()=>{await browser?.close();await new Promise(r=>server.close(r));});

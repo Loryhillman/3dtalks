@@ -7,7 +7,7 @@
     const selection=new Set(ids);
     if(selection.size<2||!Number.isFinite(factor)||factor<=0)throw new Error('groupScaleInvalid');
     const items=layout.filter(item=>selection.has(item.editor_id));
-    if(items.length!==selection.size||items.some(item=>item.kind==='room'||item.type==='seat'))throw new Error('groupScaleInvalid');
+    if(items.length!==selection.size||items.some(item=>item.kind==='room'||item.type==='seat'||item.type==='presentation_screen'))throw new Error('groupScaleInvalid');
     const center={};
     for(const axis of ['x','y','z'])center[axis]=items.reduce((sum,item)=>sum+item.position[axis],0)/items.length;
     const replacements=new Map();

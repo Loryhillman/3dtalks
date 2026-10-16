@@ -1,5 +1,6 @@
 const RoomEnvelope = require('../../public/js/roomEnvelope');
 const RoomEnvironment = require('../../public/js/roomEnvironment');
+const RoomScreen = require('../../public/js/roomScreen');
 const { validSeatLayout } = require('./roomSeatLayout');
 const vector = (v, scale = false) => v && ['x', 'y', 'z'].every(a =>
   typeof v[a] === 'number' && Number.isFinite(v[a]) &&
@@ -30,6 +31,11 @@ function validLayout(layout) {
         typeof item.name !== 'string' || !item.name.trim() || item.name.length > 120 ||
         typeof item.collision !== 'boolean') return false;
     const t = transform(item);
+    if(item.type==='presentation_screen'){
+      if(!RoomScreen.validItem(item))return false;
+      continue;
+    }
+    if(item.screen!==undefined)return false;
     if (item.type === 'room_environment') {
       if (!RoomEnvironment.validItem(item)) return false;
       continue;
@@ -53,6 +59,7 @@ function validLayout(layout) {
     for (const seat of item.seats || []) seats.push({ ...seat, id: undefined, object_id: i + 1 });
   }
   if (layout.filter(i=>i.kind==='room').length>1) return false;
+  if (layout.filter(i=>i.type==='presentation_screen').length>1) return false;
   return validSeatLayout(seats);
 }
 module.exports = { validLayout, transform, modelPath, vector };

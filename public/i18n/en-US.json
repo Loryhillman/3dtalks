@@ -5694,5 +5694,17 @@
     "seatOverlap": "Seats are too close (less than 0.2 m)",
     "more": "Additional issues",
     "blocked": "Fix the placement issues before publishing. See Placement check."
+  },
+  "roomScreen": {
+    "add": "Add screen",
+    "settings": "Screen settings",
+    "hint": "Canvas center in meters. Front faces local +Z. Rotate around Y only.",
+    "ratio": "Aspect ratio",
+    "custom": "Custom size",
+    "width": "Width, m",
+    "height": "Height, m",
+    "enlarge": "Enlarge screen",
+    "close": "Close",
+    "test": "Test screen · FRONT"
   }
 }
