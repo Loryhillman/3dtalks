@@ -89,6 +89,8 @@ require('./routes/roomPages').registerRoomPages(app);
 app.use(express.static(path.join(__dirname, '../public'), staticCacheOptions));
 app.use('/i18n', express.static(path.join(__dirname, '../public/i18n'), staticCacheOptions));
 app.use('/node_modules', express.static(path.join(__dirname, '../node_modules'), staticCacheOptions));
+// The parser and its worker/fonts are pinned together; private materials live outside public.
+app.use('/vendor/room-pdf/5.5.207',require('express').static(path.dirname(require.resolve('pdfjs-dist/package.json')),{maxAge:'1y',immutable:true}));
 
 // Database initialization
 const { initializeDatabase, isDatabaseInitialized, query } = require('./database/db');
@@ -455,6 +457,7 @@ async function start() {
     try {
       if (!isDatabaseInitialized()) await initializeDatabase();
       console.log('Database initialized');
+      if(process.env.ROOMS_ENABLED==='true')await require('./services/roomMediaRuntime').service.start();
       if (!worldIntegrations.isRoomsMode()) {
         await require('./routes/uiControls').ensureDefaultControls();
         await autoFixWorldUrl();

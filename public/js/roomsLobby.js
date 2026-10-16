@@ -26,6 +26,7 @@
     if (!createDialog.busy) $('create').querySelector('[type=submit]').disabled = !isOnline() || Boolean(full);
   }
   function clearSession() {
+    window.RoomMaterials?.close();
     for (const key of ['token', 'userId', 'characterId', 'userInfo']) localStorage.removeItem(key);
     toasts.clear(); sessionVerified = false; hasRooms = false; quota = null;
   }
@@ -284,6 +285,9 @@
       const { menu, items, summary } = roomMenu(room);
       actions.append(menu);
       button(items, 'rename', () => openEdit(room, 'name', summary), '', true);
+      const materials=document.createElement('button');materials.type='button';materials.className='ui-button';materials.textContent=window.i18n.t('roomMaterials.title');
+      materials.dataset.requiresOnline='';
+      materials.onclick=()=>window.RoomMaterials.open(room,summary);items.append(materials);
       if (room.status === 'draft' || (room.status === 'closed' && !room.allow_rejoin)) {
         button(items, 'capacity', () => openEdit(room, 'capacity', summary), '', true);
       }

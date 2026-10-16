@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { pool } = require('../database/db');
 const { authenticateToken } = require('../middleware/auth');
 const service = require('../services/userRooms').createUserRoomService(pool);
+router.use('/:id/materials',require('./roomMedia').createRoomMediaRouter(require('../services/roomMediaRuntime').service));
 router.use(authenticateToken);
 function errorResponse(res, error) {
   if (!error.status) console.error('[userRooms]', error);

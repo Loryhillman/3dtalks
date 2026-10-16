@@ -1,0 +1,20 @@
+.room-materials {
+  box-sizing: border-box;
+  width: min(960px, 95vw);
+  max-width: 95vw;
+  max-height: 92dvh;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+.room-materials [hidden] { display: none !important; }
+.room-materials input[type="file"] {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+}
+.room-materials .material-pages {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}

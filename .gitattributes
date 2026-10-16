@@ -1,0 +1,2 @@
+# PDF fixture xref records contain intentional trailing spaces and byte offsets.
+scripts/fixtures/*.pdf binary
