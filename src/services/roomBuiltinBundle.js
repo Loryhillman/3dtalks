@@ -4,21 +4,33 @@ const { createHash, randomUUID } = require('node:crypto');
 const { publicationErrors } = require('./roomTemplateEditor');
 const { inspect } = require('./roomEnvironmentAsset');
 
-const bundleDirectory = path.resolve(__dirname, '../../database/seeds/meeting-six-v1');
+const legacyDirectory = path.resolve(__dirname, '../../database/seeds/meeting-six-v1');
+const bundleDirectory = path.resolve(__dirname, '../../database/seeds/meeting-six-v2');
 const publicDirectory = path.resolve(__dirname, '../../public');
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
-async function readBundle(directory) {
+async function readBundle(directory = bundleDirectory) {
   const bytes = await fs.readFile(path.join(directory, 'manifest.json'));
   const manifest = JSON.parse(bytes);
-  if (manifest.bundle !== 'meeting-six-v1' || manifest.templateKey !== 'meeting-six' ||
+  if (!['meeting-six-v1','meeting-six-v2'].includes(manifest.bundle) || manifest.templateKey !== 'meeting-six' ||
       typeof manifest.name !== 'string' || !manifest.name.trim() || manifest.name.length > 120 ||
       !Array.isArray(manifest.assets) || manifest.assets.length !== 3 ||
       new Set(manifest.assets.map(asset => asset.key)).size !== 3 || !Array.isArray(manifest.layout)) {
     throw new Error('Invalid built-in meeting manifest');
   }
   const assets = [];
+  // Only this shipped predecessor can supply references. Never resolve a
+  // manifest-controlled directory, URL or recursive dependency chain.
+  const predecessor = manifest.bundle === 'meeting-six-v2' ? await readBundle(legacyDirectory) : null;
   for (const asset of manifest.assets) {
+    if (predecessor) {
+      if (Object.keys(asset).some(key => !['key', 'fromBundle', 'assetKey'].includes(key)) ||
+          asset.fromBundle !== 'meeting-six-v1' || asset.assetKey !== asset.key) throw new Error('Invalid built-in asset reference');
+      const original = predecessor.assets.find(original => original.key === asset.key);
+      if (!original) throw new Error('Unknown built-in model reference');
+      assets.push({ ...original });
+      continue;
+    }
     if (!['chair', 'table', 'office'].includes(asset.key) || asset.file !== asset.key + '.glb' ||
         !/^[a-f0-9]{64}$/.test(asset.sha256) || !Number.isSafeInteger(asset.bytes) ||
         asset.bytes < 28 || asset.bytes > 100 * 1024 * 1024) throw new Error('Invalid built-in model manifest');
@@ -30,13 +42,18 @@ async function readBundle(directory) {
       runtimePath: '/models/uploaded/default-' + manifest.bundle + '-' + asset.key + '-' + asset.sha256 + '.glb' });
   }
   const layout = manifest.layout.map(({ asset: key, ...item }) => {
+    if (item.type === 'presentation_screen') {
+      if (key !== undefined) throw new Error('Screen cannot reference a built-in model');
+      return item;
+    }
     const asset = assets.find(asset => asset.key === key);
     if (!asset) throw new Error('Unknown built-in model: ' + key);
     return { ...item, model_id: 1, model_path: asset.runtimePath };
   });
   const errors = publicationErrors(layout, manifest.templateKey);
   if (errors.length) throw new Error('Invalid built-in meeting layout: ' + errors.join('; '));
-  await inspect(assets.find(asset => asset.key === 'office').data);
+  // A referenced office was already inspected while reading its predecessor.
+  if (!predecessor) await inspect(assets.find(asset => asset.key === 'office').data);
   return { manifest, assets, layout, sha256: digest(bytes) };
 }
 
@@ -69,14 +86,19 @@ async function verifyFile(target, asset) {
   }
 }
 
-async function ensureBuiltinMeeting(pool, { directory = bundleDirectory, publicDir = publicDirectory } = {}) {
-  const bundle = await readBundle(directory);
-  const { manifest, assets, layout } = bundle;
+async function ensureBuiltinMeeting(pool, { directory, publicDir = publicDirectory } = {}) {
+  let bundle = await readBundle(directory || bundleDirectory);
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     // Use the editor's lock too: installation cannot race a draft/publication.
-    await client.query("SELECT pg_advisory_xact_lock(hashtext('room-template-editor'), hashtext($1))", [manifest.templateKey]);
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('room-template-editor'), hashtext($1))", [bundle.manifest.templateKey]);
+    if (!directory) {
+      const installed = (await client.query(`SELECT bundle_key FROM room_builtin_bundles
+        WHERE bundle_key IN ('meeting-six-v1','meeting-six-v2') ORDER BY bundle_key DESC LIMIT 1`)).rows[0];
+      if (installed?.bundle_key === 'meeting-six-v1') bundle = await readBundle(legacyDirectory);
+    }
+    const { manifest, assets, layout } = bundle;
     const receipt = (await client.query('SELECT * FROM room_builtin_bundles WHERE bundle_key=$1', [manifest.bundle])).rows[0];
     if (receipt) {
       if (receipt.manifest_sha256 !== bundle.sha256) throw new Error('Built-in bundle changed without a new version');
@@ -105,7 +127,7 @@ async function ensureBuiltinMeeting(pool, { directory = bundleDirectory, publicD
       [asset.file, path.basename(asset.runtimePath), asset.name, asset.runtimePath, asset.bytes])).rows[0];
       models.set(asset.runtimePath, model.id);
     }
-    for (const item of layout) item.model_id = models.get(item.model_path);
+    for (const item of layout) if (item.model_path) item.model_id = models.get(item.model_path);
     const template = (await client.query(`INSERT INTO room_templates (template_key,version,name,layout)
       VALUES ($1,4,$2,$3::jsonb) RETURNING id`, [manifest.templateKey, manifest.name, JSON.stringify(layout)])).rows[0];
     for (const modelId of models.values()) await client.query(

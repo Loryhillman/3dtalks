@@ -45,7 +45,7 @@ async function main() {
         await pool.query(await fs.readFile(path.resolve(__dirname, '../database/migrations', file), 'utf8'));
       }
       await ensureRoomTemplates(pool);
-      await operation(pool, { publicDir });
+      await operation(pool, { publicDir, directory: source });
       console.log('Built-in meeting PostgreSQL: ' + name + ': OK');
     } finally {
       await pool.end();
@@ -70,7 +70,7 @@ async function main() {
       await assert.rejects(pool.query('DELETE FROM uploaded_models'), error => error.code === '23503');
       const file = path.join(options.publicDir, template.layout[1].model_path);
       await fs.unlink(file);
-      assert.equal((await ensureBuiltinMeeting(pool, options)).status, 'present');
+      assert.equal((await ensureBuiltinMeeting(pool, {publicDir:options.publicDir})).status, 'present');
       assert.equal((await fs.stat(file)).size, 1176952);
       assert.equal((await fs.readdir(path.dirname(file))).length, 3);
       await fs.writeFile(file, 'corrupted');
@@ -86,6 +86,9 @@ async function main() {
       await pool.query('INSERT INTO admin_users VALUES (1)');
       const rooms = createUserRoomService(pool, (id, db) => validateRoom(id, db, stat));
       const first = (await rooms.create(owner, { name: 'Bundled meeting', capacity: 6, request_key: randomUUID() })).room;
+      // New startup restores an installed predecessor without installing v2.
+      assert.equal((await ensureBuiltinMeeting(pool,{publicDir:options.publicDir})).templateId,template.id);
+      assert.deepEqual((await pool.query('SELECT bundle_key FROM room_builtin_bundles')).rows,[{bundle_key:'meeting-six-v1'}]);
       assert.equal(first.template_version, 4);
       const snapshot = (await pool.query('SELECT * FROM world_objects WHERE room_id=$1 ORDER BY id', [first.id])).rows;
       assert.equal(snapshot.length, 8);
@@ -138,6 +141,43 @@ async function main() {
       await fs.writeFile(path.join(changedSource, 'office.glb'), 'broken source');
       await assert.rejects(readBundle(changedSource), /checksum mismatch/);
     });
+    await scenario('fresh-v2-and-restart',async(pool,{publicDir})=>{
+      const bundle=await readBundle();assert.equal(bundle.manifest.bundle,'meeting-six-v2');
+      const predecessor=await readBundle(source);
+      assert.deepEqual(bundle.assets.map(a=>a.runtimePath),predecessor.assets.map(a=>a.runtimePath));
+      assert.deepEqual(bundle.layout.slice(0,-1),predecessor.layout,'the screen must not move furniture or seats');
+      const results=await Promise.all([ensureBuiltinMeeting(pool,{publicDir}),ensureBuiltinMeeting(pool,{publicDir})]);
+      assert.deepEqual(results.map(r=>r.status).sort(),['installed','present']);
+      const template=(await pool.query('SELECT * FROM room_templates ORDER BY version DESC LIMIT 1')).rows[0];
+      assert.equal(template.version,4);assert.equal(template.layout.length,9);
+      assert.equal(template.layout.filter(i=>i.type==='presentation_screen').length,1);
+      assert.equal(template.layout.flatMap(i=>i.seats||[]).length,6);
+      assert.equal((await pool.query('SELECT * FROM uploaded_models')).rows.length,3);
+      assert.equal((await fs.readdir(path.join(publicDir,'models/uploaded'))).length,3);
+      const file=path.join(publicDir,bundle.assets[0].runtimePath);
+      await fs.unlink(file);await ensureBuiltinMeeting(pool,{publicDir});
+      assert.equal((await fs.stat(file)).size,bundle.assets[0].bytes);
+      const screen=template.layout.find(i=>i.type==='presentation_screen');assert.equal(screen.model_id,undefined);assert.equal(screen.model_path,undefined);
+      const stat=absolute=>fs.stat(path.join(publicDir,path.relative(realPublic,absolute)));
+      const owner=randomUUID();await pool.query('INSERT INTO users VALUES($1)',[owner]);
+      const rooms=createUserRoomService(pool,(id,db)=>validateRoom(id,db,stat));
+      const first=(await rooms.create(owner,{name:'New default',capacity:6,request_key:randomUUID()})).room;
+      const snapshot=(await pool.query('SELECT * FROM world_objects WHERE room_id=$1 ORDER BY id',[first.id])).rows;
+      assert.equal(snapshot.length,9);assert.equal((await validateRoom(first.id,pool,stat)).ok,true);
+      assert.deepEqual(snapshot.find(i=>i.type==='presentation_screen').presentation_screen,screen.screen);
+      await ensureBuiltinMeeting(pool,{publicDir});
+      assert.deepEqual((await pool.query('SELECT * FROM world_objects WHERE room_id=$1 ORDER BY id',[first.id])).rows,snapshot);
+      assert.equal((await pool.query('SELECT count(*)::int n FROM room_templates')).rows[0].n,4);
+      const second=(await rooms.create(owner,{name:'Second default',capacity:6,request_key:randomUUID()})).room;
+      assert.equal((await pool.query('SELECT count(*)::int n FROM room_seats WHERE room_id=$1',[second.id])).rows[0].n,6);
+      const changedSource=path.join(temporary,'changed-v2');await fs.mkdir(changedSource);
+      const manifest=JSON.parse(await fs.readFile(path.join(__dirname,'../database/seeds/meeting-six-v2/manifest.json')));
+      manifest.assets[0].fromBundle='../../untrusted';await fs.writeFile(path.join(changedSource,'manifest.json'),JSON.stringify(manifest));
+      await assert.rejects(readBundle(changedSource),/Invalid built-in asset reference/);
+      manifest.assets[0].fromBundle='meeting-six-v1';manifest.name='Changed without version';
+      await fs.writeFile(path.join(changedSource,'manifest.json'),JSON.stringify(manifest));
+      await assert.rejects(ensureBuiltinMeeting(pool,{publicDir,directory:changedSource}),/without a new version/);
+    });
     for (const kind of ['publication', 'draft', 'room']) await scenario('preserved-' + kind, async (pool, options) => {
       if (kind === 'publication') await pool.query(`INSERT INTO room_templates(template_key,version,name,layout)
         SELECT template_key,4,'Custom room',layout FROM room_templates WHERE version=3`);
@@ -148,6 +188,7 @@ async function main() {
       const before = (await pool.query('SELECT * FROM room_templates ORDER BY version')).rows;
       assert.equal((await ensureBuiltinMeeting(pool, options)).status, 'preserved');
       assert.equal((await ensureBuiltinMeeting(pool, options)).status, 'preserved');
+      assert.equal((await ensureBuiltinMeeting(pool, {publicDir:options.publicDir})).status, 'preserved');
       assert.deepEqual((await pool.query('SELECT * FROM room_templates ORDER BY version')).rows, before);
       assert.equal((await pool.query('SELECT * FROM uploaded_models')).rows.length, 0);
       assert.equal((await pool.query('SELECT * FROM room_builtin_bundles')).rows.length, 0);

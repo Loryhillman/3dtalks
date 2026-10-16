@@ -5,8 +5,9 @@ const {chromium}=require('playwright');const root=path.resolve(__dirname,'../pub
 const {renderMeetingPage}=require('../src/services/meetingPage');
 const {officeGlb}=require('./room-environment-fixtures');
 const environmentMode=process.argv.includes('--environment');
-const builtinMode=process.argv.includes('--builtin');
-const screenMode=process.argv.includes('--screen');
+const builtinV2Mode=process.argv.includes('--builtin-v2');
+const builtinMode=process.argv.includes('--builtin')||builtinV2Mode;
+const screenMode=process.argv.includes('--screen')||builtinV2Mode;
 const bundledFiles=new Map();let builtinSeats=[];
 const apiCalls=[];
 const {getPrefab}=require('../src/services/worldPrefabs');
@@ -43,17 +44,17 @@ const server=http.createServer(async(req,res)=>{try{
 let browser;
 (async()=>{
  if(builtinMode){
-  const bundle=await require('../src/services/roomBuiltinBundle').readBundle(path.resolve(__dirname,'../database/seeds/meeting-six-v1'));
+  const bundle=await require('../src/services/roomBuiltinBundle').readBundle(path.resolve(__dirname,'../database/seeds/meeting-six-'+(builtinV2Mode?'v2':'v1')));
   for(const asset of bundle.assets)bundledFiles.set(asset.runtimePath,asset.data);
   objects.splice(0,objects.length,...bundle.layout.map((item,index)=>{
-   const row={id:index+1,type:'uploaded_model',model_type:'gltf',name:item.name,model_path:item.model_path,
+   const row={id:item.type==='presentation_screen'?100:index+1,type:item.type==='presentation_screen'?item.type:'uploaded_model',model_type:item.model_path?'gltf':null,name:item.name,model_path:item.model_path||null,presentation_screen:item.screen||null,
     has_collision:item.collision,is_room_environment:item.type==='room_environment',room_environment:item.environment||null};
    for(const prefix of ['position','rotation','scale'])for(const axis of ['x','y','z'])row[prefix+'_'+axis]=item[prefix][axis];
    return row;
   }));
   builtinSeats=bundle.layout.flatMap((item,index)=>(item.seats||[]).map(seat=>require('../src/services/roomSeatPose').roomSeatPose(seat,objects[index])));
  }
- if(screenMode){
+ if(screenMode&&!builtinV2Mode){
   const item=require('../public/js/roomScreen').create();
   objects.push({id:100,type:item.type,name:item.name,has_collision:false,presentation_screen:item.screen,
    ...Object.fromEntries(['position','rotation','scale'].flatMap(p=>['x','y','z'].map(a=>[p+'_'+a,item[p][a]])))});
