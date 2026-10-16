@@ -70,7 +70,8 @@ async function initializeDatabase() {
     'migrations/add_room_template_editor.sql',
     'migrations/add_independent_room_seats.sql',
     'migrations/add_room_environment.sql',
-    'migrations/add_user_avatars.sql'
+    'migrations/add_user_avatars.sql',
+    'migrations/add_room_builtin_bundles.sql'
   ];
   for (const migFile of migrations) {
     const migrationPath = path.join(__dirname, '..', '..', 'database', migFile);
@@ -90,11 +91,14 @@ async function initializeDatabase() {
           migFile === 'migrations/add_room_template_editor.sql' ||
           migFile === 'migrations/add_independent_room_seats.sql' ||
           migFile === 'migrations/add_room_environment.sql' ||
-          migFile === 'migrations/add_user_avatars.sql') throw migErr;
+          migFile === 'migrations/add_user_avatars.sql' ||
+          migFile === 'migrations/add_room_builtin_bundles.sql') throw migErr;
       console.log('Migration skipped (already applied, missing file or schema mismatch):', migFile, migErr.message);
     }
   }
   await require('../services/roomTemplateSeed').ensureRoomTemplates(pool);
+  const builtinMeeting = await require('../services/roomBuiltinBundle').ensureBuiltinMeeting(pool);
+  console.log('[Rooms] Built-in meeting:', builtinMeeting.status);
   await require('../services/bootstrapAdmin').ensureBootstrapAdmin(pool);
   initialized = true;
 }

@@ -5,6 +5,8 @@ const {chromium}=require('playwright');const root=path.resolve(__dirname,'../pub
 const {renderMeetingPage}=require('../src/services/meetingPage');
 const {officeGlb}=require('./room-environment-fixtures');
 const environmentMode=process.argv.includes('--environment');
+const builtinMode=process.argv.includes('--builtin');
+const bundledFiles=new Map();let builtinSeats=[];
 const apiCalls=[];
 const {getPrefab}=require('../src/services/worldPrefabs');
 const objects=['room','table'].map((kind,i)=>({id:i+1,type:'geometry_building',name:kind,geometry_data:{components:getPrefab(kind).components},position_x:0,position_y:0,position_z:0,scale_x:1,scale_y:1,scale_z:1,has_collision:true}));
@@ -20,6 +22,7 @@ const binHeader=Buffer.alloc(8);binHeader.writeUInt32LE(binary.length,0);binHead
 const room={id:'fixture-room',slug:'fixture',name:'Meeting fixture',status:'open',capacity:6,seating_mode:'seated',spawn_position:{x:0,y:1,z:0}};
 const server=http.createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://fixture').pathname;
+ if(bundledFiles.has(url)){res.setHeader('Content-Type','model/gltf-binary');res.end(bundledFiles.get(url));return;}
  if(url==='/models/fixture-office.glb'){res.setHeader('Content-Type','model/gltf-binary');res.end(officeGlb({units:1000}));return;}
  if(url==='/models/fixture-chair.glb'){res.setHeader('Content-Type','model/gltf-binary');res.end(chairGlb);return;}
  if(url.startsWith('/api/')){
@@ -38,12 +41,24 @@ const server=http.createServer(async(req,res)=>{try{
 }catch(e){res.statusCode=404;res.end(e.message);}});
 let browser;
 (async()=>{
+ if(builtinMode){
+  const bundle=await require('../src/services/roomBuiltinBundle').readBundle(path.resolve(__dirname,'../database/seeds/meeting-six-v1'));
+  for(const asset of bundle.assets)bundledFiles.set(asset.runtimePath,asset.data);
+  objects.splice(0,objects.length,...bundle.layout.map((item,index)=>{
+   const row={id:index+1,type:'uploaded_model',model_type:'gltf',name:item.name,model_path:item.model_path,
+    has_collision:item.collision,is_room_environment:item.type==='room_environment',room_environment:item.environment||null};
+   for(const prefix of ['position','rotation','scale'])for(const axis of ['x','y','z'])row[prefix+'_'+axis]=item[prefix][axis];
+   return row;
+  }));
+  builtinSeats=bundle.layout.flatMap((item,index)=>(item.seats||[]).map(seat=>require('../src/services/roomSeatPose').roomSeatPose(seat,objects[index])));
+ }
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const cache='/root/.cache/ms-playwright';let executable=process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE||chromium.executablePath();
  try{await fs.access(executable);}catch(_){for(const dir of await fs.readdir(cache))if(dir.startsWith('chromium-')){const file=path.join(cache,dir,'chrome-linux64/chrome');try{await fs.access(file);executable=file;break;}catch(_){}}}
  browser=await chromium.launch({executablePath:executable,headless:true,args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
  const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[],dialogs=[],scripts=[];page.on('request',req=>{if(req.url().includes('/js/'))scripts.push(req.url());});page.on('pageerror',e=>{errors.push(e.message);console.error(e.stack);});page.on('dialog',async d=>{dialogs.push(d.message());await d.dismiss();});
- await page.addInitScript(()=>{
+ await page.addInitScript(seats=>{
+  window.fixtureSeats=seats;
   localStorage.setItem('token','fixture-token');localStorage.setItem('userId','user');localStorage.setItem('characterId','me');
   localStorage.setItem('selectedTemplateGlbUrl','/uploads/legacy-missing.glb');localStorage.setItem('selectedTemplateHeight','99');localStorage.setItem('selectedTemplateWeaponConfig','{\"weapon\":\"legacy\"}');
   window.legacyReads=[];const originalGet=Storage.prototype.getItem;Storage.prototype.getItem=function(key){if(key.startsWith('selectedTemplate'))legacyReads.push(key);return originalGet.call(this,key);};
@@ -52,14 +67,14 @@ let browser;
    static OPEN=1;static CLOSED=3;readyState=0;
    constructor(){setTimeout(()=>{this.readyState=1;this.onopen?.({});},0);}
    send(text){const message=JSON.parse(text);sent.push(message);if(message.type==='PLAYER_JOIN')setTimeout(()=>{
-    this.onmessage?.({data:JSON.stringify({type:'ROOM_SEAT_ASSIGNED',payload:{roomId:'fixture-room',seat:{id:'one',position:{x:0,y:1,z:0},orientation:{x:0,y:0,z:0,w:1}}}})});
+    this.onmessage?.({data:JSON.stringify({type:'ROOM_SEAT_ASSIGNED',payload:{roomId:'fixture-room',seat:{id:'one',position:{x:0,y:1,z:0},orientation:{x:0,y:0,z:0,w:1},...window.fixtureSeats?.[0]}}})});
     this.onmessage?.({data:JSON.stringify({type:'WORLD_STATE',payload:{players:[{characterId:'peer',characterName:'Peer',position:{x:3,y:1,z:0},avatarConfig:{mode:'standard',headType:'cube',headColor:'#ffaa99',bodyColor:'#4a90e2',headScale:1,headOffset:0,headYaw:0},seat:{id:'two',position:{x:3,y:1,z:0},orientation:{x:0,y:0,z:0,w:1}},glbUrl:'/legacy-missing.glb',weaponConfig:{type:'sword'},animUrls:{idle:'/legacy-idle.glb'}}],weather:{type:'storm',intensity:100}}})});
    },0);}
    close(){this.readyState=3;}
    addEventListener(){}
   }
   window.WebSocket=Socket;
- });
+ },builtinSeats);
  await page.addInitScript(() => {
   window.legacyWork = [];
   document.addEventListener('DOMContentLoaded', () => {
@@ -74,9 +89,23 @@ let browser;
  await page.goto('http://127.0.0.1:' +server.address().port+'/play?room=fixture');
  await page.waitForFunction(()=>window.gameWorld&&window.RoomSeating?.active&&window.sent?.some(m=>m.type==='PLAYER_JOIN'),{timeout:15000});
  await page.waitForFunction(()=>window.gameWorld?.loadedObjects.has(3));
+ await page.waitForFunction(count=>window.gameWorld?.loadedObjects.size===count,objects.length);
  await page.waitForFunction(() => gameWorld.players.get('peer')?.group.userData.accountAvatarConfig?.headType === 'cube');
  assert.equal(await page.evaluate(() => gameWorld.players.get('peer').group.userData.roomSeat?.id), 'two');
- assert.equal(await page.evaluate(()=>gameWorld.generatedBuildings.size),3,'room geometry and uploaded GLB render with the lean script set');
+ assert.equal(await page.evaluate(()=>gameWorld.generatedBuildings.size),objects.length,'room geometry and uploaded GLB render with the lean script set');
+ if(builtinMode){
+  const rendered=await page.evaluate(()=>[...gameWorld.generatedBuildings.values()].map(entry=>{
+   let meshes=0,textures=0;entry.model.traverse(node=>{if(node.isMesh){meshes++;for(const material of [].concat(node.material||[]))if(material.map)textures++;}});
+   return {name:entry.data.name,meshes,textures,scale:entry.model.scale.x,environment:entry.data.is_room_environment===true};
+  }));
+  assert.equal(rendered.length,8);assert(rendered.every(entry=>entry.meshes>0));
+  assert.equal(rendered.filter(entry=>entry.environment).length,1);
+  assert(rendered.some(entry=>entry.textures>0),'the real bundled models retain their textures');
+  for(let i=0;i<objects.length;i++)assert.equal(rendered[i].scale,objects[i].scale_x);
+  const ownPose=await page.evaluate(()=>({x:player.position.x,y:player.position.y,z:player.position.z}));
+  for(const axis of ['x','y','z'])assert(Math.abs(ownPose[axis]-builtinSeats[0].position[axis])<1e-7,'real bundled seat pose is applied');
+  console.log('Bundled meeting: office, table, six chairs, textures, authored transforms and seat pose rendered OK');
+ }
  if(environmentMode){
   const office=await page.evaluate(()=>{
    const entry=gameWorld.generatedBuildings.get(1);let meshes=0;entry.model.traverse(n=>{if(n.isMesh)meshes++;});
