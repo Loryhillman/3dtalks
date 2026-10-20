@@ -25,10 +25,11 @@ async function main(){
  const svg=Buffer.from('<svg width="1280" height="720"><rect width="1280" height="720" fill="#149fdc"/><rect x="70" y="70" width="1140" height="580" rx="24" fill="#183454"/><text x="150" y="290" fill="white" font-family="sans-serif" font-size="110">3DTalks</text><text x="150" y="430" fill="white" font-family="sans-serif" font-size="64">Image presentation</text></svg>');
  const imageBytes=await sharp(svg).png().toBuffer();const imageAsset=await upload(imageBytes,'image','Образец изображения.png');
  let executable=process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE||chromium.executablePath();try{await fs.access(executable);}catch(_){for(const n of await fs.readdir('/root/.cache/ms-playwright'))if(/^chromium-\d+$/.test(n))executable='/root/.cache/ms-playwright/'+n+'/chrome-linux64/chrome';}
- browser=await chromium.launch({executablePath:executable,headless:true,args:['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+ browser=await chromium.launch({executablePath:executable,headless:true,args:['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});
  const errors=[],states={};
  async function pageFor(actor,key){
   const context=await browser.newContext({viewport:{width:1280,height:900}});
+  if(base.startsWith('https:'))await context.grantPermissions(['microphone'],{origin:base});
   await context.addInitScript(actor=>{for(const k of ['token','userId','characterId'])localStorage.setItem(k,actor[k]);},actor);
   const page=await context.newPage();page.on('pageerror',e=>errors.push({key,message:e.message}));
   page.setDefaultTimeout(30000);page.setDefaultNavigationTimeout(30000);
@@ -42,6 +43,13 @@ async function main(){
  const ready=page=>page.waitForFunction(()=>window.RoomSeating?.active&&window.gameWorld&&[...gameWorld.generatedBuildings.values()].some(e=>e.data.type==='presentation_screen'));
  await ready(host);await ready(viewer);await host.locator('#presentation-manage').waitFor({state:'visible'});
  assert(await viewer.locator('#presentation-manage').isHidden());
+ if(base.startsWith('https:')){
+  for(const page of [host,viewer]){
+   const microphone=await page.evaluate(async()=>{const stream=await navigator.mediaDevices.getUserMedia({audio:true});const result={secure:isSecureContext,tracks:stream.getAudioTracks().length};stream.getTracks().forEach(track=>track.stop());return result;});
+   assert(microphone.secure&&microphone.tracks===1,'HTTPS microphone access must succeed (synthetic browser input)');
+  }
+  console.log('Live acceptance: trusted HTTPS and microphone access passed (synthetic audio input)');
+ }
  stage='show PDF';console.log('Live acceptance: both participants seated; starting PDF');
  const waitColor=(page,rgb)=>page.waitForFunction(rgb=>{
   const c=[...gameWorld.generatedBuildings.values()].find(e=>e.data.type==='presentation_screen')?.model.userData.screenCanvas;
