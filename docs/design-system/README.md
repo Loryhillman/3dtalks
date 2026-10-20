@@ -1,6 +1,6 @@
 # 3DTalks Design System
 
-**Версия:** 1.1.0 (семантические токены интегрированы; компоненты проверяются отдельно)
+**Версия:** 1.1.1 (токены интегрированы; реестр текущих компонентов документирован)
 **Статус:** approved specification / implementation unverified
 **Область:** обычный веб-интерфейс управления виртуальными переговорными. **Не распространяется на Three.js-сцену, графику и управление аватарами внутри 3D.**
 
@@ -21,7 +21,7 @@
 | [tokens.md](tokens.md) | Примитивные и семантические токены, типографика, размеры |
 | [layout.md](layout.md) | App Shell; Grid, Data, Form, Workspace |
 | [components.md](components.md) | Контракты и правила UI-компонентов |
-| [component-registry.md](component-registry.md) | Подтверждённые реализации и статусы; заполняется аудитом |
+| [component-registry.md](component-registry.md) | Реальные реализации, контракты, потребители и ограничения |
 | [patterns.md](patterns.md) | Создание, редактирование, сохранение, удаление, offline, toast |
 | [responsive.md](responsive.md) | Четыре адаптивных диапазона |
 | [motion.md](motion.md) | Subtle Motion, длительности, движение |
