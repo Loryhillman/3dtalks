@@ -59,9 +59,16 @@ let browser,server;
  assert.equal(await page.locator('#screen-width').inputValue(),'2');
  await page.locator('#screen-preview').click();assert(await page.locator('dialog').isVisible());
  if(process.env.ROOM_SCREEN_SCREENSHOT)await page.screenshot({path:process.env.ROOM_SCREEN_SCREENSHOT});
+ assert.equal(await page.locator('dialog').evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(255, 255, 255)');
+ for(const [width,height] of [[375,812],[1280,800]]){
+  await page.setViewportSize({width,height});await page.waitForFunction(()=>{const c=document.querySelector('dialog canvas').getBoundingClientRect(),f=document.querySelector('.screen-preview-frame');return c.width<=f.clientWidth&&c.height<=f.clientHeight;});
+  assert(await page.locator('dialog').evaluate(n=>n.scrollWidth<=n.clientWidth));
+ }
+ await page.getByRole('button',{name:'Zoom in',exact:true}).click();await page.getByRole('button',{name:'Fit to window',exact:true}).click();
+ await page.screenshot({path:'/tmp/editor-screen-preview-redesign.png'});
  await page.keyboard.press('Tab');assert(await page.evaluate(()=>!!document.activeElement.closest('dialog')));
  await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.querySelector('dialog'));
- assert.equal(await page.evaluate(()=>document.activeElement.id),'screen-preview');
+ assert.equal(await page.evaluate(()=>document.activeElement.id),'screen-preview');await page.setViewportSize({width:1500,height:1000});
  assert.equal(await page.locator('#object-list .selected').getAttribute('data-id'),screenId);
  await page.locator('#pos-y').fill('100');await page.locator('#edit-form button[type="submit"]').click();
  await page.waitForFunction(()=>!!document.querySelector('#placement-issues [data-type="objectOutside"]'));

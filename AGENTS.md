@@ -360,5 +360,15 @@ HTTP API и stopShowing/epoch/revision guards сохранены; 401/403 зак
 QA и ограничения — docs/design-system/materials-redesign.md. Прошли браузерные
 материалы/кабинет/аватар/HUD/показ/полный startup builtin-v2 с тестовыми API.
 Axe, screen reader, Safari, live PostgreSQL и пользовательская приёмка не выполнены.
-После коммита библиотеки остановись для согласования управления показом и
-увеличенного экрана. Push и развёртывание требуют отдельного поручения.
+Материалы зафиксированы в 6598e8c1. По следующему согласованию обновлены
+RoomPresentation и RoomScreenPreview: light panels, отдельные current/library/
+command состояния и retry; локальные zoom/fit/keyboard pan и ResizeObserver
+с обязательным disconnect. API/WS shape и renderer не менялись; canControl loss
+и 401/403 библиотеки закрывают owner panel. RoomScreenPreview применяется также
+в room_editor.html, где подключён только его локальный stylesheet/controls.
+Проверки/ручная приёмка — docs/design-system/presentation-redesign.md.
+Пройдены Chromium 3 языка/7 viewport, editor, startup builtin-v2, материалы,
+HUD и protocol с тестовыми API. Axe/screen reader/Safari/live база не проверены.
+После коммита окон остановись для пользовательской проверки. Внешние HUD/чат
+ещё прежние; их редизайн требует нового согласования. Push и развёртывание
+требуют отдельного поручения.

@@ -5707,7 +5707,12 @@
     "close": "关闭",
     "test": "测试屏幕 · 正面",
     "zoomIn": "放大",
-    "zoomOut": "缩小"
+    "zoomOut": "缩小",
+    "fit": "适应窗口",
+    "zoom": "缩放",
+    "content": "屏幕内容",
+    "pan": "屏幕预览。放大后可使用方向键滚动。",
+    "localHint": "缩放和滚动仅影响您的视图。"
   },
   "roomMaterials": {
     "title": "会议材料",
@@ -5784,6 +5789,14 @@
     "INVALID_SCREEN": "此房间没有演示屏幕。",
     "MATERIAL_NOT_FOUND": "此材料不可用。",
     "PRESENTATION_REQUEST_LIMIT": "已达到演示命令限制，请稍后重试。",
-    "PRESENTATION_BUSY": "命令仍在处理中，请等待并同步屏幕。"
+    "PRESENTATION_BUSY": "命令仍在处理中，请等待并同步屏幕。",
+    "title": "共享屏幕",
+    "nowShowing": "当前屏幕内容",
+    "slide": "页面",
+    "pending": "正在等待确认…",
+    "syncing": "正在同步屏幕…",
+    "libraryLoading": "正在加载您的材料…",
+    "retryLibrary": "重新加载材料",
+    "sharedHint": "更改对房间中的所有人可见。关闭此面板不会停止演示。"
   }
 }

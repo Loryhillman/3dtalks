@@ -2,6 +2,23 @@
 
 Формат следует принципам Keep a Changelog; версия документации независима от версии продукта. Не добавлять задним числом неподтверждённые реализации.
 
+## [1.3.0] — 2026-10-20
+### Changed
+- RoomPresentation использует light panel, отдельные current/library/command
+  состояния, retry, полные имена и контролы по общим tokens/Button variants.
+- RoomScreenPreview получил light viewer, resize-aware fit, локальный масштаб,
+  доступную клавиатурную прокрутку и очистку ResizeObserver.
+- Сохранены API и wire shapes, серверные права, revision/epoch guards, локальность
+  zoom и очистка на disconnect. Потеря canControl закрывает панель владельца.
+- Добавлены RU/EN/zh-CN подписи; viewer подключён также в редакторе без App Shell.
+
+### Validation
+- Chromium: 3 языка, 7 viewport, pending/timeout/conflict, loading/empty/retry/401,
+  role loss, fit/resize/zoom/pan, observer cleanup; настоящий редактор и startup
+  builtin-v2. Материалы/HUD/protocol регрессия прошла с тестовыми API/WS.
+- Результаты и границы — presentation-redesign.md. Внешний HUD/чат, сервер и
+  Three.js не перерабатывались; push/развёртывание и ручная приёмка не выполнены.
+
 ## [1.2.0] — 2026-10-20
 ### Changed
 - RoomMaterials получил единый light dialog, upload target, квоты, список файлов,

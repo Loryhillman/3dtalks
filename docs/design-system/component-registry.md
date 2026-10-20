@@ -1,6 +1,6 @@
 # Реестр UI-компонентов
 
-Версия документации: 1.2.0. Аудит: 2026-10-20, ветка `codex/room-presentations`.
+Версия документации: 1.3.0. Аудит: 2026-10-20, ветка `codex/room-presentations`.
 Область: кабинет, оболочка аватара и HTML-интерфейс материалов/презентации.
 Это подтверждённая карта исходников, а не декларация полного соответствия
 дизайн-системе. Lifecycle Stable/Experimental/Deprecated не присвоен:
@@ -35,7 +35,7 @@
 | Room actions disclosure | Composite / Domain | `public/js/roomsLobby.js` | Native details/summary; не ARIA menu с управлением стрелками |
 | RoomMaterials | Domain | `public/js/roomMaterials.js`, `public/css/room-materials.css` | Собственный native dialog, загрузки и приватный preview |
 | RoomPresentation panel | Domain | `public/js/roomPresentation.js`, `public/css/room-presentation.css` | UI связан с подтверждаемыми WS-командами и состоянием показа |
-| RoomScreenPreview | Domain | `public/js/roomScreenPreview.js` | Локальная canvas-копия и zoom; собственный жизненный цикл |
+| RoomScreenPreview | Domain | `public/js/roomScreenPreview.js`, `public/css/room-screen-preview.css` | Локальная canvas-копия и zoom; собственный жизненный цикл |
 | TemplateCard | Кандидат Domain | отдельной реализации для кабинета не найдено | В старом `public/world_editor.html` есть одноимённые CSS-правила; это не компонент выбора шаблона кабинета |
 
 ## Button / IconButton
@@ -62,7 +62,7 @@
   Их импортируют app-ui.css и room-materials.css; низкая специфичность сохраняет
   локальные overrides, а глобальные font/link defaults не затирают Button.
   Media coarse pointer также даёт target height 44 px. Контраст primary link
-  проверяет test-rooms-design-browser.js. Другие окна встречи пока не адаптированы.
+  проверяет test-rooms-design-browser.js. Окна показа и увеличенного просмотра также используют эти scoped controls.
 
 ## Input / Select / Field
 
@@ -229,17 +229,25 @@
 - Native dialog: текущий материал/страница, select готовых материалов, show,
   previous/next, stop, library. Команды немедленные, без Save и offline queue.
 - Disabled: соединение/синхронизация/pending/нет view, границы страниц,
-  отсутствие asset/options. Library запрашивается с AbortController.
+  отсутствие asset/options/state. Library запрашивается с AbortController,
+  состояния loading/ready/empty/error отделены от текущего показа; есть Retry.
+  Выбранный файл показан полностью под select; aria-describedby связывает
+  значение и состояние библиотеки. Pending/sync/error имеют отдельный feedback.
   WS requestId/expectedEpoch/expectedRevision, подтверждение и timeout 10 секунд
   принадлежат контроллеру. Конфликт вызывает sync без автоматического replay.
 - close abort запроса списка и возврат trigger; общий показ при закрытии панели
   продолжается. disconnect очищает документы, окна и pending; stop дополнительно
   завершает контроллер и снимает controls. detach и stop не взаимозаменяемы.
+  Потеря canControl и ответ списка 401/403 закрывают панель владельца;
+  при недоступном trigger фокус возвращается к доступной кнопке переговорной.
 - aria-labelledby, role=status, select label, native Escape, Tab/Shift+Tab,
   pointer/keyboard/wheel/touch propagation остановлен внутри dialog.
-- CSS: отдельный тёмный room-presentation-dialog, native кнопки, styles toolbar;
-  tokens пока не подключены. Gap: единая светлая композиция, иерархия действий,
-  явные loading/error/empty состояния библиотеки; сохранение протокола и cleanup.
+- CSS: `.meeting-ui.room-presentation-dialog`, light surface/Inter/shared controls,
+  header и scrollable body, отдельная current-card, primary show, нейтральные
+  страницы и destructive stop. Токены из app-controls.css; внешняя toolbar
+  сохраняет прежнюю тему, но статус больше не скрыт inline ellipsis.
+- Gap: полноценная assistive technology/axe/Safari/live проверка не выполнена.
+  Визуальный контракт и результаты: [presentation-redesign.md](presentation-redesign.md).
 - Проверки: `scripts/test-room-presentation-browser.js`,
   `scripts/test-room-presentation-protocol.js`; серверная интеграция —
   `scripts/check-room-presentation.js`, live —
@@ -253,14 +261,21 @@
 - mount возвращает cleanup-функцию: закрытие окна и удаление кнопки. Один active
   preview; каждый open закрывает предыдущий. Состояние zoom локально.
 - Canvas копирует source, refresh перерисовывает текущую копию; zoom .5–3
-  с шагом .25 меняет CSS width. Shared commands не посылаются.
+  с шагом .25 меняет CSS width. Shared commands не посылаются. Fit возвращает
+  100% от подогнанного размера и начало прокрутки; ResizeObserver подгоняет
+  базовый размер при изменении frame, сохраняя выбранный коэффициент.
+  При source.width/height=0 новое окно не открывается, активное закрывается.
 - Native dialog с title, autofocus Close, aria-label zoom-кнопок, canvas role=img;
-  ручной цикл Tab между активными кнопками, Escape, возврат trigger;
+  цикл Tab между активными кнопками и scrollable frame, Escape, возврат trigger;
   propagation pointer/keyboard/wheel/touch остановлен. При close удаляется DOM
-  и обнуляются размеры canvas; source и GPU сцены этому окну не принадлежат.
-- Gap: inline тёмный стиль, мелкие native controls, стартовый размер рассчитывается
-  один раз (изменение viewport при открытом окне нужно проверить), aria-label
-  canvas использует roomScreen.test даже для реального материала.
+  и обнуляются размеры canvas, ResizeObserver отключается; source и GPU сцены
+  этому окну не принадлежат. Frame с tabindex=0, role=region и описанием
+  поддерживает клавиатурную прокрутку; canvas описан через roomScreen.content.
+- CSS: отдельный room-screen-preview.css импортирует только shared controls/tokens;
+  light modal, fixed header/toolbar, scrollable frame и локальная подсказка.
+  Inline остаётся только вычисляемая CSS width canvas, без второй палитры.
+- Проверены fit/resize/zoom bounds/ArrowRight, observer cleanup, 3 языка/7 viewport.
+  Gap: Safari/axe/screen reader/реальные устройства и полный text zoom не проверены.
 - Совместимость: применяется также в редакторе, который не входит в новый
   редизайн. Любые изменения общего preview требуют проверки обоих consumers;
   не подключать оболочку кабинета к редактору ради стилей.
@@ -283,8 +298,10 @@
    существующего жизненного цикла без подмены контроллера AppDialog.
 3. **Выполнено.** Подтверждение удаления — вариант существующего Dialog-паттерна,
    с точными последствиями остановки активного показа, без потери revision guards.
-4. Панель показа и увеличенный экран — следующий отдельно согласуемый этап.
-   Новые продуктовые функции, редактор, API и Three.js не входят в эти этапы.
+4. **Выполнено.** Панель показа и увеличенный экран обновлены. Общий viewer
+   проверен в редакторе без редизайна его остального интерфейса. Новые продуктовые
+   возможности, backend/API/Three.js не входят в этап. Остановиться для проверки;
+   дальнейшее оформление HUD/чата требует отдельного согласования.
 
 ## Проверка этапа реестра (до редизайна материалов)
 
@@ -295,3 +312,5 @@ NOT RUN: новые браузерные/визуальные/accessibility пр
 [token-integration.md](token-integration.md) и не заменяет проверку будущего UI.
 
 Последующие проверки RoomMaterials и shared controls — в [materials-redesign.md](materials-redesign.md).
+
+Проверки управления показом и общего viewer — в [presentation-redesign.md](presentation-redesign.md).

@@ -1,12 +1,48 @@
+@import url('./app-controls.css?v=1');
+
 .room-presentation-dialog {
-  box-sizing: border-box; width: min(600px, 95vw); max-height: 92dvh; overflow: auto;
-  padding: 20px; border: 1px solid #64748b; border-radius: 12px; background: #14253d; color: white;
+  box-sizing: border-box; width: min(600px, calc(100vw - 48px)); max-width: calc(100vw - 24px); max-height: calc(100dvh - 48px);
+  margin: auto; padding: 0; overflow: hidden; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-modal);
+  background: var(--color-surface); color: var(--color-text-primary); color-scheme: light;
+  font: var(--font-size-body)/1.5 var(--font-family-ui); box-shadow: var(--shadow-dialog); overflow-wrap: anywhere;
 }
-.room-presentation-dialog label { display: block; margin: 12px 0; }
-.room-presentation-dialog select { box-sizing: border-box; display: block; width: 100%; min-height: 44px; }
-.room-presentation-dialog button { min-height: 44px; margin: 4px; padding: 8px 12px; }
-.room-presentation-dialog [data-current] { overflow-wrap: anywhere; }
+.room-presentation-dialog[open] { display: flex; flex-direction: column; }
+.room-presentation-dialog *, .room-presentation-dialog *::before { box-sizing: border-box; }
+.room-presentation-dialog [hidden] { display: none !important; }
+.room-presentation-dialog::backdrop { background: rgb(23 38 56 / 48%); }
+.room-presentation-dialog :where(h2,h3,p) { margin: 0; }
+.room-presentation-dialog .presentation-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex: none; padding: 24px; border-bottom: 1px solid var(--color-border-subtle); }
+.room-presentation-dialog h2 { font-size: var(--font-size-section-title); line-height: 1.3; font-weight: 600; }
+.room-presentation-dialog .presentation-room { color: var(--color-text-muted); margin-top: 6px; max-height: 3em; overflow: auto; }
+.room-presentation-dialog .presentation-close { flex: none; width: 44px; min-height: 44px; padding: 10px; color: var(--color-text-muted); }
+.room-presentation-dialog .presentation-body { display: grid; gap: 20px; padding: 24px; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.room-presentation-dialog .presentation-hint, .room-presentation-dialog .presentation-library-state { color: var(--color-text-muted); }
+.room-presentation-dialog .presentation-library-state:empty { display: none; }
+.room-presentation-dialog .presentation-now { display: grid; gap: 8px; padding: 16px; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-card); background: var(--color-app-bg); }
+.room-presentation-dialog h3 { font-size: var(--font-size-meta); font-weight: 500; color: var(--color-text-muted); }
+.room-presentation-dialog .presentation-current { font-weight: 600; }
+.room-presentation-dialog .presentation-page { color: var(--color-selection-text); font-size: var(--font-size-meta); }
+.room-presentation-dialog .presentation-page:empty { display: none; }
+.room-presentation-dialog .presentation-field { display: grid; gap: 8px; min-width: 0; font-weight: 500; }
+.room-presentation-dialog .presentation-selected { font-size: var(--font-size-meta); font-weight: 400; color: var(--color-text-muted); overflow-wrap: anywhere; }
+.room-presentation-dialog .presentation-selected:empty { display: none; }
+.room-presentation-dialog select { display: block; width: 100%; min-width: 0; max-width: 100%; min-height: 44px; padding: 8px 12px; font: var(--font-size-form-control)/1.4 var(--font-family-ui); background: var(--color-surface); color: var(--color-text-primary); border: 1px solid var(--color-border-control); border-radius: var(--radius-control); }
+.room-presentation-dialog select:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 3px; }
+.room-presentation-dialog select:disabled { background: var(--color-hover); }
+.room-presentation-dialog .presentation-commands { display: grid; gap: 12px; }
+.room-presentation-dialog .presentation-paging { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; }
+.room-presentation-dialog .presentation-feedback { padding: 12px 16px; background: var(--color-selection-bg); color: var(--color-selection-text); border-radius: var(--radius-control); }
+.room-presentation-dialog .presentation-feedback.is-error { background: var(--color-danger-bg); color: var(--color-danger-text); }
 .meeting-session #meeting-screen-preview { grid-column: 1 / -1; }
 .meeting-session #room-presentation-controls { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
 .meeting-session #room-presentation-controls button { flex: 1 1 120px; min-width: 0; }
-.meeting-session #room-presentation-controls #presentation-status { flex-basis: 100%; max-width: 100% !important; }
+.meeting-session #room-presentation-controls #presentation-status { flex-basis: 100%; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 767px) {
+  .room-presentation-dialog { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); }
+  .room-presentation-dialog .presentation-header, .room-presentation-dialog .presentation-body { padding: 20px; }
+  .room-presentation-dialog h2 { font-size: var(--font-size-dialog-title); }
+  .room-presentation-dialog .presentation-body { gap: 16px; }
+}
+@media (max-width: 374px) {
+  .room-presentation-dialog .presentation-paging { grid-template-columns: minmax(0,1fr); }
+}

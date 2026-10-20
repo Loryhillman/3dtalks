@@ -5707,7 +5707,12 @@
     "close": "Close",
     "test": "Test screen · FRONT",
     "zoomIn": "Zoom in",
-    "zoomOut": "Zoom out"
+    "zoomOut": "Zoom out",
+    "fit": "Fit to window",
+    "zoom": "Zoom",
+    "content": "Screen content",
+    "pan": "Screen preview. Use arrow keys to scroll when zoomed in.",
+    "localHint": "Zoom and scrolling change only your view."
   },
   "roomMaterials": {
     "title": "Room materials",
@@ -5784,6 +5789,14 @@
     "INVALID_SCREEN": "This room has no presentation screen.",
     "MATERIAL_NOT_FOUND": "This material is unavailable.",
     "PRESENTATION_REQUEST_LIMIT": "The presentation command limit was reached. Try again later.",
-    "PRESENTATION_BUSY": "A command is still pending. Wait and sync the screen."
+    "PRESENTATION_BUSY": "A command is still pending. Wait and sync the screen.",
+    "title": "Shared screen",
+    "nowShowing": "Currently on screen",
+    "slide": "Slide",
+    "pending": "Waiting for confirmation…",
+    "syncing": "Syncing the screen…",
+    "libraryLoading": "Loading your materials…",
+    "retryLibrary": "Retry loading materials",
+    "sharedHint": "Changes are shared with everyone in the room. Closing this panel keeps the presentation running."
   }
 }
