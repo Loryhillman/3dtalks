@@ -106,6 +106,10 @@ let server,browser,release,releaseLibrary;
    await page.waitForFunction(()=>{const c=document.querySelector('dialog canvas').getBoundingClientRect(),f=document.querySelector('.screen-preview-frame');return c.width<=f.clientWidth&&c.height<=f.clientHeight;});
    assert(await page.locator('dialog').evaluate(d=>d.scrollWidth<=d.clientWidth),'only the viewer frame may scroll horizontally');
    assert.equal(await page.locator('.screen-preview-close').evaluate(n=>n.offsetHeight>=44&&n.offsetWidth>=44),true);
+   const headerHeight=await page.locator('.screen-preview-header').evaluate(n=>n.getBoundingClientRect().height);
+   assert(headerHeight<=(width<480?116:70),'compact viewer header '+locale+' '+width+'x'+height+': '+headerHeight);
+   assert.equal(await page.locator('.screen-preview-header h2').textContent(),'Общий экран переговорной');
+
   }
   await page.getByRole('button',{name:translations.roomScreen.zoomIn,exact:true}).click();
   assert.equal(await page.locator('.screen-preview-scale').textContent(),'125%');await page.setViewportSize({width:375,height:812});assert.equal(await page.locator('.screen-preview-scale').textContent(),'125%','resize preserves local zoom');

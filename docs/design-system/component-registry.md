@@ -274,6 +274,8 @@
 - CSS: отдельный room-screen-preview.css импортирует только shared controls/tokens;
   light modal, fixed header/toolbar, scrollable frame и локальная подсказка.
   Inline остаётся только вычисляемая CSS width canvas, без второй палитры.
+- Viewer имеет компактный header с именем/zoom/fit/Close: одна строка desktop,
+  две при ширине <480 px; общий предел высоты проверен, targets 44 px сохранены.
 - Проверены fit/resize/zoom bounds/ArrowRight, observer cleanup, 3 языка/7 viewport.
   Gap: Safari/axe/screen reader/реальные устройства и полный text zoom не проверены.
 - Совместимость: применяется также в редакторе, который не входит в новый

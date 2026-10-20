@@ -14,11 +14,11 @@
     close();if(!source?.width||!source?.height)return;
     const dialog=document.createElement('dialog');dialog.className='meeting-ui room-screen-preview';
     const header=document.createElement('div');header.className='screen-preview-header';
-    const heading=document.createElement('div'),title=document.createElement('h2'),subtitle=document.createElement('p');
-    title.id='room-screen-title';title.textContent=t('enlarge');subtitle.textContent=name;
-    dialog.setAttribute('aria-labelledby',title.id);heading.append(title,subtitle);
+    const title=document.createElement('h2');
+    title.id='room-screen-title';title.textContent=name||t('enlarge');title.title=title.textContent;
+    dialog.setAttribute('aria-labelledby',title.id);
     const button=document.createElement('button');button.type='button';button.className='ui-button ui-button--ghost screen-preview-close';button.autofocus=true;button.setAttribute('aria-label',t('close'));button.onclick=()=>dialog.close();
-    const icon=document.createElement('img');icon.src='/icons/lucide/x.svg';icon.alt='';icon.width=icon.height=20;button.append(icon);header.append(heading,button);
+    const icon=document.createElement('img');icon.src='/icons/lucide/x.svg';icon.alt='';icon.width=icon.height=20;button.append(icon);header.append(title,button);
     const canvas=document.createElement('canvas');canvas.width=source.width;canvas.height=source.height;canvas.getContext('2d').drawImage(source,0,0);
     canvas.setAttribute('role','img');canvas.setAttribute('aria-label',t('content')+' — '+name);
     const frame=document.createElement('div');frame.className='screen-preview-frame';frame.tabIndex=0;frame.setAttribute('role','region');frame.setAttribute('aria-label',t('pan'));frame.append(canvas);
@@ -37,7 +37,7 @@
     };
     minus.onclick=()=>{zoom=Math.max(.5,zoom-.25);scale();};plus.onclick=()=>{zoom=Math.min(3,zoom+.25);scale();};fit.onclick=()=>{zoom=1;scale();frame.scrollTo(0,0);};
     const hint=document.createElement('p');hint.className='screen-preview-hint';hint.textContent=t('localHint');
-    toolbar.append(minus,value,plus,fit);dialog.append(header,toolbar,frame,hint);
+    toolbar.append(minus,value,plus,fit);header.append(toolbar);dialog.append(header,frame,hint);
     const session=active={dialog,canvas,source,scale};
     dialog.addEventListener('keydown',e=>{if(e.key==='Tab'){
       const nodes=[...dialog.querySelectorAll('button,[tabindex="0"]')].filter(n=>!n.disabled&&n.getClientRects().length),index=nodes.indexOf(document.activeElement);
