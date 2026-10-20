@@ -104,18 +104,30 @@
     const show=button('show',()=>command({type:'show',assetId:select.value}),'show','primary');
     const previous=button('previous',()=>command({type:'page',pageIndex:state.pageIndex-1}),'previous');
     const next=button('next',()=>command({type:'page',pageIndex:state.pageIndex+1}),'next');
+    previous.setAttribute('aria-keyshortcuts','ArrowLeft PageUp');next.setAttribute('aria-keyshortcuts','ArrowRight PageDown');
     const stop=button('stop',()=>command({type:'stop'}),'stop','destructive');
     const library=button('library',()=>{dialog.close();RoomMaterials.open(room(),trigger);},null,'ghost');
     const body=node('div','presentation-body'),now=node('div','presentation-now');now.setAttribute('role','status');now.setAttribute('aria-atomic','true');now.append(node('h3','',t('nowShowing')),current,currentPage);
     const libraryState=node('p','presentation-library-state');libraryState.setAttribute('role','status');libraryState.id='presentation-library-state';select.setAttribute('aria-describedby',libraryState.id+' '+selectedName.id);
     const retry=button('retryLibrary',()=>loadMaterials());retry.hidden=true;retry.dataset.libraryRetry='';
     const commands=node('div','presentation-commands');commands.dataset.commands='';
-    const paging=node('div','presentation-paging');paging.append(previous,next);commands.append(show,paging,stop);
+    const paging=node('div','presentation-paging');paging.append(previous,next);
+    const shortcutHint=node('p','presentation-hint presentation-shortcuts',t('keyboardHint'));shortcutHint.id='presentation-shortcuts';
+    paging.setAttribute('aria-describedby',shortcutHint.id);commands.append(show,paging,shortcutHint,stop);
     body.append(node('p','presentation-hint',t('sharedHint')),now,label,libraryState,retry,commands,feedback,library);
     dialog.append(header,body);
     panelController=new AbortController();const signal=panelController.signal;
     dialog.addEventListener('close',()=>{dialog.remove();if(panel===dialog){panel=null;panelController?.abort();panelController=null;const focus=trigger?.isConnected&&!trigger.disabled&&trigger.getClientRects().length?trigger:document.querySelector('#meeting-screen-preview, #meeting-toolbar button:not(:disabled)');focus?.focus();}},{once:true});
     for(const type of ['pointerdown','pointerup','click','keydown','keyup','wheel','touchstart','touchmove'])dialog.addEventListener(type,e=>e.stopPropagation());
+    dialog.addEventListener('keydown',e=>{
+      const direction=['ArrowLeft','PageUp'].includes(e.key)?previous:['ArrowRight','PageDown'].includes(e.key)?next:null;
+      if(!direction||!dialog.open||signal.aborted||!dialog.contains(document.activeElement)||e.defaultPrevented||e.altKey||e.ctrlKey||e.metaKey||e.shiftKey||e.isComposing||e.keyCode===229)return;
+      const editing=n=>n?.isContentEditable||n?.closest?.('input,textarea,select,[role="textbox"],[role="slider"],[role="listbox"]');
+      if(editing(e.target)||editing(document.activeElement))return;
+      if(!connected()||!session?.canControl)return;
+      e.preventDefault();
+      if(!e.repeat&&!direction.disabled)direction.click();
+    });
     dialog.addEventListener('keydown',e=>{if(e.key==='Tab'){
       const nodes=[...dialog.querySelectorAll('button,select')].filter(n=>!n.disabled&&n.getClientRects().length),first=nodes[0],last=nodes.at(-1);
       if(!nodes.includes(document.activeElement)||!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}

@@ -373,3 +373,14 @@ readonly input и явное копирование same-origin /join/:slug; wri
 переводит на ручное выделение. Pending/close защищены текущей dialog session.
 RU/EN/zh-CN, input label/status, прежний Tab/Escape/camera isolation.
 QA: [MEETING_MINOR_UPDATES.md](../../MEETING_MINOR_UPDATES.md).
+
+
+### Клавиши RoomPresentation
+
+В owner dialog существующие Previous/Next доступны также через ArrowLeft/
+PageUp и ArrowRight/PageDown с aria-keyshortcuts/видимой подсказкой.
+Handler принадлежит только dialog; не перехватывает input/select/editable,
+IME, repeat и модифицированные комбинации. Disabled/pending/role/connection
+guards переиспользуются через те же кнопки. Нет document-level listener,
+новой очереди команд или смены локальной семантики viewer.
+QA: [MEETING_MINOR_UPDATES.md](../../MEETING_MINOR_UPDATES.md).

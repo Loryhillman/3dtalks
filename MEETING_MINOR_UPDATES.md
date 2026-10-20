@@ -26,12 +26,28 @@ test-meeting-startup-browser.js --builtin-v2 — настоящая GLB-комн
  /tmp/meeting-invite-desktop.png; mobile: /tmp/meeting-invite-mobile.png.
 NOT RUN: реальные телефоны/Safari/screen reader/серверная live-проверка.
 
-## 2. Клавиши презентации — следующий пункт
+## 2. Клавиши презентации — выполнено
 
-Горячие клавиши должны использовать действующие canControl/session/revision/
-pending guards. Не добавлять новые права, протокол или offline-очередь.
-Поле ввода, select, IME и диалоги других функций не должны переключать слайды.
-Обычные участники и локальное панорамирование viewer должны сохранить поведение.
+В открытой панели управления показом ArrowLeft/PageUp вызывают Previous,
+ArrowRight/PageDown — Next. Добавлены видимая подсказка RU/EN/zh-CN
+и aria-keyshortcuts. Используются существующие кнопки, canControl/session/
+revision/pending guards; новые права/протокол/offline-очередь не добавлены.
+
+За пределами этой панели глобальных обработчиков нет. Input/textarea/select,
+contenteditable и соответствующие ARIA controls сохраняют клавиши.
+Ctrl/Alt/Meta/Shift, repeat, composing и keyCode=229 игнорируются.
+Disabled Previous/Next на первой/последней странице или при pending ничего
+не отправляют. Закрытие/потеря роли снимают область действия обработчика.
+Увеличенный просмотр остаётся локальным: его стрелки/PageUp/PageDown
+прокручивают, но не переключают общий слайд.
+
+QA PASS: test-room-presentation-browser.js — все четыре клавиши,
+expectedEpoch/revision и подтверждённые страницы; границы/pending/repeat/
+модификаторы/IME/input/contenteditable/select/close/role loss; 3 языка,
+7 viewport, локальность viewer. test-room-presentation-protocol.js и
+test-meeting-startup-browser.js --builtin-v2 пройдены. HUD/приглашение/звук
+повторно проверены test-meeting-ui-browser.js. API/WS браузерных тестов —
+фикстуры. NOT RUN: физическая клавиатура/Safari и live сервер.
 
 ## 3. Замечания пользователя
 

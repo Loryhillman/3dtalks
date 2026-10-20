@@ -3,6 +3,9 @@
 Формат следует принципам Keep a Changelog; версия документации независима от версии продукта. Не добавлять задним числом неподтверждённые реализации.
 
 ## [Unreleased]
+- В панели управления показом добавлены ArrowLeft/PageUp и ArrowRight/PageDown
+  через существующие кнопки, с IME/input/pending guards и локализованной подсказкой.
+  Увеличенный viewer сохраняет локальную прокрутку.
 - В minor-ветке добавлено приглашение из комнаты через существующий native
   Dialog: компактная кнопка в identity, readonly ссылка, clipboard/manual,
   локализация и cleanup pending. QA — ../../MEETING_MINOR_UPDATES.md.

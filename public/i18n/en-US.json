@@ -5805,7 +5805,8 @@
     "syncing": "Syncing the screen…",
     "libraryLoading": "Loading your materials…",
     "retryLibrary": "Retry loading materials",
-    "sharedHint": "Changes are shared with everyone in the room. Closing this panel keeps the presentation running."
+    "sharedHint": "Changes are shared with everyone in the room. Closing this panel keeps the presentation running.",
+    "keyboardHint": "While presenting: ← / PageUp goes back, → / PageDown goes forward. In the material selector, keys choose a file."
   },
   "meetingControls": {
     "participants": "Participants",

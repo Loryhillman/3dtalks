@@ -60,7 +60,35 @@ let server,browser,release,releaseLibrary;
  await page.evaluate(({requestId,current})=>RoomPresentation.message('ROOM_PRESENTATION_RESULT',{requestId,success:false,code:'PRESENTATION_CHANGED',state:current}),{requestId:conflict.requestId,current});
  assert.equal(await page.evaluate(()=>sent.filter(m=>m.type==='ROOM_PRESENTATION_COMMAND').length),2,'conflicts never replay the command');
  assert.equal((await page.evaluate(()=>sent.at(-1))).type,'ROOM_PRESENTATION_GET_STATE');await deliver(current);
- await page.keyboard.press('Escape');
+ // Shortcut scope is the owner panel; all commands share the existing confirmation guards.
+ const commandsSent=()=>page.evaluate(()=>sent.filter(m=>m.type==='ROOM_PRESENTATION_COMMAND').length);
+ let shortcutCount=await commandsSent();
+ await page.locator('.presentation-close').focus();await page.keyboard.press('ArrowRight');assert.equal(await commandsSent(),shortcutCount,'last page is clamped');
+ for(const key of ['ArrowLeft','PageDown','PageUp','ArrowRight']){
+  await page.locator('.presentation-close').focus();await page.keyboard.press(key);
+  assert.equal(await commandsSent(),++shortcutCount);
+  const request=await page.evaluate(()=>sent.filter(m=>m.type==='ROOM_PRESENTATION_COMMAND').at(-1).payload);
+  assert.equal(request.expectedRevision,current.revision);assert.equal(request.expectedEpoch,epoch);
+  assert.equal(request.command.pageIndex,current.pageIndex+(key==='ArrowLeft'||key==='PageUp'?-1:1));
+  await page.keyboard.press('PageDown');assert.equal(await commandsSent(),shortcutCount,'pending shortcuts are never queued');
+  current=state(asset,request.command.pageIndex);
+  await page.evaluate(({request,current})=>RoomPresentation.message('ROOM_PRESENTATION_RESULT',{requestId:request.requestId,success:true,state:current}),{request,current});
+  await color(current.pageIndex?[0,0,255]:[255,0,0]);
+  if(current.pageIndex===0){await page.keyboard.press('ArrowLeft');assert.equal(await commandsSent(),shortcutCount,'first page is clamped');}
+ }
+ await page.locator('select').focus();await page.keyboard.press('ArrowLeft');await page.keyboard.press('PageUp');
+ assert.equal(await commandsSent(),shortcutCount,'select navigation does not change the shared slide');
+ await page.evaluate(()=>{
+  const input=document.createElement('input');input.id='shortcut-input';document.querySelector('.presentation-body').append(input);input.focus();
+ });await page.keyboard.press('PageUp');assert.equal(await commandsSent(),shortcutCount);
+ await page.evaluate(()=>{document.getElementById('shortcut-input').remove();const editable=document.createElement('p');editable.contentEditable='true';editable.id='shortcut-editable';editable.textContent='Editable';document.querySelector('.presentation-body').append(editable);editable.focus();});
+ await page.keyboard.press('ArrowLeft');assert.equal(await commandsSent(),shortcutCount,'editable text keeps its cursor keys');
+ await page.evaluate(()=>document.getElementById('shortcut-editable').remove());await page.locator('.presentation-close').focus();
+ for(const modifiers of [{repeat:true},{isComposing:true},{keyCode:229},{ctrlKey:true},{altKey:true},{metaKey:true},{shiftKey:true}]){
+  await page.locator('.presentation-close').evaluate((n,modifiers)=>n.dispatchEvent(new KeyboardEvent('keydown',{key:'PageUp',bubbles:true,cancelable:true,...modifiers})),modifiers);
+ }
+ assert.equal(await commandsSent(),shortcutCount,'repeats, IME and modified shortcuts are ignored');
+ await page.keyboard.press('Escape');await page.keyboard.press('ArrowLeft');assert.equal(await commandsSent(),shortcutCount,'closed panel has no global shortcuts');
  await deliver({...current,revision:'1',pageIndex:0});await deliver({...current,epoch:randomUUID(),revision:'999',pageIndex:0});assert.deepEqual(await pixel(),[0,0,255]);
  // Late PDF completion must not draw over the newly selected image or stop state.
  await deliver(state(slow));await page.waitForFunction(()=>document.querySelector('#presentation-status').textContent.includes('Fixture'));
@@ -78,6 +106,7 @@ let server,browser,release,releaseLibrary;
   const translations=JSON.parse(await fs.readFile(path.resolve(__dirname,'../public/i18n/'+locale+'.json'),'utf8'));
   await page.locator('#presentation-manage').click();await page.waitForFunction(()=>document.querySelector('dialog')?.dataset.libraryState==='ready');
   assert.equal(await page.locator('#presentation-heading').textContent(),translations.roomPresentation.title);
+  assert.equal(await page.locator('#presentation-shortcuts').textContent(),translations.roomPresentation.keyboardHint);
   assert.equal(await page.locator('#presentation-material').inputValue(),asset,'the active material is selected');
   assert.equal(await page.locator('[data-current]').textContent(),current.asset.name);
   const contrasts=await page.evaluate(()=>{
@@ -119,6 +148,7 @@ let server,browser,release,releaseLibrary;
    await page.setViewportSize({width:1280,height:800});await page.screenshot({path:'/tmp/screen-preview-redesign-desktop.png'});
    await page.setViewportSize({width:375,height:812});await page.screenshot({path:'/tmp/screen-preview-redesign-mobile.png'});
   }
+  await page.locator('.screen-preview-frame').focus();await page.keyboard.press('PageDown');await page.keyboard.press('PageUp');
   assert.equal(await page.evaluate(()=>sent.length),before,'local viewer sends no room commands');
   await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.querySelector('dialog'));assert.equal(await page.evaluate(()=>window.previewObservers.size),0,'viewer disconnects its resize observer');
  }
@@ -156,6 +186,7 @@ let server,browser,release,releaseLibrary;
  await page.setViewportSize({width:320,height:568});assert(await page.locator('dialog').evaluate(d=>d.scrollWidth<=d.clientWidth));await zoomStyle.evaluate(n=>n.remove());
  await page.evaluate(g=>RoomPresentation.message('ROOM_PRESENTATION_SESSION',{...g,canControl:false}),grant);await page.waitForFunction(()=>!document.querySelector('dialog'));
  assert(await page.locator('#presentation-manage').isHidden(),'role loss closes the owner panel');
+ const afterRoleLoss=await commandsSent();await page.keyboard.press('PageDown');assert.equal(await commandsSent(),afterRoleLoss,'role loss removes shortcut scope');
  // A participant has the same renderer and no owner controls.
  await page.evaluate(g=>{RoomPresentation.disconnected();RoomPresentation.joined();RoomPresentation.message('ROOM_PRESENTATION_SESSION',{...g,canControl:false});},grant);
  await deliver(state(asset,1));await color([0,0,255]);assert(await page.locator('#presentation-manage').isHidden());

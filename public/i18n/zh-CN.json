@@ -5805,7 +5805,8 @@
     "syncing": "正在同步屏幕…",
     "libraryLoading": "正在加载您的材料…",
     "retryLibrary": "重新加载材料",
-    "sharedHint": "更改对房间中的所有人可见。关闭此面板不会停止演示。"
+    "sharedHint": "更改对房间中的所有人可见。关闭此面板不会停止演示。",
+    "keyboardHint": "演示时：← / PageUp 上一页，→ / PageDown 下一页。在素材列表中，按键用于选择文件。"
   },
   "meetingControls": {
     "participants": "参与者",
