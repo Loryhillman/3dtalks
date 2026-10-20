@@ -1,6 +1,11 @@
 # Design Tokens
 
-**Статус:** approved values / CSS location unverified. **Архитектура:** два уровня Primitive → Semantic → Components. Компоненты используют семантические имена, не HEX.
+**Статус:** semantic tokens integrated / component migration pending. **Архитектура:** два уровня Primitive → Semantic → Components. Компоненты используют семантические имена, не HEX.
+
+Реальный источник: `public/css/app-tokens.css`. Карта совместимости,
+согласованная типографика кабинета и результаты измерений:
+[token-integration.md](token-integration.md). Перед применением токенов
+учитывайте эту карту и область действия CSS.
 
 ## 1. Primitive Tokens
 Исходная палитра из согласованного редизайна:
