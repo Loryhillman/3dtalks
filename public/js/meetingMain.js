@@ -38,6 +38,7 @@
     removeInput?.();
     window.voiceChat?.dispose();
     window.MeetingUI?.stop();
+    window.MeetingRoster?.stop();
     if (typeof WSClient !== 'undefined') {
       WSClient.roomEnded = true;
       WSClient.messageQueue.length = 0;
@@ -92,6 +93,7 @@
     const { accountAvatar } = await window.RoomAvatarSession.prepare();
     assertSession();
     window.ACTIVE_ROOM = data.room;
+    window.MeetingRoster?.start(data.room.id);
     GAME_STATE.characterData = characterData;
     GAME_STATE.isLoggedIn = true;
     window.RoomSeating?.enter(data.room);

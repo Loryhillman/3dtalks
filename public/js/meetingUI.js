@@ -71,6 +71,7 @@
       if(stopped)return;stopped=true;observer?.disconnect();logObserver?.disconnect();resizeObserver?.disconnect();connectionObserver?.disconnect();
       window.removeEventListener('resize',measure);window.visualViewport?.removeEventListener('resize',measure);window.visualViewport?.removeEventListener('scroll',measure);
       window.MeetingVoiceControl?.dispose();
+      window.MeetingRoomPanel?.dispose();
       for(const item of [toolbar,footer,document.getElementById('room-seat-picker')])if(item){item.inert=false;item.hidden=true;}
       document.getElementById('chatBox')?.replaceChildren();const overlay=document.getElementById('room-connection-overlay');if(overlay)overlay.style.display='none';
     },
@@ -101,7 +102,7 @@
       const actions = document.createElement('div'); actions.className = 'meeting-actions';
       for (const child of [...toolbar.children]) actions.append(child);
       toolbar.replaceChildren(identity, actions);
-      mount(); resizeObserver.observe(toolbar); measure();
+      mount(); window.MeetingRoomPanel?.mount(toolbar);resizeObserver.observe(toolbar); measure();
     }
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);

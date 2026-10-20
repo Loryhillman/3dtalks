@@ -393,3 +393,25 @@ Chromium 3 языка/9 viewport, startup с реальными GLB и регр�
 История ограничивается видимой высотой. Геометрическая имитация не заменяет
 настоящую экранную клавиатуру и 200% browser zoom. Регрессия HUD/startup/seat
 пройдена; детали — docs/design-system/meeting-hud-redesign.md.
+
+
+## Новая задача: участники и звук
+
+По поручению пользователя подготовлен MEETING_ROOM_EVOLUTION.md для шести
+улучшений. Пользователь подтвердил: общий план, разработка по этапам,
+сначала участники/звук. Рабочая ветка codex/meeting-room-controls от 58b6b9e6.
+Первый этап реализован: server-derived MeetingRoster, native панели участников
+и звука, device preference/exact capture, local-only microphone level test.
+Сохраняй разницу legacy recording/playback и realtime speaking; toggle
+«открытый микрофон» поверх целых записей не добавлять.
+Выбранная будущая архитектура — WebRTC/SFU LiveKit с отдельным media runtime;
+это ещё не внедрение SDK/инфраструктуры. Модерация/presenter/screen/руки будущие.
+
+MeetingAudioSettings владеет только тестовой capture-сессией; VoiceChatManager —
+настоящей записью. Одновременный capture запрещён, close/hidden/disconnect/end
+освобождают tracks/timers/context; late grant/read/decode защищены generation.
+Incoming mute не является отключением микрофона; он немедленно останавливает
+playback. Локальный retry не снимает crowded deny сервера.
+Нет новых API/SQL/пакетов/изменений сцены. QA: docs/design-system/meeting-controls-v1.md.
+После коммита первого этапа остановиться для согласования следующего.
+Docker/VPS/live-приёмка в этой порции не выполнялись; не обещай изменения на сайте.

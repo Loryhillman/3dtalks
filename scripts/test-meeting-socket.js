@@ -20,28 +20,36 @@ const world={ players:new Map([['me',own]]),
 const context={console:{warn(){},log(){}},WebSocket:Socket,
  setTimeout:handler=>{timers.push(handler);return timers.length;},clearTimeout(){},setInterval(){},
  location:{pathname:'/play',replace:url=>calls.redirects.push(url)},CONFIG:{WS_URL:'ws://fixture'},
- GAME_STATE:{characterId:'me'},gameWorld:world,localStorage:{getItem:()=> 'token'},
+ MeetingUI:{active:true},GAME_STATE:{characterId:'me'},gameWorld:world,localStorage:{getItem:()=> 'token'},
  RoomSeating:{connecting:()=>calls.connections++,disconnected:()=>calls.disconnected++,message:(...args)=>calls.seats.push(args),blocked:reason=>calls.blocked.push(reason)},
  UserAvatarRenderer:{apply:(...args)=>calls.avatars.push(args)},UI:{addChatMessage:(...args)=>calls.chat.push(args)},
  i18n:{t:key=>key,tp:(key,params)=>key+params.name},voiceChat:{handleServerMessage:(...args)=>{calls.voice=args;}},
  nearbyBubbles:{show(){},removeFor(){}},document:{addEventListener(){}},addEventListener(){} };
 context.window=context;vm.createContext(context);
-for(const file of ['socketClient.js','meetingSocket.js','wsPresenceGuard.js']){
+for(const file of ['meetingRoster.js','socketClient.js','meetingSocket.js','wsPresenceGuard.js']){
  vm.runInContext(fs.readFileSync(require.resolve('../public/js/'+file),'utf8'),context);
 }
 (async()=>{
  const ws=context.WSClient;
+ context.MeetingRoster.start('fixture-room');
  const initial=ws.connect('ws://fixture');sockets[0].open();await initial;
  ws.send({type:'PLAYER_JOIN',payload:{characterId:'me',roomSlug:'fixture',token:'token'}});
  const peer={characterId:'peer',characterName:'Peer',position:{x:1,y:2,z:3},avatarConfig:{headType:'cube'},
  glbUrl:'/legacy-missing.glb',weaponConfig:{type:'sword'},animUrls:{idle:'/legacy-anim.glb'},entityType:'agent'};
  sockets[0].message({type:'WORLD_STATE',payload:{players:[peer],weather:{type:'storm'}}});
  assert.equal(world.players.has('peer'),true);
+ assert.equal(context.MeetingRoster.getState().members[0].id,'peer');
+ sockets[0].message({type:'VOICE_STATE',payload:{characterId:'peer',speaking:true}});
+ assert.equal(context.MeetingRoster.getState().members[0].recording,true);
+ sockets[0].message({type:'VOICE_STATE',payload:{characterId:'peer',speaking:false}});
+ assert.equal(context.MeetingRoster.getState().members[0].recording,false);
+
  assert.equal(calls.add[1],'Peer','meeting names have no legacy AI decoration');
  assert.deepEqual(Array.from(calls.add.slice(4,9)),[null,null,null,null,null]);
  assert.equal(calls.add[9].headType,'cube');
  sockets[0].message({type:'PLAYER_JOINED',payload:{...peer,characterName:'Renamed'}});
  assert.equal(world.players.get('peer').name,'Renamed');assert.equal(calls.avatars.length,1);
+ assert.equal(context.MeetingRoster.getState().members[0].name,'Renamed');
  sockets[0].message({type:'ROOM_LOOK',payload:{characterId:'peer',look:{yaw:0,pitch:0}}});
  assert.equal(calls.seats.at(-1)[0],'ROOM_LOOK');
  sockets[0].message({type:'CHAT',payload:{sender:'Peer',message:'Hello',characterId:'peer'}});
@@ -62,8 +70,11 @@ for(const file of ['socketClient.js','meetingSocket.js','wsPresenceGuard.js']){
  assert.deepEqual(calls.chat.at(-1),['Peer','Hello']);
  sockets[1].message({type:'WORLD_STATE',payload:{players:[]}});
  assert.equal(world.players.has('peer'),false);assert.deepEqual(calls.removed,['peer']);
+ assert.equal(context.MeetingRoster.getState().members.length,0,'server snapshot also replaces HTML roster');
  sockets[1].message({type:'PLAYER_JOINED',payload:peer});
+ world.players.delete('peer'); // roster departure must not depend on an avatar still existing
  sockets[1].message({type:'PLAYER_LEFT',payload:{characterId:'peer'}});
+ assert.equal(context.MeetingRoster.getState().members.length,0);
  assert.equal(world.players.has('peer'),false);
  sockets[1].message({type:'ROOM_JOIN_DENIED',payload:{code:'ROOM_FULL'}});
  assert.equal(ws.roomEnded,true);assert.deepEqual(calls.blocked,['full']);assert.equal(calls.disconnected,0,'close preserves the room-full explanation');

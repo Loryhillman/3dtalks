@@ -179,6 +179,10 @@
     sceneFailed() { if (!this.active) return; this.blocked('sceneError'); },
     blocked(reason) {
       if (!this.active) return;
+      if(window.MeetingUI?.active){
+        window.MeetingRoomPanel?.close(false);window.MeetingAudioSettings?.stopTest();
+        window.voiceChat?.cancelRoomAudio?.();window.MeetingRoster?.connection(reason==='waiting'?'connecting':'reconnecting');
+      }
       const text = { waiting: ['waiting','Назначаем место…'], full: ['full','Комната заполнена'], denied: ['denied','Вход в комнату недоступен'],
         replaced: ['replaced','Персонаж открыт в другой вкладке'], sceneError: ['sceneError','Не удалось загрузить помещение. Повторите вход.'], disconnected: ['disconnected','Соединение потеряно. Восстанавливаем вход…'] }[reason] || ['denied','Вход в комнату недоступен'];
       overlay.querySelector('[data-status]').dataset.i18n='roomSeating.'+text[0];overlay.querySelector('[data-status]').textContent = t(...text); overlay.style.display = 'flex'; closePicker();

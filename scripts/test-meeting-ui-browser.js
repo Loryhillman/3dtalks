@@ -4,7 +4,7 @@ const {chromium}=require('playwright');
 const {renderMeetingPage}=require('../src/services/meetingPage');
 const root=path.resolve(__dirname,'../public');
 const setup=`window.GAME_STATE={characterId:'me',characterName:'Fixture'};window.sent=[];window.WSClient={connected:true,ws:{readyState:1,send:m=>sent.push(JSON.parse(m))},isConnected:()=>true,send:m=>sent.push(m)};window.voiceChat={startTalk:()=>window.talkStarted=(window.talkStarted||0)+1,stopTalk:()=>window.talkStopped=(window.talkStopped||0)+1};`;
-const boot=`window.addEventListener('DOMContentLoaded',async()=>{await i18n.init();if(location.pathname!='/play')return;const room={id:'11111111-1111-4111-8111-111111111111',name:'Long meeting name / Очень длинное название переговорной комнаты для проверки интерфейса',capacity:6,seating_mode:'seated'};window.gameWorld={players:new Map([['me',{group:new THREE.Group()}]])};RoomSeating.enter(room);RoomSeating.message('ROOM_SEAT_ASSIGNED',{roomId:room.id,seat:{id:'one',position:{x:0,y:1,z:0},orientation:{x:0,y:0,z:0,w:1}}});RoomSeating.sceneReady();RoomSeating.message('ROOM_SEATS_STATE',{roomId:room.id,version:1,seats:Array.from({length:20},(_,i)=>({id:i?'seat-'+i:'one',label:String(i+1),occupancy:i?'free':'active',character_id:i?null:'me',position:{x:i%4,y:1,z:Math.floor(i/4)}}))});window.ACTIVE_ROOM=room;RoomPresentation.joined();RoomPresentation.message('ROOM_PRESENTATION_SESSION',{roomId:room.id,epoch:'22222222-2222-4222-8222-222222222222',token:'a'.repeat(43),canControl:true});RoomPresentation.message('ROOM_PRESENTATION_STATE',{roomId:room.id,epoch:'22222222-2222-4222-8222-222222222222',revision:'1',asset:null,pageIndex:0});window.screenModel=RoomScreenRenderer.create(RoomScreen.create().screen);RoomScreenPreview.mount(screenModel.userData.screenCanvas,'Screen',document.querySelector('#meeting-toolbar .meeting-actions'));RoomPresentation.attach(screenModel.userData.presentation);});`;
+const boot=`window.addEventListener('DOMContentLoaded',async()=>{await i18n.init();if(location.pathname!='/play')return;const room={id:'11111111-1111-4111-8111-111111111111',name:'Long meeting name / Очень длинное название переговорной комнаты для проверки интерфейса',capacity:6,seating_mode:'seated'};window.gameWorld={players:new Map([['me',{group:new THREE.Group()}]])};window.MeetingRoster?.start(room.id);RoomSeating.enter(room);RoomSeating.message('ROOM_SEAT_ASSIGNED',{roomId:room.id,seat:{id:'one',position:{x:0,y:1,z:0},orientation:{x:0,y:0,z:0,w:1}}});RoomSeating.sceneReady();RoomSeating.message('ROOM_SEATS_STATE',{roomId:room.id,version:1,seats:Array.from({length:20},(_,i)=>({id:i?'seat-'+i:'one',label:String(i+1),occupancy:i?'free':'active',character_id:i?null:'me',position:{x:i%4,y:1,z:Math.floor(i/4)}}))});window.ACTIVE_ROOM=room;RoomPresentation.joined();RoomPresentation.message('ROOM_PRESENTATION_SESSION',{roomId:room.id,epoch:'22222222-2222-4222-8222-222222222222',token:'a'.repeat(43),canControl:true});RoomPresentation.message('ROOM_PRESENTATION_STATE',{roomId:room.id,epoch:'22222222-2222-4222-8222-222222222222',revision:'1',asset:null,pageIndex:0});window.screenModel=RoomScreenRenderer.create(RoomScreen.create().screen);RoomScreenPreview.mount(screenModel.userData.screenCanvas,'Screen',document.querySelector('#meeting-toolbar .meeting-actions'));RoomPresentation.attach(screenModel.userData.presentation);window.MeetingRoster?.snapshot([{characterId:'me',characterName:'Fixture'},{characterId:'peer',characterName:'Alice <b>literal</b>'}]);});`;
 const server=http.createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://local').pathname;
  if(url==='/api/config/language'){res.setHeader('Content-Type','application/json');return res.end('{"language":"en-US"}');}
@@ -12,7 +12,7 @@ const server=http.createServer(async(req,res)=>{try{
   let html=await fs.readFile(path.join(root,'index.html'),'utf8');if(url==='/play')html=renderMeetingPage(html);
   html=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'');
   html=html.replace('</head>','<script src="/js/meetingUI.js"></script></head>');
-  const scripts=['i18n/i18n.js','js/lib/three.min.js','js/ui.js','js/roomSeatLabels.js','js/roomSeating.js',...(url==='/play'?['js/roomScreen.js','js/roomScreenRenderer.js','js/roomScreenPreview.js','js/roomPresentationProtocol.js','js/roomMediaRenderer.js','js/roomPresentation.js']:[]),...(url==='/play'?['js/meetingVoiceControl.js']:['js/skillHUD.js']),'js/nearbyChat.js'].map(s=>'<script src="/'+s+'"></script>').join('');
+  const scripts=['i18n/i18n.js','js/lib/three.min.js','js/ui.js','js/roomSeatLabels.js',...(url==='/play'?['js/meetingRoster.js','js/meetingAudioSettings.js','js/meetingRoomPanel.js']:[]),'js/roomSeating.js',...(url==='/play'?['js/roomScreen.js','js/roomScreenRenderer.js','js/roomScreenPreview.js','js/roomPresentationProtocol.js','js/roomMediaRenderer.js','js/roomPresentation.js']:[]),...(url==='/play'?['js/meetingVoiceControl.js']:['js/skillHUD.js']),'js/nearbyChat.js'].map(s=>'<script src="/'+s+'"></script>').join('');
   html=html.replace('</body>','<script>'+setup+'</script>'+scripts+'<script>'+boot+'</script></body>');
   res.setHeader('Content-Type','text/html');return res.end(html);
  }
@@ -22,7 +22,7 @@ const server=http.createServer(async(req,res)=>{try{
 async function executable(){if(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE)return process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;const cache=path.join(require('node:os').homedir(),'.cache/ms-playwright');const paths=[chromium.executablePath()];try{for(const dir of await fs.readdir(cache))if(/^chromium-\d+$/.test(dir))paths.push(path.join(cache,dir,'chrome-linux64/chrome'));}catch(_){}for(const p of paths){try{await fs.access(p);return p;}catch(_){}}throw new Error('Install Chromium or set PLAYWRIGHT_CHROMIUM_EXECUTABLE');}
 let browser;
 (async()=>{try{
- await new Promise(r=>server.listen(0,'127.0.0.1',r));browser=await chromium.launch({executablePath:await executable(),headless:true,args:['--no-sandbox']});
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));browser=await chromium.launch({executablePath:await executable(),headless:true,args:['--no-sandbox','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});
  const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));const base='http://127.0.0.1:'+server.address().port;
  await page.goto(base+'/play?room=fixture');
  await page.waitForFunction(()=>document.getElementById('meeting-toolbar')&&document.getElementById('skill-voice-btn')?.parentElement.id==='meeting-footer'&&document.getElementById('nearby-chat-wrap')?.parentElement.id==='meeting-footer');
@@ -125,7 +125,7 @@ let browser;
  await page.evaluate(()=>{WSClient.connected=false;RoomSeating.disconnected();});await page.waitForFunction(()=>document.getElementById('meeting-footer').inert);
  assert(await page.locator('#room-connection-overlay').isVisible());assert(await page.evaluate(()=>!!document.activeElement.closest('#room-connection-overlay')));
  await page.locator('#room-connection-overlay button').last().focus();await page.keyboard.press('Tab');assert(await page.locator('#room-connection-overlay button').first().evaluate(n=>n===document.activeElement));
- await page.evaluate(()=>{WSClient.connected=true;RoomSeating.sceneReady();});await page.waitForFunction(()=>!document.getElementById('meeting-footer').inert);
+ await page.evaluate(()=>{WSClient.connected=true;RoomSeating.sceneReady();MeetingRoster.snapshot([{characterId:'me',characterName:'Fixture'},{characterId:'peer',characterName:'Alice <b>literal</b>'}]);});await page.waitForFunction(()=>!document.getElementById('meeting-footer').inert);
  await page.evaluate(()=>i18n.setLocaleLocal('en-US'));
  await page.locator('#skill-voice-btn').evaluate(n=>n.classList.add('voice-disabled'));await page.waitForFunction(()=>document.querySelector('#skill-voice-btn .sv-label').textContent==='Unavailable');assert.equal(await page.locator('#skill-voice-btn').getAttribute('aria-disabled'),'true');await page.evaluate(()=>document.querySelectorAll('[data-i18n]').forEach(n=>n.textContent=i18n.t(n.dataset.i18n)));assert.equal(await page.locator('#skill-voice-btn .sv-label').textContent(),'Unavailable');
  await page.locator('#skill-voice-btn').evaluate(n=>{n.classList.remove('voice-disabled');n.classList.add('listening');});await page.waitForFunction(()=>document.querySelector('#skill-voice-btn .sv-label').textContent==='Recording…');
@@ -144,9 +144,84 @@ let browser;
  assert.equal(await page.locator('#skill-voice-btn').evaluate(el=>el.tagName),'BUTTON');
  await page.locator('#room-places-toggle').click();await page.locator('.room-seat-inspect').nth(1).click();await page.locator('.room-seat-row.selected .room-seat-take').click();
  assert.equal(await page.evaluate(()=>sent.at(-1).type),'ROOM_SEAT_SELECT');
+ // Switch the initial PTT spy to the actual clip manager for microphone/decoder integration.
+ await page.addScriptTag({url:base+'/js/voiceChat.js'});
+ // The roster is server-derived; local microphone checks never transmit voice.
+ await page.keyboard.press('Escape');
+ await page.setViewportSize({width:1280,height:800});
+ for(const locale of ['ru-RU','en-US','zh-CN']){
+  await page.evaluate(locale=>i18n.setLocaleLocal(locale),locale);
+  await page.locator('#meeting-participants').click();
+  assert.equal(await page.locator('.meeting-member').count(),2);
+  assert(await page.locator('.meeting-room-count').textContent().then(t=>t.includes('2')&&!t.includes('{')));
+  assert(await page.locator('#meeting-participants').textContent().then(t=>t.includes('2')&&!t.includes('{')));
+  await page.locator('.meeting-room-close').focus();await page.keyboard.press('Shift+Tab');assert(await page.locator('.meeting-room-body').evaluate(n=>document.activeElement===n));
+  assert.equal(await page.locator('.meeting-member b').count(),0);
+  assert(await page.locator('.meeting-member').last().textContent().then(t=>t.includes('<b>literal</b>')));
+  assert(await page.locator('.meeting-member').first().textContent().then(t=>t.includes('Fixture')));
+  for(const [width,height] of [[320,568],[375,812],[768,1024],[1280,800],[568,320]]){
+   await page.setViewportSize({width,height});
+   await page.waitForFunction(()=>Math.abs(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--meeting-visible-height'))-visualViewport.height)<1);
+   const bounds=await page.locator('.meeting-room-dialog').evaluate(n=>{const r=n.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,scroll:n.scrollWidth,client:n.clientWidth};});
+   assert(bounds.left>=0&&bounds.right<=width&&bounds.top>=0&&bounds.bottom<=height&&bounds.scroll<=bounds.client,'room dialog bounds '+JSON.stringify(bounds));
+  }
+  await page.keyboard.press('Escape');assert(await page.locator('#meeting-participants').evaluate(n=>n===document.activeElement));
+ }
+ await page.setViewportSize({width:1280,height:800});await page.evaluate(()=>i18n.setLocaleLocal('en-US'));
+ const messagesBeforeTest=await page.evaluate(()=>sent.length);
+ await page.locator('#meeting-sound-settings').click();
+ assert.equal(await page.evaluate(()=>MeetingAudioSettings.getState().phase),'idle');
+ await page.locator('.meeting-room-body > .ui-button').click();
+ await page.waitForFunction(()=>MeetingAudioSettings.getState().phase==='testing');
+ assert(await page.locator('.meeting-microphone-level').isVisible());
+ await page.locator('.meeting-room-body > .ui-button').click();
+ assert.equal(await page.evaluate(()=>MeetingAudioSettings.getState().phase),'idle');
+ await page.keyboard.press('Escape');
+ assert.equal(await page.evaluate(()=>sent.length),messagesBeforeTest,'microphone level test sends no room/voice packets');
+ // A late permission grant from a closed dialog cannot replace the new test.
+ await page.evaluate(()=>{
+  window.nativeGetUserMedia=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);window.pendingMicrophones=[];window.testStreams=[];
+  navigator.mediaDevices.getUserMedia=()=>new Promise(resolve=>pendingMicrophones.push(async()=>{const stream=await nativeGetUserMedia({audio:true});testStreams.push(stream);resolve(stream);}));
+ });
+ await page.locator('#meeting-sound-settings').click();await page.locator('.meeting-room-body > .ui-button').click();
+ await page.waitForFunction(()=>pendingMicrophones.length===1);await page.keyboard.press('Escape');
+ await page.locator('#meeting-sound-settings').click();await page.locator('.meeting-room-body > .ui-button').click();
+ await page.waitForFunction(()=>pendingMicrophones.length===2);
+ await page.evaluate(()=>pendingMicrophones[0]());await page.waitForFunction(()=>testStreams[0].getTracks().every(t=>t.readyState==='ended'));
+ assert.equal(await page.evaluate(()=>MeetingAudioSettings.getState().phase),'requesting','old grant cannot start the new test');
+ await page.evaluate(()=>pendingMicrophones[1]());await page.waitForFunction(()=>MeetingAudioSettings.getState().phase==='testing');
+ await page.screenshot({path:'/tmp/meeting-sound-settings.png'});
+ await page.keyboard.press('Escape');await page.waitForFunction(()=>testStreams.every(s=>s.getTracks().every(t=>t.readyState==='ended')));
+ await page.evaluate(()=>{navigator.mediaDevices.getUserMedia=nativeGetUserMedia;});
+ // The real MediaRecorder uses the chosen microphone; actual decode drives playback status.
+ await page.locator('#meeting-sound-settings').click();
+ await page.waitForFunction(()=>document.getElementById('meeting-microphone-select').options.length>1);
+ const device=await page.locator('#meeting-microphone-select').evaluate(n=>[...n.options].find(o=>o.value)?.value);
+ await page.locator('#meeting-microphone-select').selectOption(device);
+ await page.evaluate(()=>{
+  window.actualGetUserMedia=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+  navigator.mediaDevices.getUserMedia=options=>{window.lastAudioConstraints=options;return actualGetUserMedia(options);};
+ });
+ await page.keyboard.press('Escape');
+ await page.evaluate(()=>voiceChat.startTalk());
+ await page.waitForFunction(()=>voiceChat.recording);
+ assert.equal(await page.evaluate(()=>lastAudioConstraints.audio.deviceId.exact),device);
+ assert(await page.evaluate(()=>MeetingRoster.getState().members.find(p=>p.self).recording));
+ await page.waitForTimeout(1150);await page.evaluate(()=>voiceChat.stopTalk());
+ await page.waitForFunction(()=>sent.some(m=>m.type==='VOICE_MESSAGE'));
+ assert(!await page.evaluate(()=>MeetingRoster.getState().members.find(p=>p.self).recording));
+ await page.evaluate(()=>voiceChat.playVoiceMessage({...sent.findLast(m=>m.type==='VOICE_MESSAGE').payload,characterId:'peer'}));
+ assert(await page.evaluate(()=>MeetingRoster.getState().members.find(p=>p.id==='peer').playing),'actual audio decoder marks the sender during playback');
+ await page.locator('#meeting-sound-settings').click();
+ await page.locator('.meeting-playback-control input').uncheck();
+ assert.equal(await page.evaluate(()=>voiceChat.playbackSources.size),0,'incoming sound switch immediately stops real playback');
+ assert(!await page.evaluate(()=>MeetingRoster.getState().members.find(p=>p.id==='peer').playing));
+ await page.keyboard.press('Escape');
+ await page.locator('#meeting-participants').click();await page.screenshot({path:'/tmp/meeting-participants.png'});await page.keyboard.press('Escape');
+ await page.evaluate(()=>voiceChat.dispose());
  await page.evaluate(()=>MeetingUI.stop());assert(await page.locator('#meeting-footer').isHidden());assert.equal(await page.locator('#chatBox .chat-message').count(),0);assert(await page.locator('#skill-voice-btn').isDisabled());
  await page.goto(base+'/__legacy');await page.waitForSelector('#skill-hud');
  assert.equal(await page.locator('#health-bar').isVisible(),true,'legacy world keeps its UI');assert.equal(await page.locator('#skill-hud .skill-slot').count(),5);
  assert.deepEqual(errors,[]);
- console.log('Chromium meeting HUD redesign (3 locales/9 viewports, partial 200% text scaling, simulated keyboard, live labels, history/offline draft, mic states, admission focus, UI cleanup): RPG removal, desktop/mobile/landscape bounds, non-overlapping panels, retained chat/PTT/seating handlers and legacy UI: OK (isolated transport stubs)');
+ console.log('Chromium meeting HUD redesign (3 locales/9 viewports, partial 200% text scaling, simulated keyboard, live labels, history/offline draft, mic states, admission focus, roster and real synthetic microphone/decoder, UI cleanup): RPG removal, desktop/mobile/landscape bounds, non-overlapping panels, retained chat/PTT/seating handlers and legacy UI: OK (isolated transport stubs)');
 }finally{await browser?.close();await new Promise(r=>server.close(r));}})().catch(e=>{console.error(e);process.exitCode=1;});

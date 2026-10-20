@@ -37,7 +37,10 @@
       if (seatMessages.has(type)) {
         if (record(payload)) window.RoomSeating?.message(type, payload);
       } else if (voiceMessages.has(type)) {
-        if (record(payload)) window.voiceChat?.handleServerMessage(type, payload);
+        if (record(payload)) {
+          if(type==='VOICE_STATE')window.MeetingRoster?.recording(payload.characterId,payload.speaking);
+          window.voiceChat?.handleServerMessage(type, payload);
+        }
       } else switch (type) {
         case 'WORLD_STATE':
           if (record(payload) && Array.isArray(payload.players)) {
@@ -48,6 +51,7 @@
           break;
         case 'PLAYER_JOINED':
           if (participant(payload)) {
+            window.MeetingRoster?.joined(payload);
             if (payload.characterId !== ownId()) UI.addChatMessage(text('system'), window.i18n?.tp('meetingUi.participantJoined', { name: payload.characterName }));
             window.RoomSeating?.message(type, payload);
           }
@@ -74,6 +78,7 @@
           break;
         case 'ROOM_ENDED':
           window.RoomPresentation?.stop();
+          window.MeetingRoomPanel?.close(false);window.voiceChat?.cancelRoomAudio?.();window.MeetingRoster?.stop();
           this.roomEnded = true;
           this.messageQueue.length = 0;
           this.ws?.close();
@@ -85,9 +90,12 @@
     static handleWorldState(payload) {
       if (!record(payload) || !Array.isArray(payload.players)) return;
       for (const data of payload.players) participant(data);
+      window.MeetingRoster?.snapshot(payload.players.filter(p=>record(p)&&identity(p.characterId)&&typeof p.characterName==='string'&&position(p.position)));
     }
     static handlePlayerLeft(payload) {
-      if (!record(payload) || !identity(payload.characterId) || payload.characterId === ownId() || !world()?.players.has(payload.characterId)) return;
+      if (!record(payload) || !identity(payload.characterId) || payload.characterId === ownId()) return;
+      window.MeetingRoster?.left(payload.characterId);
+      if(!world()?.players.has(payload.characterId))return;
       world().removePlayer(payload.characterId);
       window.nearbyBubbles?.removeFor(payload.characterId);
       UI.addChatMessage(text('system'), window.i18n?.tp('meetingUi.participantLeft', { name: payload.characterName || payload.characterId }));

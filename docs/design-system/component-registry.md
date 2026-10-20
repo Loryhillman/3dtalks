@@ -340,3 +340,26 @@ NOT RUN: новые браузерные/визуальные/accessibility пр
   Проверена геометрическая имитация клавиатуры; настоящее устройство не проверено.
 - QA/ограничения: [meeting-hud-redesign.md](meeting-hud-redesign.md).
   Stable не присвоен; assistive technology и Safari не проверены.
+
+
+## MeetingRoster / MeetingAudioSettings / MeetingRoomPanel
+
+- Реализации: public/js/meetingRoster.js, meetingAudioSettings.js,
+  meetingRoomPanel.js, public/css/meeting-room-controls.css. Consumers: /play,
+  meetingSocket/Main/UI/RoomSeating/voiceChat. Guard MeetingUI.active.
+- MeetingRoster: start/getState/subscribe/snapshot/joined/left/connection/
+  recording/playback/stop. Immutable public snapshot; максимум 6 участников,
+  уникальный characterId. Нет чтения Three.js или ложных глобальных mic/role.
+- MeetingAudioSettings: getState/subscribe/constraints/devices/selectDevice/
+  beginTest/stopTest/refresh/stop. DeviceId локален; exact capture,
+  счётчик уровня — local-only, 15 с permission deadline/30 с test duration,
+  generation guard и полный teardown. System prompt нельзя программно закрыть.
+- MeetingRoomPanel: mount/close/dispose. Собственные native dialogs для двух
+  сценариев, только одно окно, compact header и focusable scroll body;
+  camera propagation блокируется. Смена устройства запрещена во время capture.
+- VoiceChatManager остаётся отправителем целых записей; отдельные counters
+  recording/playback не выдаются за WebRTC active-speaker.
+  Новые cancelRoomAudio/resetMicrophoneError не дают серверных прав.
+- Языки: RU/EN/zh-CN; параметры {{count}}/{{number}} как в текущем i18n.tp.
+- Tests/QA/limits: [meeting-controls-v1.md](meeting-controls-v1.md).
+  Lifecycle Stable не присвоен; физические устройства/Safari/axe не проверены.

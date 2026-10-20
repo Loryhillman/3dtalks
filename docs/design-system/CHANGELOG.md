@@ -2,6 +2,24 @@
 
 Формат следует принципам Keep a Changelog; версия документации независима от версии продукта. Не добавлять задним числом неподтверждённые реализации.
 
+## [1.5.0] — 2026-10-20
+### Added
+- Компактные native окна участников/звука, server-derived roster и честные
+  recording/playback состояния, device selection, bounded local level test.
+- RU/EN/zh-CN, focus/scroll/cleanup и shared styles без App Shell.
+
+### Fixed
+- Incoming mute останавливает звук немедленно; поздние capture/read/decode
+  после room disconnect/отмены не возобновляют старую сессию.
+- Отказ recorder/потеря устройства/VOICE_DENIED освобождают запись;
+  локальный mic retry не обходит congestion deny сервера.
+
+### Validation
+- Unit/VM race tests, Chromium HUD/новые окна и настоящий synthetic
+  MediaRecorder/decode, startup GLB, voice/socket/presentation regression.
+- QA: meeting-controls-v1.md. Это сохранённый clip transport, не WebRTC;
+  roadmap — ../../MEETING_ROOM_EVOLUTION.md. Live сервер не обновлялся.
+
 ## [1.4.2] — 2026-10-20
 ### Fixed
 - По замечанию пользователя убрана высокая двухъярусная шапка viewer:

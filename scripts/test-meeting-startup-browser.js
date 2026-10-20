@@ -75,7 +75,7 @@ let browser;
    constructor(){setTimeout(()=>{this.readyState=1;this.onopen?.({});},0);}
    send(text){const message=JSON.parse(text);sent.push(message);if(message.type==='PLAYER_JOIN')setTimeout(()=>{
     this.onmessage?.({data:JSON.stringify({type:'ROOM_SEAT_ASSIGNED',payload:{roomId:'fixture-room',seat:{id:'one',position:{x:0,y:1,z:0},orientation:{x:0,y:0,z:0,w:1},...window.fixtureSeats?.[0]}}})});
-    this.onmessage?.({data:JSON.stringify({type:'WORLD_STATE',payload:{players:[{characterId:'peer',characterName:'Peer',position:{x:3,y:1,z:0},avatarConfig:{mode:'standard',headType:'cube',headColor:'#ffaa99',bodyColor:'#4a90e2',headScale:1,headOffset:0,headYaw:0},seat:{id:'two',position:{x:3,y:1,z:0},orientation:{x:0,y:0,z:0,w:1}},glbUrl:'/legacy-missing.glb',weaponConfig:{type:'sword'},animUrls:{idle:'/legacy-idle.glb'}}],weather:{type:'storm',intensity:100}}})});
+    this.onmessage?.({data:JSON.stringify({type:'WORLD_STATE',payload:{players:[{characterId:message.payload.characterId,characterName:'Fixture',position:message.payload.position},{characterId:'peer',characterName:'Peer',position:{x:3,y:1,z:0},avatarConfig:{mode:'standard',headType:'cube',headColor:'#ffaa99',bodyColor:'#4a90e2',headScale:1,headOffset:0,headYaw:0},seat:{id:'two',position:{x:3,y:1,z:0},orientation:{x:0,y:0,z:0,w:1}},glbUrl:'/legacy-missing.glb',weaponConfig:{type:'sword'},animUrls:{idle:'/legacy-idle.glb'}}],weather:{type:'storm',intensity:100}}})});
    },0);}
    close(){this.readyState=3;}
    addEventListener(){}
@@ -98,6 +98,10 @@ let browser;
  await page.waitForFunction(()=>window.gameWorld?.loadedObjects.has(3));
  await page.waitForFunction(count=>window.gameWorld?.loadedObjects.size===count,objects.length);
  await page.waitForFunction(() => gameWorld.players.get('peer')?.group.userData.accountAvatarConfig?.headType === 'cube');
+ assert.equal(await page.evaluate(()=>MeetingRoster.getState().connection),'connected');
+ assert.deepEqual(await page.evaluate(()=>MeetingRoster.getState().members.map(p=>p.id).sort()),['me','peer']);
+ await page.locator('#meeting-participants').click();assert.equal(await page.locator('.meeting-member').count(),2);await page.keyboard.press('Escape');
+
  assert.equal(await page.evaluate(() => gameWorld.players.get('peer').group.userData.roomSeat?.id), 'two');
  assert.equal(await page.evaluate(()=>gameWorld.generatedBuildings.size),objects.length,'room geometry and uploaded GLB render with the lean script set');
  if(builtinMode){
@@ -124,6 +128,8 @@ let browser;
  if(builtinMode&&process.env.MEETING_UI_SCREENSHOTS){
   const locale=await page.evaluate(()=>i18n.currentLocale);await page.evaluate(()=>i18n.setLocaleLocal('ru-RU'));
   await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:'/tmp/meeting-redesign-live-mobile.png'});
+  await page.locator('#meeting-participants').click();await page.screenshot({path:'/tmp/meeting-controls-room-mobile.png'});await page.keyboard.press('Escape');
+  await page.locator('#meeting-sound-settings').click();await page.screenshot({path:'/tmp/meeting-sound-room-mobile.png'});await page.keyboard.press('Escape');
   await page.setViewportSize({width:1280,height:800});await page.screenshot({path:'/tmp/meeting-redesign-live-desktop.png'});
   await page.setViewportSize({width:390,height:844});await page.evaluate(l=>i18n.setLocaleLocal(l),locale);
  }
@@ -161,8 +167,10 @@ let browser;
  assert.deepEqual(state,{weather:'clear',recognition:false,avatar:'sphere',movementControls:false,hudSettings:false,chat:true,mic:true});
  // Camera drag works independently of the legacy input handlers.
  const before = await page.evaluate(() => MOUSE.targetRotationY);
- await page.mouse.move(180, 300);await page.mouse.down();
- await page.mouse.move(200, 315);await page.mouse.move(225, 330);await page.mouse.up();
+ const drag=await page.evaluate(()=>{const top=document.getElementById('meeting-toolbar').getBoundingClientRect().bottom,bottom=document.getElementById('meeting-footer').getBoundingClientRect().top;return {x:90,y:Math.floor((top+bottom)/2),space:bottom-top};});
+ assert(drag.space>=80,'meeting retains a usable scene area between its panels');
+ await page.mouse.move(drag.x,drag.y);await page.mouse.down();
+ await page.mouse.move(drag.x+20,drag.y+10);await page.mouse.move(drag.x+45,drag.y+25);await page.mouse.up();
  assert.notEqual(await page.evaluate(() => MOUSE.targetRotationY), before);
  assert.equal(await page.evaluate(() => MOUSE.isDragging), false);
  // Touch must rotate the view without invoking inherited attack animation.

@@ -88,7 +88,7 @@
 .meeting-session #room-connection-overlay p { max-width: 560px; font-size: var(--font-size-card-title); }
 @media (max-width: 600px) {
   .meeting-session .meeting-actions { width: 100%; }
-  .meeting-session:has(#room-seat-picker:not([hidden])) :is(#meeting-screen-preview,#room-presentation-controls) { display: none; }
+  .meeting-session:has(#room-seat-picker:not([hidden])) :is(#meeting-screen-preview,#room-presentation-controls,.meeting-room-tools) { display: none; }
   .meeting-session #nearby-chat-counter { display: none !important; }
   .meeting-session #nearby-chat-send { min-width: 44px; width: 44px; font-size: 0; padding: 8px; }
   .meeting-session #nearby-chat-send::after { content: '→'; font-size: 24px; }
