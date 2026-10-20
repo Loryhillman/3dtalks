@@ -512,3 +512,11 @@ node scripts/test-meeting-startup-browser.js --builtin-v2
 QA, ограничения и ручная приёмка первого этапа:
 [meeting-controls-v1.md](docs/design-system/meeting-controls-v1.md).
 Для этой порции новые SQL-миграции и npm зависимости не нужны.
+
+
+## Закреплённые версии и новая media-ветка
+
+Работающий сайт и завершённый этап до WebRTC закреплены разными Git-тегами.
+Будущая media-разработка изолирована в codex/livekit-webrtc.
+Точные коммиты, статус развёртывания и ограничения отката:
+[RELEASES.md](RELEASES.md).
