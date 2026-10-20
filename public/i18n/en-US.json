@@ -5845,6 +5845,16 @@
     "testing": "Testing the microphone. Stops automatically after 30 seconds.",
     "idle": "Choose “Test microphone” to check the sound level.",
     "stopTest": "Stop test",
-    "testMicrophone": "Test microphone"
+    "testMicrophone": "Test microphone",
+    "invite": "Invite to room",
+    "inviteHint": "This link does not bypass closed entry or participant limits. Access is checked on entry.",
+    "inviteLink": "Invitation link",
+    "inviteCopy": "Copy link",
+    "inviteCopying": "Copying…",
+    "inviteSelect": "Select link",
+    "inviteManual": "Select the link and copy it manually using your device menu or Ctrl/Cmd+C.",
+    "inviteCopied": "Link copied.",
+    "inviteReady": "Send the link to the person you want to invite.",
+    "inviteUnavailable": "Could not create an invitation link for this room."
   }
 }

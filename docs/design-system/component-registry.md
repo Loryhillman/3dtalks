@@ -363,3 +363,13 @@ NOT RUN: новые браузерные/визуальные/accessibility пр
 - Языки: RU/EN/zh-CN; параметры {{count}}/{{number}} как в текущем i18n.tp.
 - Tests/QA/limits: [meeting-controls-v1.md](meeting-controls-v1.md).
   Lifecycle Stable не присвоен; физические устройства/Safari/axe не проверены.
+
+
+### Приглашение из MeetingRoomPanel
+
+Дополнительный native dialog data-kind=invite. Кнопка 44 px в .meeting-identity
+сохраняет высоту toolbar; полный room name остаётся title/текстом.
+readonly input и явное копирование same-origin /join/:slug; writeText отказ
+переводит на ручное выделение. Pending/close защищены текущей dialog session.
+RU/EN/zh-CN, input label/status, прежний Tab/Escape/camera isolation.
+QA: [MEETING_MINOR_UPDATES.md](../../MEETING_MINOR_UPDATES.md).

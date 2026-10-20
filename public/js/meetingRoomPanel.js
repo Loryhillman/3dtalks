@@ -1,7 +1,7 @@
 /** Native meeting dialogs; roster and microphone lifetimes belong to their services. */
 (() => {
   if(!window.MeetingUI?.active)return;
-  let tools, rosterButton, soundButton, current, unsubscribe, stopped=false;
+  let tools, rosterButton, soundButton, inviteButton, current, unsubscribe, stopped=false;
   const t=(key,params)=>params?window.i18n.tp('meetingControls.'+key,params):window.i18n.t('meetingControls.'+key);
   const text=(node,value)=>{if(node.textContent!==value)node.textContent=value;};
   const node=(tag,cls,value)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(value!==undefined)n.textContent=value;return n;};
@@ -35,6 +35,35 @@
     });
     for(const event of ['pointerdown','pointerup','click','keydown','keyup','wheel','touchstart','touchmove'])dialog.addEventListener(event,e=>e.stopPropagation());
     document.body.append(dialog);dialog.showModal();return session;
+  }
+  function openInvite(){
+    const s=shell('invite',inviteButton);if(!s)return;
+    const room=window.ACTIVE_ROOM,slug=room?.slug;
+    const url=typeof slug==='string'&&slug.length>0&&slug.length<=256?location.origin+'/join/'+encodeURIComponent(slug):'';
+    const name=node('p','meeting-room-invite-name',room?.name||'');
+    const hint=node('p','meeting-room-hint'),label=node('label','meeting-room-field'),caption=node('span'),field=node('input');
+    field.id='meeting-invite-link';field.type='text';field.readOnly=true;field.value=url;field.spellcheck=false;
+    label.htmlFor=field.id;label.append(caption,field);
+    const status=node('p','meeting-room-status is-neutral');status.setAttribute('role','status');status.setAttribute('aria-atomic','true');
+    let pending=false,result='';
+    function selectLink(){field.focus({preventScroll:true});field.select();}
+    field.onfocus=()=>field.select();
+    const copy=button('',async()=>{
+      if(pending||!url)return;
+      if(typeof navigator.clipboard?.writeText!=='function'){result='inviteManual';render();selectLink();return;}
+      pending=true;result='';render();
+      try{await navigator.clipboard.writeText(url);if(s.finished)return;result='inviteCopied';}
+      catch(_){if(s.finished)return;result='inviteManual';selectLink();}
+      finally{if(!s.finished){pending=false;render();}}
+    },'ui-button--primary');
+    function render(){
+      if(s.finished)return;s.translate();text(hint,t('inviteHint'));text(caption,t('inviteLink'));
+      text(copy,t(pending?'inviteCopying':typeof navigator.clipboard?.writeText==='function'?'inviteCopy':'inviteSelect'));
+      copy.disabled=pending||!url;field.disabled=!url;
+      text(status,t(!url?'inviteUnavailable':result||'inviteReady'));
+      status.classList.toggle('is-neutral',result!=='inviteCopied');status.classList.toggle('is-error',!url);
+    }
+    s.body.append(name,hint,label,copy,status);s.refresh=render;render();
   }
   function openRoster(){
     const s=shell('participants',rosterButton);if(!s)return;
@@ -108,6 +137,7 @@
     const state=window.MeetingRoster.getState();
     text(rosterButton,t('participantsButton',{count:state.connection==='connecting'?'—':state.members.length}));
     rosterButton.title=t(state.connection==='reconnecting'?'reconnecting':'participants');text(soundButton,t('sound'));
+    if(inviteButton){inviteButton.setAttribute('aria-label',t('invite'));inviteButton.title=t('invite');inviteButton.disabled=state.connection!=='connected';}
   }
   function refresh(){refreshTools();if(!stopped)current?.refresh?.();}
   window.MeetingRoomPanel={
@@ -115,10 +145,13 @@
       if(stopped||tools||!window.MeetingRoster||!window.MeetingAudioSettings)return;
       tools=node('div','meeting-room-tools');rosterButton=button('',openRoster);rosterButton.id='meeting-participants';
       soundButton=button('',openAudio);soundButton.id='meeting-sound-settings';tools.append(rosterButton,soundButton);toolbar.append(tools);
+      inviteButton=button('',openInvite,'ui-button--ghost meeting-invite-button');inviteButton.id='meeting-invite';
+      const inviteIcon=node('img');inviteIcon.src='/icons/lucide/user-round-plus.svg';inviteIcon.alt='';inviteIcon.width=inviteIcon.height=20;inviteButton.append(inviteIcon);
+      toolbar.querySelector('.meeting-identity')?.append(inviteButton);
       document.getElementById('skill-voice-btn')?.classList.toggle('voice-muted',!!window.voiceChat?.muted);
       unsubscribe=window.MeetingRoster.subscribe(refreshTools);window.i18n?.onLocaleChange(refresh);refresh();
     },
     close,
-    dispose(){if(stopped)return;stopped=true;close(false);unsubscribe?.();tools?.remove();window.MeetingAudioSettings?.stop();}
+    dispose(){if(stopped)return;stopped=true;close(false);unsubscribe?.();tools?.remove();inviteButton?.remove();window.MeetingAudioSettings?.stop();}
   };
 })();

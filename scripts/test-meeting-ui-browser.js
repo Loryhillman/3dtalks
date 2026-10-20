@@ -4,7 +4,7 @@ const {chromium}=require('playwright');
 const {renderMeetingPage}=require('../src/services/meetingPage');
 const root=path.resolve(__dirname,'../public');
 const setup=`window.GAME_STATE={characterId:'me',characterName:'Fixture'};window.sent=[];window.WSClient={connected:true,ws:{readyState:1,send:m=>sent.push(JSON.parse(m))},isConnected:()=>true,send:m=>sent.push(m)};window.voiceChat={startTalk:()=>window.talkStarted=(window.talkStarted||0)+1,stopTalk:()=>window.talkStopped=(window.talkStopped||0)+1};`;
-const boot=`window.addEventListener('DOMContentLoaded',async()=>{await i18n.init();if(location.pathname!='/play')return;const room={id:'11111111-1111-4111-8111-111111111111',name:'Long meeting name / Очень длинное название переговорной комнаты для проверки интерфейса',capacity:6,seating_mode:'seated'};window.gameWorld={players:new Map([['me',{group:new THREE.Group()}]])};window.MeetingRoster?.start(room.id);RoomSeating.enter(room);RoomSeating.message('ROOM_SEAT_ASSIGNED',{roomId:room.id,seat:{id:'one',position:{x:0,y:1,z:0},orientation:{x:0,y:0,z:0,w:1}}});RoomSeating.sceneReady();RoomSeating.message('ROOM_SEATS_STATE',{roomId:room.id,version:1,seats:Array.from({length:20},(_,i)=>({id:i?'seat-'+i:'one',label:String(i+1),occupancy:i?'free':'active',character_id:i?null:'me',position:{x:i%4,y:1,z:Math.floor(i/4)}}))});window.ACTIVE_ROOM=room;RoomPresentation.joined();RoomPresentation.message('ROOM_PRESENTATION_SESSION',{roomId:room.id,epoch:'22222222-2222-4222-8222-222222222222',token:'a'.repeat(43),canControl:true});RoomPresentation.message('ROOM_PRESENTATION_STATE',{roomId:room.id,epoch:'22222222-2222-4222-8222-222222222222',revision:'1',asset:null,pageIndex:0});window.screenModel=RoomScreenRenderer.create(RoomScreen.create().screen);RoomScreenPreview.mount(screenModel.userData.screenCanvas,'Screen',document.querySelector('#meeting-toolbar .meeting-actions'));RoomPresentation.attach(screenModel.userData.presentation);window.MeetingRoster?.snapshot([{characterId:'me',characterName:'Fixture'},{characterId:'peer',characterName:'Alice <b>literal</b>'}]);});`;
+const boot=`window.addEventListener('DOMContentLoaded',async()=>{await i18n.init();if(location.pathname!='/play')return;const room={id:'11111111-1111-4111-8111-111111111111',name:'Long meeting name / Очень длинное название переговорной комнаты для проверки интерфейса',capacity:6,slug:'fixture',seating_mode:'seated'};window.gameWorld={players:new Map([['me',{group:new THREE.Group()}]])};window.MeetingRoster?.start(room.id);RoomSeating.enter(room);RoomSeating.message('ROOM_SEAT_ASSIGNED',{roomId:room.id,seat:{id:'one',position:{x:0,y:1,z:0},orientation:{x:0,y:0,z:0,w:1}}});RoomSeating.sceneReady();RoomSeating.message('ROOM_SEATS_STATE',{roomId:room.id,version:1,seats:Array.from({length:20},(_,i)=>({id:i?'seat-'+i:'one',label:String(i+1),occupancy:i?'free':'active',character_id:i?null:'me',position:{x:i%4,y:1,z:Math.floor(i/4)}}))});window.ACTIVE_ROOM=room;RoomPresentation.joined();RoomPresentation.message('ROOM_PRESENTATION_SESSION',{roomId:room.id,epoch:'22222222-2222-4222-8222-222222222222',token:'a'.repeat(43),canControl:true});RoomPresentation.message('ROOM_PRESENTATION_STATE',{roomId:room.id,epoch:'22222222-2222-4222-8222-222222222222',revision:'1',asset:null,pageIndex:0});window.screenModel=RoomScreenRenderer.create(RoomScreen.create().screen);RoomScreenPreview.mount(screenModel.userData.screenCanvas,'Screen',document.querySelector('#meeting-toolbar .meeting-actions'));RoomPresentation.attach(screenModel.userData.presentation);window.MeetingRoster?.snapshot([{characterId:'me',characterName:'Fixture'},{characterId:'peer',characterName:'Alice <b>literal</b>'}]);});`;
 const server=http.createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://local').pathname;
  if(url==='/api/config/language'){res.setHeader('Content-Type','application/json');return res.end('{"language":"en-US"}');}
@@ -144,6 +144,56 @@ let browser;
  assert.equal(await page.locator('#skill-voice-btn').evaluate(el=>el.tagName),'BUTTON');
  await page.locator('#room-places-toggle').click();await page.locator('.room-seat-inspect').nth(1).click();await page.locator('.room-seat-row.selected .room-seat-take').click();
  assert.equal(await page.evaluate(()=>sent.at(-1).type),'ROOM_SEAT_SELECT');
+ // Invitations use the existing same-origin /join route, never room auth/query data.
+ await page.keyboard.press('Escape');await page.setViewportSize({width:1280,height:800});
+ await page.evaluate(()=>{
+  window.originalClipboard=navigator.clipboard;window.copiedInvites=[];
+  Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>copiedInvites.push(value)}});
+ });
+ const beforeInvite=await page.evaluate(()=>sent.length);
+ for(const locale of ['ru-RU','en-US','zh-CN']){
+  await page.evaluate(locale=>i18n.setLocaleLocal(locale),locale);
+  await page.locator('#meeting-invite').click();
+  assert.equal(await page.locator('#meeting-invite-link').inputValue(),base+'/join/fixture');
+  assert(await page.locator('#meeting-invite-link').evaluate(n=>n.readOnly));
+  const catalog=JSON.parse(await fs.readFile(path.join(root,'i18n/'+locale+'.json'),'utf8')).meetingControls;
+  assert.equal(await page.locator('.meeting-room-header h2').textContent(),catalog.invite);
+  for(const [width,height] of [[320,568],[568,320],[1280,800]]){
+   await page.setViewportSize({width,height});
+   await page.waitForFunction(()=>Math.abs(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--meeting-visible-height'))-visualViewport.height)<1);
+   assert(await page.locator('.meeting-room-dialog').evaluate(n=>{const r=n.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight&&n.scrollWidth<=n.clientWidth;}),'invitation fits the viewport');
+  }
+  await page.locator('.meeting-room-body > .ui-button').click();
+  assert.equal(await page.locator('.meeting-room-status').textContent(),catalog.inviteCopied);
+  assert.equal(await page.evaluate(()=>copiedInvites.at(-1)),base+'/join/fixture');
+  await page.keyboard.press('Escape');assert(await page.locator('#meeting-invite').evaluate(n=>n===document.activeElement));
+ }
+ assert.equal(await page.evaluate(()=>sent.length),beforeInvite,'inviting does not change admission, seats or presentation');
+ await page.evaluate(()=>i18n.setLocaleLocal('en-US'));
+ await page.evaluate(()=>{navigator.clipboard.writeText=()=>Promise.reject(Error('Blocked'));});
+ await page.locator('#meeting-invite').click();await page.locator('.meeting-room-body > .ui-button').click();
+ assert(await page.locator('#meeting-invite-link').evaluate(n=>n===document.activeElement&&n.selectionStart===0&&n.selectionEnd===n.value.length));
+ assert(await page.locator('.meeting-room-status').textContent().then(t=>t.includes('manually')));
+ await page.keyboard.press('Escape');
+ await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:undefined}));
+ await page.locator('#meeting-invite').click();
+ assert.equal(await page.locator('.meeting-room-body > .ui-button').textContent(),'Select link');
+ await page.locator('.meeting-room-body > .ui-button').click();
+ assert(await page.locator('#meeting-invite-link').evaluate(n=>n.selectionEnd===n.value.length));
+ await page.keyboard.press('Escape');
+ // A completed write from an old dialog must not steal focus or modify a new one.
+ await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:()=>new Promise(resolve=>window.finishInviteCopy=resolve)}}));
+ await page.locator('#meeting-invite').click();await page.locator('.meeting-room-body > .ui-button').click();
+ assert(await page.locator('.meeting-room-body > .ui-button').isDisabled());
+ await page.keyboard.press('Escape');await page.locator('#meeting-sound-settings').click();
+ await page.evaluate(()=>finishInviteCopy());assert(await page.evaluate(()=>document.activeElement.closest('dialog')?.dataset.kind==='sound'));
+ await page.keyboard.press('Escape');
+ await page.evaluate(()=>{window.originalRoomSlug=ACTIVE_ROOM.slug;ACTIVE_ROOM.slug='name /?#雪';});
+ await page.locator('#meeting-invite').click();assert.equal(await page.locator('#meeting-invite-link').inputValue(),base+'/join/'+encodeURIComponent('name /?#雪'));await page.keyboard.press('Escape');
+ await page.evaluate(()=>ACTIVE_ROOM.slug=null);await page.locator('#meeting-invite').click();
+ assert(await page.locator('.meeting-room-body > .ui-button').isDisabled());await page.keyboard.press('Escape');
+ await page.evaluate(()=>{ACTIVE_ROOM.slug=originalRoomSlug;Object.defineProperty(navigator,'clipboard',{configurable:true,value:originalClipboard});});
+ await page.locator('#meeting-invite').click();await page.screenshot({path:'/tmp/meeting-invite-desktop.png'});await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/meeting-invite-mobile.png'});await page.keyboard.press('Escape');
  // Switch the initial PTT spy to the actual clip manager for microphone/decoder integration.
  await page.addScriptTag({url:base+'/js/voiceChat.js'});
  // The roster is server-derived; local microphone checks never transmit voice.
