@@ -2,6 +2,24 @@
 
 Формат следует принципам Keep a Changelog; версия документации независима от версии продукта. Не добавлять задним числом неподтверждённые реализации.
 
+## [1.2.0] — 2026-10-20
+### Changed
+- RoomMaterials получил единый light dialog, upload target, квоты, список файлов,
+  состояния, desktop preview/mobile reflow и локальное подтверждение удаления.
+- Сохранены публичный API, active-presentation guards, лимиты, отмена/очистка;
+  401/403 закрывают библиотеку. Escape вопроса отменяет удаление без закрытия списка.
+- Native Button variants/Inter вынесены в app-controls.css без App Shell в /play.
+  Введены локальный scope панели и переводы RU/EN/zh-CN.
+
+### Validation
+- Расширена Chromium-регрессия материалов: две области, 3 языка, 7 viewport,
+  focus/confirmation, active delete conflict, offline/retry, cancel upload,
+  отказ доступа, empty и частичная проверка 200% CSS text scaling.
+- Прошли кабинет, аватар, управление встречей, показ и полный startup builtin-v2
+  с тестовыми API/WS. Контраст primary link добавлен в тест кабинета.
+- Границы проверок и сценарий ручной приёмки — materials-redesign.md.
+  Панель показа/увеличенный экран, backend и Three.js не изменены.
+
 ## [1.1.1] — 2026-10-20
 ### Documented
 - Вместо TBD-кандидатов записаны реальные CSS/JS/HTML-реализации, consumers,

@@ -5747,7 +5747,17 @@
     "INVALID_UPLOAD": "The file transfer was invalid. Select the file again.",
     "SESSION_CHANGED": "Your session changed. Close this window and sign in again.",
     "confirmStopRemove": "This material is being shown. Stop the shared presentation and delete it?",
-    "PRESENTATION_CHANGED": "The presentation changed. Refresh the list before deleting."
+    "PRESENTATION_CHANGED": "The presentation changed. Refresh the list before deleting.",
+    "formats": "PDF up to 20 MiB and 100 pages · PNG, JPEG, WebP up to 8 MiB",
+    "files": "Files",
+    "storage": "Material library storage used",
+    "choosePreview": "Select a file from the list to preview it here.",
+    "cancel": "Cancel",
+    "stopAndRemove": "Stop presentation and delete",
+    "previewFailed": "Could not open the preview. Select the file to try again.",
+    "removing": "Deleting material…",
+    "removed": "Material deleted.",
+    "privateLibrary": "Only you can access uploaded materials."
   },
   "roomPresentation": {
     "manage": "Manage presentation",

@@ -91,7 +91,7 @@ let server, browser;
       });
       return channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
     };
-    return ['#create-launcher', '#quota', '.room-occupancy', '.room-status--open', '.room-status--closed'].map(selector => {
+    return ['#create-launcher', '.room-card a.ui-button--primary', '#quota', '.room-occupancy', '.room-status--open', '.room-status--closed'].map(selector => {
       const node = document.querySelector(selector);
       let parent = node, background;
       while (parent) {

@@ -5747,7 +5747,17 @@
     "INVALID_UPLOAD": "文件传输无效，请重新选择。",
     "SESSION_CHANGED": "会话已更改，请关闭窗口并重新登录。",
     "confirmStopRemove": "此材料正在演示。停止共享演示并删除它？",
-    "PRESENTATION_CHANGED": "演示已更改，请刷新列表后再删除。"
+    "PRESENTATION_CHANGED": "演示已更改，请刷新列表后再删除。",
+    "formats": "PDF 最大 20 MiB、100 页 · PNG、JPEG、WebP 最大 8 MiB",
+    "files": "文件",
+    "storage": "材料资料库已用存储空间",
+    "choosePreview": "从列表中选择文件，在此处预览。",
+    "cancel": "取消",
+    "stopAndRemove": "停止演示并删除",
+    "previewFailed": "无法打开预览，请重新选择文件。",
+    "removing": "正在删除材料…",
+    "removed": "材料已删除。",
+    "privateLibrary": "仅您可以访问已上传的材料。"
   },
   "roomPresentation": {
     "manage": "管理演示",

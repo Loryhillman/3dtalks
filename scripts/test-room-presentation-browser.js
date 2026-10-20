@@ -26,7 +26,7 @@ let server,browser,release;
  let executable=process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE||chromium.executablePath();try{await fs.access(executable);}catch(_){for(const n of await fs.readdir('/root/.cache/ms-playwright'))if(/^chromium-\d+$/.test(n))executable='/root/.cache/ms-playwright/'+n+'/chrome-linux64/chrome';}
  browser=await chromium.launch({executablePath:executable,headless:true,args:['--no-sandbox']});
  const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.addInitScript(()=>localStorage.setItem('token','fixture'));await page.goto('http://127.0.0.1:'+server.address().port+'/play');await page.waitForFunction(()=>ready);
+ await page.addInitScript(()=>localStorage.setItem('token','fixture'));await page.goto('http://127.0.0.1:'+server.address().port+'/play');await page.waitForFunction(()=>window.ready);
  let revision=0;
  const state=(id=asset,index=0)=>({roomId:room,epoch,revision:String(++revision),asset:id?{id,name:id===image?'Image.webp':'Fixture.pdf',kind:id===image?'image':'pdf',pageCount:id===image?1:2}:null,pageIndex:index});
  const deliver=value=>page.evaluate(v=>RoomPresentation.message('ROOM_PRESENTATION_STATE',v),value);

@@ -1,6 +1,6 @@
 # Реестр UI-компонентов
 
-Версия документации: 1.1.1. Аудит: 2026-10-20, ветка `codex/room-presentations`.
+Версия документации: 1.2.0. Аудит: 2026-10-20, ветка `codex/room-presentations`.
 Область: кабинет, оболочка аватара и HTML-интерфейс материалов/презентации.
 Это подтверждённая карта исходников, а не декларация полного соответствия
 дизайн-системе. Lifecycle Stable/Experimental/Deprecated не присвоен:
@@ -16,16 +16,17 @@
 `src/services/meetingPage.js`. Редактор — `public/room_editor.html`.
 Сам renderer Three.js не является UI-компонентом этого реестра.
 
-Общий источник токенов — `public/css/app-tokens.css`; стили элементов кабинета —
-`public/css/app-ui.css`, область `.app-ui`. `.meeting-ui` пока зарезервирован
-для отдельных панелей и содержит только токены. Подключение и измерения:
+Общий источник токенов — `public/css/app-tokens.css`; Button variants и Inter — `public/css/app-controls.css`;
+стили элементов кабинета — `public/css/app-ui.css`, область `.app-ui`.
+`.meeting-ui` применяется к самостоятельному RoomMaterials dialog;
+она не включает layout или фон всей страницы. Подключение и измерения:
 [token-integration.md](token-integration.md).
 
 ## Краткая карта
 
 | Компонент | Уровень | Реализация | Факт / основное ограничение |
 |---|---|---|---|
-| Button / IconButton | Primitive | `public/css/app-ui.css` | CSS + native button/link; самостоятельной JS-фабрики IconButton нет |
+| Button / IconButton | Primitive | `public/css/app-controls.css` | CSS + native button/link; самостоятельной JS-фабрики IconButton нет |
 | Input / Select / Field | Primitive / композиция | `public/css/app-ui.css`, `public/rooms.html` | Native поля и label; общего FormField API нет |
 | AppDialog | Composite | `public/js/app-ui.js` | Статические диалоги кабинета; не универсальная обёртка встречи |
 | AppToasts | Composite | `public/js/app-ui.js` | Очередь до 3; success/info/error; только кабинет как подтверждённый consumer |
@@ -57,9 +58,11 @@
   гарантированному target 44x44 для всех вариантов (например toast close).
 - Проверки: `scripts/test-rooms-design-browser.js`,
   `scripts/test-avatar-editor-browser.js`, `scripts/test-room-materials-browser.js`.
-- Gap: стили `.app-ui .ui-button` не применяются к самостоятельной панели
-  `.meeting-ui`. Следующий редизайн должен согласованно адаптировать область
-  существующих правил, а не копировать их отдельной палитрой.
+- Стили выделены в app-controls.css с областью :where(.app-ui, .meeting-ui).
+  Их импортируют app-ui.css и room-materials.css; низкая специфичность сохраняет
+  локальные overrides, а глобальные font/link defaults не затирают Button.
+  Media coarse pointer также даёт target height 44 px. Контраст primary link
+  проверяет test-rooms-design-browser.js. Другие окна встречи пока не адаптированы.
 
 ## Input / Select / Field
 
@@ -183,27 +186,34 @@
   повторное open закрывает предыдущий. Consumers: roomsLobby и library-действие
   RoomPresentation. Native dialog строится при каждом открытии и удаляется при close.
 - State: текущая сессия/token, controller, transfer, uploadId, busy,
-  previewEpoch/selected/page и RoomMediaRenderer. Сервер остаётся источником
+  previewEpoch/selected/page, ожидающее подтверждение и RoomMediaRenderer. Сервер остаётся источником
   списка, состояний материалов и квот; UI получает приватные owner endpoints.
 - Состояния: загрузка списка/ошибка/пусто; reserved/uploading/checking/ready/
   failed/cancelled; pending/cancel; local preview и pager. act блокирует
-  input и повторные act, но не все кнопки; preview использует собственный epoch.
-- Удаление — browser confirm; MATERIAL_IN_USE вызывает второе подтверждение
+  input, действия списка, Refresh/pager и повторные act; Close и соответствующая
+  отмена доступны. Preview использует собственный epoch и скрывает старый canvas.
+- Удаление — встроенное подтверждение в том же native dialog;
+  MATERIAL_IN_USE вызывает второе подтверждение
   stopShowing+delete с requestId/expectedEpoch/expectedRevision. Сохранить эту
   последовательность и отказ при конфликте; не заменять простым DELETE.
+  Вопрос скрывает body, меняет accessible title/description и начинает с Cancel;
+  Escape отменяет вопрос, после завершения восстанавливаются действия и фокус.
+  Закрытие разрешает ожидающий Promise отказом. Серверный 401/403 закрывает окно.
 - При close отменяются fetch/upload, резервирование, renderer, таймер проверки
   сессии и listeners. storage/pagehide/смена token закрывают окно; запоздалый
   preview не должен обновлять новый dialog. Безопасность проверяет сервер.
 - label/file input, title aria-labelledby, status role=status, строки role=group
-  с именем файла, native Escape, Tab и возврат trigger. Keydown остановлен;
-  полный набор pointer/wheel/touch stopPropagation, как у презентации, здесь
-  отсутствует — это проверить при адаптации, а не считать уже готовым общим правилом.
-- CSS: `.room-materials`, кабинетная `.ui-dialog` и отдельные тёмные overrides
-  `.meeting-session .room-materials`; inline flex-строки. Width <=960px/95vw,
-  max-height 92dvh, длинные имена переносятся. Это источник двух разных skins.
-- Gap для редизайна: единая светлая панель, явные группы/варианты действий,
-  список с понятными состояниями и квотами, согласованное подтверждение,
-  focus/scroll при длинной библиотеке; не расширять типы файлов или квоты.
+  с именем файла, native Escape, Tab и возврат trigger. Pointer/keyboard/wheel/
+  touch propagation остановлен; тест проверяет отсутствие утечки событий к document.
+- CSS: `.meeting-ui.room-materials`, единый light panel без `.ui-dialog` и
+  тёмных overrides. Ширина до 1080 px, вопрос до 560 px; header отделён от
+  прокручиваемого body, preview справа на desktop и ниже списка на mobile.
+  Upload label, meter квоты, state/list/actions/private hint используют общие
+  tokens/controls; локальных inline layout-стилей нет.
+- Проверены обе области, RU/EN/zh-CN, 7 размеров, контраст, keyboard/отмена,
+  offline/retry, auth cleanup. Gap: axe/screen reader/Safari/реальные устройства,
+  динамическая смена языка при открытом окне и live PostgreSQL не проверены.
+  Не расширять типы файлов/квоты. QA: [materials-redesign.md](materials-redesign.md).
 - Проверки: `scripts/test-room-materials-browser.js`; реальная серверная
   семантика — `scripts/check-room-media.js`,
   `scripts/check-room-presentation.js` (требуют отдельную PostgreSQL).
@@ -265,21 +275,23 @@
 названию из нормативного словаря. Table/Search/Tabs и другие кандидаты
 не объявляются готовыми компонентами без отдельного аудита потребителей.
 
-## Решения для следующего этапа
+## Решения по этапам
 
-1. Сначала единая библиотека материалов: light surface с общими tokens, локальный
+1. **Выполнено.** Единая библиотека материалов: light surface с общими tokens, локальный
    scope для панели, header/actions/list/quota/status/preview и адаптивная компоновка.
-2. Сохранить public RoomMaterials API и HTTP-контракт; перерисовать UI внутри
-   его существующего жизненного цикла. Не заменять контроллер AppDialog целиком.
-3. Подтверждение удаления согласовать как вариант существующего Dialog-паттерна,
+2. **Выполнено.** Сохранён public RoomMaterials API и HTTP-контракт; UI переработан внутри
+   существующего жизненного цикла без подмены контроллера AppDialog.
+3. **Выполнено.** Подтверждение удаления — вариант существующего Dialog-паттерна,
    с точными последствиями остановки активного показа, без потери revision guards.
 4. Панель показа и увеличенный экран — следующий отдельно согласуемый этап.
    Новые продуктовые функции, редактор, API и Three.js не входят в эти этапы.
 
-## Проверка этого этапа
+## Проверка этапа реестра (до редизайна материалов)
 
 PASS: статическое чтение API/consumers/CSS, поиск через rg, проверка существования
 указанных путей, Markdown-ссылок и git diff --check. Приложение не изменялось.
 NOT RUN: новые браузерные/визуальные/accessibility проверки; на этом этапе
 они не запускались. Предыдущая регрессия токенов описана отдельно в
 [token-integration.md](token-integration.md) и не заменяет проверку будущего UI.
+
+Последующие проверки RoomMaterials и shared controls — в [materials-redesign.md](materials-redesign.md).
