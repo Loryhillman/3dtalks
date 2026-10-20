@@ -144,8 +144,8 @@
     const target=document.querySelector('#meeting-toolbar .meeting-actions');
     if(target){
       controlsBar=document.createElement('div');controlsBar.id='room-presentation-controls';
-      manage=document.createElement('button');manage.type='button';manage.id='presentation-manage';manage.textContent=t('manage');manage.onclick=()=>openPanel(manage);
-      refresh=document.createElement('button');refresh.type='button';refresh.id='presentation-refresh';refresh.textContent=t('refresh');refresh.onclick=()=>{errorText='';requestSnapshot();};
+      manage=document.createElement('button');manage.type='button';manage.id='presentation-manage';manage.className='ui-button';manage.dataset.i18n='roomPresentation.manage';manage.textContent=t('manage');manage.onclick=()=>openPanel(manage);
+      refresh=document.createElement('button');refresh.type='button';refresh.id='presentation-refresh';refresh.className='ui-button ui-button--ghost';refresh.dataset.i18n='roomPresentation.refresh';refresh.textContent=t('refresh');refresh.onclick=()=>{errorText='';requestSnapshot();};
       status=document.createElement('span');status.id='presentation-status';status.setAttribute('role','status');
       for(const element of [manage,refresh,status]){element.addEventListener('pointerdown',e=>e.stopPropagation());element.addEventListener('click',e=>e.stopPropagation());controlsBar.append(element);}
       target.append(controlsBar);
@@ -172,5 +172,6 @@
     joined(){joined=true;if(!session)requestSnapshot();},
     stop(){disconnect();closed=true;detach();}
   };
+  window.i18n?.onLocaleChange(()=>controls());
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')requestSnapshot();});
 })();

@@ -5369,7 +5369,15 @@
     "language": "切换语言",
     "holdToTalk": "按住说话，松开发送。按钮获得焦点时，也可以按住空格键或回车键。",
     "participantJoined": "{{name}} 进入了房间",
-    "participantLeft": "{{name}} 离开了房间"
+    "participantLeft": "{{name}} 离开了房间",
+    "messages": "房间消息",
+    "emptyChat": "参与者消息和通知将显示在这里。",
+    "messagePlaceholder": "向房间发送消息…",
+    "messageLabel": "发送给房间参与者的消息，最多 200 个字符",
+    "microphone": "麦克风",
+    "recording": "录音中…",
+    "voiceUnavailable": "不可用",
+    "playbackMuted": "声音已关"
   },
   "roomSeating": {
     "capacity": "参与人数上限",

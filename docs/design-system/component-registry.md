@@ -244,8 +244,8 @@
   pointer/keyboard/wheel/touch propagation остановлен внутри dialog.
 - CSS: `.meeting-ui.room-presentation-dialog`, light surface/Inter/shared controls,
   header и scrollable body, отдельная current-card, primary show, нейтральные
-  страницы и destructive stop. Токены из app-controls.css; внешняя toolbar
-  сохраняет прежнюю тему, но статус больше не скрыт inline ellipsis.
+  страницы и destructive stop. Токены из app-controls.css; toolbar также
+  использует локальную светлую тему (см. MeetingUI ниже).
 - Gap: полноценная assistive technology/axe/Safari/live проверка не выполнена.
   Визуальный контракт и результаты: [presentation-redesign.md](presentation-redesign.md).
 - Проверки: `scripts/test-room-presentation-browser.js`,
@@ -301,7 +301,7 @@
 4. **Выполнено.** Панель показа и увеличенный экран обновлены. Общий viewer
    проверен в редакторе без редизайна его остального интерфейса. Новые продуктовые
    возможности, backend/API/Three.js не входят в этап. Остановиться для проверки;
-   дальнейшее оформление HUD/чата требует отдельного согласования.
+   по следующему согласованию HUD/чат также обновлены (см. ниже).
 
 ## Проверка этапа реестра (до редизайна материалов)
 
@@ -314,3 +314,25 @@ NOT RUN: новые браузерные/визуальные/accessibility пр
 Последующие проверки RoomMaterials и shared controls — в [materials-redesign.md](materials-redesign.md).
 
 Проверки управления показом и общего viewer — в [presentation-redesign.md](presentation-redesign.md).
+
+## MeetingUI, RoomSeating, NearbyChat и MeetingVoiceControl
+
+- Consumers: /play; стили meeting.css ограничены .meeting-session и локальными
+  .meeting-ui. App Shell и стили страницы кабинета не подключаются.
+- MeetingUI.enter(room, toolbar) перемещает реальные chat/mic/language nodes,
+  сохраняя обработчики. stop() отключает observers/viewport listeners,
+  очищает сообщения и скрывает панели; повторный stop безопасен.
+- История — native details с существующим chatBox role=log; пустое состояние,
+  Enter/Escape и локальное раскрытие. Хранение истории и протокол не добавлялись.
+  Composer сохраняет лимит 200, текстовый вывод и draft при offline-send.
+- MeetingVoiceControl сохраняет hold-to-talk/pointer capture/Space/Enter.
+  Listening, unavailable и выключенное воспроизведение обозначены текстом.
+  dispose() завершает удержание, отключает observer и глобальные listeners.
+- RoomSeating остаётся источником состояния посадки/допуска. MeetingUI.connectOverlay
+  добавляет inert панелям и цикл Tab/возврат фокуса при существующем blocked overlay.
+  Picker сохраняет команды и подсветку; на mobile временно скрывает screen actions,
+  в низком landscape располагается слева от toolbar.
+- Переводы: RU/EN/zh-CN. Измерение visualViewport учитывает доступную высоту;
+  настоящая экранная клавиатура ещё требует проверки на устройстве.
+- QA/ограничения: [meeting-hud-redesign.md](meeting-hud-redesign.md).
+  Stable не присвоен; assistive technology и Safari не проверены.

@@ -82,7 +82,8 @@
     input.id = 'nearby-chat-input';
     input.type = 'text';
     input.maxLength = MAX_LEN;
-    input.placeholder = t('nearbyChat.placeholder');
+    input.placeholder = t(window.MeetingUI?.active?'meetingUi.messagePlaceholder':'nearbyChat.placeholder');
+    if(window.MeetingUI?.active)input.setAttribute('aria-label',t('meetingUi.messageLabel'));
     input.autocomplete = 'off';
 
     const counter = document.createElement('span');
@@ -91,7 +92,7 @@
     counter.classList.add('empty'); // 未输入时隐藏计数器，消除占位文字右侧空白
 
     const sendBtn = document.createElement('button');
-    sendBtn.id = 'nearby-chat-send';
+    sendBtn.id = 'nearby-chat-send';sendBtn.type='button';if(window.MeetingUI?.active)sendBtn.className='ui-button ui-button--primary';
     sendBtn.textContent = t('nearbyChat.send');
 
     wrap.appendChild(input);
@@ -99,7 +100,8 @@
     wrap.appendChild(sendBtn);
     document.body.appendChild(wrap);
     const updateLanguage = () => {
-      input.placeholder = t('nearbyChat.placeholder');
+      input.placeholder = t(window.MeetingUI?.active?'meetingUi.messagePlaceholder':'nearbyChat.placeholder');
+      if(window.MeetingUI?.active)input.setAttribute('aria-label',t('meetingUi.messageLabel'));
       sendBtn.textContent = t('nearbyChat.send');
     };
     if (window.i18n) {

@@ -39,7 +39,7 @@ const server=http.createServer(async(req,res)=>{try{
  }
  const file=url==='/play'?path.join(root,'index.html'):path.resolve(root,'.'+url);
  if(!file.startsWith(root+path.sep))throw Error('Invalid path');
- res.setHeader('Content-Type',({'.js':'application/javascript','.css':'text/css','.json':'application/json','.html':'text/html'})[path.extname(file)]||'application/octet-stream');const contents=await fs.readFile(file);res.end(url==='/play'?renderMeetingPage(contents.toString()):contents);
+ res.setHeader('Content-Type',({'.js':'application/javascript','.css':'text/css','.json':'application/json','.html':'text/html','.svg':'image/svg+xml','.woff2':'font/woff2'})[path.extname(file)]||'application/octet-stream');const contents=await fs.readFile(file);res.end(url==='/play'?renderMeetingPage(contents.toString()):contents);
 }catch(e){res.statusCode=404;res.end(e.message);}});
 let browser;
 (async()=>{
@@ -120,6 +120,12 @@ let browser;
     shells:[...gameWorld.generatedBuildings.values()].filter(e=>e.data.is_room_shell).length};
   });
   assert.deepEqual(office,{meshes:8,scale:.001,yaw:.6,geometry:false,environment:true,shells:0});
+ }
+ if(builtinMode&&process.env.MEETING_UI_SCREENSHOTS){
+  const locale=await page.evaluate(()=>i18n.currentLocale);await page.evaluate(()=>i18n.setLocaleLocal('ru-RU'));
+  await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:'/tmp/meeting-redesign-live-mobile.png'});
+  await page.setViewportSize({width:1280,height:800});await page.screenshot({path:'/tmp/meeting-redesign-live-desktop.png'});
+  await page.setViewportSize({width:390,height:844});await page.evaluate(l=>i18n.setLocaleLocal(l),locale);
  }
  // Allow delayed legacy initializers to run, then exercise their old shortcuts.
  if(screenMode){

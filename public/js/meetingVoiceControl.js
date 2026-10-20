@@ -6,17 +6,20 @@
     const button = document.createElement('button');
     // Retain this ID while the shared voice manager still uses it.
     button.id = 'skill-voice-btn'; button.type = 'button';
-    const icon = document.createElement('span'); icon.className = 'sv-icon'; icon.textContent = '🎤'; icon.setAttribute('aria-hidden', 'true');
-    const label = document.createElement('span'); label.className = 'sv-label'; label.dataset.i18n = 'skillHud.voice';
-    button.append(icon, label); document.body.append(button);
+    const icon = document.createElement('span'); icon.className = 'sv-icon';  icon.setAttribute('aria-hidden', 'true');
+    const label = document.createElement('span'); label.className = 'sv-label'; label.dataset.i18n = 'meetingUi.microphone';label.setAttribute('aria-live','polite');
+    const muted=document.createElement('span');muted.className='sv-muted';muted.hidden=true;button.append(icon, label,muted); document.body.append(button);
     function translate() {
-      label.textContent = window.i18n.t('skillHud.voice');
+      if(disposed)return;
+      label.dataset.i18n=button.classList.contains('voice-disabled')?'meetingUi.voiceUnavailable':button.classList.contains('listening')?'meetingUi.recording':'meetingUi.microphone';label.textContent=window.i18n.t(label.dataset.i18n);
+      muted.textContent=window.i18n.t('meetingUi.playbackMuted');muted.hidden=!button.classList.contains('voice-muted');
       button.title = window.i18n.t('meetingUi.holdToTalk');
-      button.setAttribute('aria-label', button.title);
+      button.setAttribute('aria-label',label.textContent+'. '+(!muted.hidden?muted.textContent+'. ':'')+button.title);button.setAttribute('aria-disabled',String(button.classList.contains('voice-disabled')));
     }
-    let held = false;
+    const stateObserver=new MutationObserver(translate);stateObserver.observe(button,{attributes:true,attributeFilter:['class']});
+    let held = false,disposed=false;
     function start() {
-      if (held) return;
+      if (disposed||held) return;
       held = true;
       Promise.resolve(window.voiceChat?.startTalk()).catch(error => {
         held = false; console.warn('[Voice] Recording failed:', error.message);
@@ -34,14 +37,15 @@
     for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) button.addEventListener(event, stop);
     button.addEventListener('keydown', event => {
       if (![' ', 'Enter'].includes(event.key)) return;
-      event.preventDefault(); if (!event.repeat) start();
+      event.preventDefault();event.stopPropagation(); if (!event.repeat) start();
     });
     button.addEventListener('keyup', event => {
-      if ([' ', 'Enter'].includes(event.key)) { event.preventDefault(); stop(); }
+      if ([' ', 'Enter'].includes(event.key)) { event.preventDefault();event.stopPropagation(); stop(); }
     });
     button.addEventListener('blur', stop);
     window.addEventListener('blur', stop);
-    document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
+    const visibility=()=>{if(document.hidden)stop();};document.addEventListener('visibilitychange',visibility);
+    window.MeetingVoiceControl={dispose(){if(disposed)return;stop();disposed=true;stateObserver.disconnect();window.removeEventListener('blur',stop);document.removeEventListener('visibilitychange',visibility);button.disabled=true;}};
     translate(); window.i18n.onLocaleChange(translate);
     window.i18n.init().then(translate);
   }

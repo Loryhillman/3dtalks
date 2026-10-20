@@ -5369,7 +5369,15 @@
     "language": "Переключить язык",
     "holdToTalk": "Удерживайте, чтобы говорить. Отпустите, чтобы отправить. Когда кнопка в фокусе, можно удерживать пробел или Enter.",
     "participantJoined": "{{name}} вошёл в комнату",
-    "participantLeft": "{{name}} вышел из комнаты"
+    "participantLeft": "{{name}} вышел из комнаты",
+    "messages": "Сообщения комнаты",
+    "emptyChat": "Здесь появятся сообщения участников и уведомления.",
+    "messagePlaceholder": "Сообщение в комнату…",
+    "messageLabel": "Сообщение участникам комнаты, до 200 символов",
+    "microphone": "Микрофон",
+    "recording": "Говорите…",
+    "voiceUnavailable": "Недоступен",
+    "playbackMuted": "Звук выкл."
   },
   "roomSeating": {
     "capacity": "Лимит участников",

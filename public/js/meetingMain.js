@@ -37,6 +37,7 @@
     window.RoomPresentation?.stop();
     removeInput?.();
     window.voiceChat?.dispose();
+    window.MeetingUI?.stop();
     if (typeof WSClient !== 'undefined') {
       WSClient.roomEnded = true;
       WSClient.messageQueue.length = 0;
@@ -55,11 +56,11 @@
     stop();
     console.error('[MeetingMain] Startup failed:', error);
     const panel = document.createElement('div');
-    panel.id = 'meeting-startup-error';
+    panel.id = 'meeting-startup-error';panel.className='meeting-ui';
     panel.setAttribute('role', 'alert');
-    panel.style.cssText = 'position:fixed;inset:0;z-index:100000;background:#171e29;color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px';
+    panel.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px';
     const text = document.createElement('p'); text.textContent = error.message;
-    const back = document.createElement('a'); back.href = '/rooms'; back.style.color = '#a7dfcf';
+    const back = document.createElement('a'); back.href = '/rooms'; back.className='ui-button ui-button--primary';
     back.textContent = translate('roomsLobby.back');
     panel.append(text, back); document.body.append(panel);
   }

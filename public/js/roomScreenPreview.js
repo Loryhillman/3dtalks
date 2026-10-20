@@ -51,7 +51,7 @@
   }
   function mount(source,name,target){
     if(!target)return ()=>{};
-    const button=document.createElement('button');button.type='button';button.id='meeting-screen-preview';button.dataset.i18n='roomScreen.enlarge';button.textContent=t('enlarge');
+    const button=document.createElement('button');button.type='button';button.id='meeting-screen-preview';if(window.MeetingUI?.active)button.className='ui-button';button.dataset.i18n='roomScreen.enlarge';button.textContent=t('enlarge');
     button.addEventListener('pointerdown',e=>e.stopPropagation());
     button.addEventListener('click',e=>{e.stopPropagation();open(source,name,button);});target.append(button);
     return ()=>{close();button.remove();};

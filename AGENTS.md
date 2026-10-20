@@ -372,3 +372,16 @@ HUD и protocol с тестовыми API. Axe/screen reader/Safari/live баз�
 После коммита окон остановись для пользовательской проверки. Внешние HUD/чат
 ещё прежние; их редизайн требует нового согласования. Push и развёртывание
 требуют отдельного поручения.
+
+По следующему согласию обновлены HUD/чат/микрофон/выбор мест/connection states.
+MeetingUI переносит существующие элементы, сохраняет обработчики; chatBox
+раскрывается через native details. stop() отключает UI observers/listeners,
+очищает историю; MeetingVoiceControl.dispose освобождает удержание.
+Сохраняй voice-disabled/listening/voice-muted как разные текстовые состояния,
+динамический data-i18n для label и прежнюю серверную семантику.
+RoomSeating остаётся источником допуска; overlay управляет inert/focus.
+На mobile screen actions скрываются только пока открыт picker; в низком
+landscape picker/toolbar стоят рядом. QA — docs/design-system/meeting-hud-redesign.md.
+Chromium 3 языка/9 viewport, startup с реальными GLB и регрессия пройдены
+на тестовых API/WS/mic. Реальные телефоны/микрофоны, Safari/axe/screen reader
+не проверены. После коммита остановись; push/развёртывание не выполнялись.
