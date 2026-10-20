@@ -385,3 +385,11 @@ landscape picker/toolbar стоят рядом. QA — docs/design-system/meetin
 Chromium 3 языка/9 viewport, startup с реальными GLB и регрессия пройдены
 на тестовых API/WS/mic. Реальные телефоны/микрофоны, Safari/axe/screen reader
 не проверены. После коммита остановись; push/развёртывание не выполнялись.
+
+По следующему поручению выполнена дополнительная QA-проверка HUD (DS 1.4.1):
+частичное text scaling и имитация visualViewport 390×360 с offsetTop 0/100.
+Исправлены сжатие picker и вытеснение composer длинной историей. При ширине
+и видимой высоте <480 px picker временно заменяет toolbar; Escape возвращает её.
+История ограничивается видимой высотой. Геометрическая имитация не заменяет
+настоящую экранную клавиатуру и 200% browser zoom. Регрессия HUD/startup/seat
+пройдена; детали — docs/design-system/meeting-hud-redesign.md.

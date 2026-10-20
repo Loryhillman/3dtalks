@@ -64,6 +64,58 @@ let browser;
   await page.keyboard.press('Escape');await page.waitForFunction(()=>document.getElementById('room-seat-picker').hidden);assert(await page.locator('#meeting-screen-preview').isVisible(),'screen actions return after choosing places');
  }
  }
+ // Text-only enlargement exercises existing fixed-width controls without claiming browser zoom coverage.
+ await page.evaluate(()=>i18n.setLocaleLocal('ru-RU'));
+ for(const [width,height] of [[1280,800],[375,812]]){
+  await page.setViewportSize({width,height});
+  await page.evaluate(()=>{
+   window.originalTextStyles=[];
+   const nodes=[...document.querySelectorAll('#meeting-toolbar *,#meeting-footer *')].filter(n=>[...n.childNodes].some(c=>c.nodeType===Node.TEXT_NODE&&c.textContent.trim()));
+   const sizes=nodes.map(n=>parseFloat(getComputedStyle(n).fontSize)*2);
+   nodes.forEach((n,i)=>{originalTextStyles.push([n,n.getAttribute('style')]);n.style.setProperty('font-size',sizes[i]+'px','important');});
+  });
+  await page.waitForTimeout(100);
+  for(const selector of ['#meeting-toolbar','#meeting-footer','#room-places-toggle','.meeting-actions > button:nth-child(2)','.meeting-history summary','#nearby-chat-send','#skill-voice-btn']){
+   const bounds=await page.locator(selector).evaluate(n=>({scroll:n.scrollWidth,client:n.clientWidth}));
+   assert(bounds.scroll<=bounds.client+1,width+' 200% text fits '+selector+': '+JSON.stringify(bounds));
+  }
+  await page.screenshot({path:'/tmp/meeting-text-200-'+width+'.png'});
+  await page.evaluate(()=>{for(const [n,style] of originalTextStyles)if(style===null)n.removeAttribute('style');else n.setAttribute('style',style);});
+ }
+ // Simulated visual viewport shrink/offset: geometry only, not a real mobile keyboard.
+ await page.setViewportSize({width:390,height:844});
+ await page.evaluate(()=>{for(let i=0;i<20;i++)UI.addChatMessage('Alice','Keyboard history message '+i);});
+ await page.evaluate(()=>{
+  window.realVisualViewport=window.visualViewport;
+  const viewport=new EventTarget();Object.assign(viewport,{offsetTop:0,height:360});
+  Object.defineProperty(window,'visualViewport',{configurable:true,value:viewport});
+  window.dispatchEvent(new Event('resize'));
+ });
+ for(const top of [0,100]){
+  await page.evaluate(top=>{visualViewport.offsetTop=top;realVisualViewport.dispatchEvent(new Event('scroll'));},top);
+  await page.waitForTimeout(100);
+  const bounds=await page.evaluate(()=>['meeting-toolbar','meeting-footer'].map(id=>{const n=document.getElementById(id),r=n.getBoundingClientRect();return{id,top:r.top,bottom:r.bottom,scroll:n.scrollWidth,client:n.clientWidth};}));
+  for(const b of bounds){assert(b.top>=top&&b.bottom<=top+361,'simulated keyboard bounds '+JSON.stringify(b));assert(b.scroll<=b.client+1,'simulated keyboard horizontal overflow');}
+  assert(bounds[0].bottom<=bounds[1].top,'simulated keyboard toolbar/footer overlap');
+  await page.locator('#nearby-chat-input').fill('Draft while keyboard is visible');
+  await page.locator('.meeting-history summary').click();
+  await page.waitForTimeout(100);
+  assert(await page.locator('#nearby-chat-input').evaluate(n=>{const r=n.getBoundingClientRect(),f=document.getElementById('meeting-footer').getBoundingClientRect();return r.top>=Math.max(f.top,visualViewport.offsetTop)&&r.bottom<=Math.min(f.bottom,visualViewport.offsetTop+visualViewport.height);}),'composer remains visible with keyboard and expanded history');
+  await page.screenshot({path:'/tmp/meeting-keyboard-history-'+top+'.png'});
+  await page.locator('.meeting-history summary').click();
+  await page.locator('#room-places-toggle').click();
+  await page.waitForTimeout(100);
+  const picker=await page.locator('#room-seat-picker').evaluate(n=>{const r=n.getBoundingClientRect();return {top:r.top,bottom:r.bottom,height:r.height,client:n.clientHeight,scroll:n.scrollHeight};});
+  const footerTop=await page.locator('#meeting-footer').evaluate(n=>n.getBoundingClientRect().top);
+  assert(picker.bottom<=footerTop&&picker.top>=top,'picker fits above keyboard/footer '+JSON.stringify(picker));
+  assert(picker.client>=44,'picker retains a usable scroll area '+JSON.stringify(picker));
+  await page.screenshot({path:'/tmp/meeting-keyboard-'+top+'.png'});
+  await page.locator('.room-seat-inspect').last().scrollIntoViewIfNeeded();
+  assert(await page.locator('.room-seat-inspect').last().evaluate(n=>{const r=n.getBoundingClientRect(),p=document.getElementById('room-seat-picker').getBoundingClientRect();return r.top>=p.top&&r.bottom<=p.bottom;}),'last seat action remains reachable by scrolling');
+  await page.keyboard.press('Escape');
+  assert(await page.locator('#meeting-toolbar').isVisible(),'closing picker restores toolbar');
+ }
+ await page.evaluate(()=>{Object.defineProperty(window,'visualViewport',{configurable:true,value:realVisualViewport});window.dispatchEvent(new Event('resize'));});
  await page.setViewportSize({width:1280,height:800});
  await page.locator('.meeting-history summary').focus();await page.keyboard.press('Enter');assert(await page.locator('.meeting-history').evaluate(n=>n.open),'Enter opens messages without activating chat input');
  await page.evaluate(()=>{UI.addChatMessage('Alice','Message with <b>literal markup</b>');UI.addChatMessage('System','Microphone status message');});
@@ -96,5 +148,5 @@ let browser;
  await page.goto(base+'/__legacy');await page.waitForSelector('#skill-hud');
  assert.equal(await page.locator('#health-bar').isVisible(),true,'legacy world keeps its UI');assert.equal(await page.locator('#skill-hud .skill-slot').count(),5);
  assert.deepEqual(errors,[]);
- console.log('Chromium meeting HUD redesign (3 locales/9 viewports, live labels, history/offline draft, mic states, admission focus, UI cleanup): RPG removal, desktop/mobile/landscape bounds, non-overlapping panels, retained chat/PTT/seating handlers and legacy UI: OK (isolated transport stubs)');
+ console.log('Chromium meeting HUD redesign (3 locales/9 viewports, partial 200% text scaling, simulated keyboard, live labels, history/offline draft, mic states, admission focus, UI cleanup): RPG removal, desktop/mobile/landscape bounds, non-overlapping panels, retained chat/PTT/seating handlers and legacy UI: OK (isolated transport stubs)');
 }finally{await browser?.close();await new Promise(r=>server.close(r));}})().catch(e=>{console.error(e);process.exitCode=1;});

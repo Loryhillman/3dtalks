@@ -11,6 +11,7 @@
   function measure() {
     if(stopped)return;
     const viewport=window.visualViewport;
+    document.documentElement.classList.toggle('meeting-short-viewport',(viewport?.height||innerHeight)<480);
     document.documentElement.style.setProperty('--meeting-visible-top',(viewport?.offsetTop||0)+'px');
     document.documentElement.style.setProperty('--meeting-visible-bottom',Math.max(0,innerHeight-(viewport?.offsetTop||0)-(viewport?.height||innerHeight))+'px');
     document.documentElement.style.setProperty('--meeting-visible-height',(viewport?.height||innerHeight)+'px');

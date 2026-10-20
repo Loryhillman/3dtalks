@@ -37,7 +37,7 @@
 .meeting-session .meeting-history summary::-webkit-details-marker { display: none; }
 .meeting-session .meeting-history summary::after { content: '+'; font-size: 20px; line-height: 1; }
 .meeting-session .meeting-history[open] summary::after { content: '−'; }
-.meeting-session #meeting-footer #chatBox { position: static; display: block; width: 100%; height: auto; max-height: min(160px,25dvh); padding: 0 8px; margin: 0; border: 0; border-radius: var(--radius-control); background: var(--color-app-bg); overflow: auto; overscroll-behavior: contain; }
+.meeting-session #meeting-footer #chatBox { position: static; display: block; width: 100%; height: auto; max-height: min(160px,25dvh,max(40px,calc(var(--meeting-visible-height) * .6 - 160px))); padding: 0 8px; margin: 0; border: 0; border-radius: var(--radius-control); background: var(--color-app-bg); overflow: auto; overscroll-behavior: contain; }
 .meeting-session #meeting-footer #chatBox:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 .meeting-session #meeting-footer .chat-message { margin: 0; padding: 8px; border-bottom: 1px solid var(--color-border-subtle); color: var(--color-text-primary); font: var(--font-size-body)/1.5 var(--font-family-ui); overflow-wrap: anywhere; }
 .meeting-session .meeting-chat-empty { color: var(--color-text-muted); padding: 12px; margin: 0; }
@@ -97,4 +97,14 @@
 @media (max-height: 440px) and (min-width: 480px) {
   .meeting-session #meeting-toolbar { width: calc(50vw - 18px); padding: 12px; }
   .meeting-session #room-seat-picker { top: calc(var(--meeting-visible-top) + 12px) !important; left: 12px !important; right: auto !important; width: calc(50vw - 18px) !important; max-height: max(0px,calc(var(--meeting-visible-height) - var(--meeting-footer-height,140px) - 36px)) !important; }
+}
+
+/* A keyboard can leave too little height for a second stacked panel.
+   The picker temporarily takes the toolbar area; its own Close remains available. */
+@media (max-width: 479px) {
+  .meeting-session.meeting-short-viewport:has(#room-seat-picker:not([hidden])) #meeting-toolbar { display: none !important; }
+  .meeting-session.meeting-short-viewport #room-seat-picker {
+    top: calc(var(--meeting-visible-top) + max(12px,env(safe-area-inset-top))) !important;
+    max-height: max(0px,calc(var(--meeting-visible-height) - var(--meeting-footer-height,140px) - 36px)) !important;
+  }
 }
