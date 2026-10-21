@@ -540,4 +540,4 @@ QA, ограничения и ручная приёмка первого эта�
 но не является внедрением lip-sync или сменой стандартного аватара.
 
 Локальный просмотр подготовленной модели (тело/лицо/посадка и открывание
-рта по энергии локального WAV): [tools/avatar-lipsync-lab/README.md](tools/avatar-lipsync-lab/README.md).
+рта по энергии локальной записи микрофона или WAV): [tools/avatar-lipsync-lab/README.md](tools/avatar-lipsync-lab/README.md).

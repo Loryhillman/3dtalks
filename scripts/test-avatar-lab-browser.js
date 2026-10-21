@@ -25,7 +25,7 @@ async function executable() {
   assert.equal((await fetch(base + '/manifest.json', { method: 'POST' })).status, 405);
   assert.equal((await fetch(base + '/unlisted-file')).status, 404);
   browser = await chromium.launch({ executablePath: await executable(), headless: true,
-    args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+    args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const screenshots = await fs.mkdtemp(path.join(os.tmpdir(), '3dtalks-avatar-lab-'));
   const errors = [], requests = [];
@@ -89,6 +89,7 @@ async function executable() {
   await page.screenshot({ path: path.join(screenshots, 'lab-seat.png') });
   await page.selectOption('#view', 'body');
   await page.locator('#manual-controls summary').click();
+  await page.click('#audio-files summary');
   await page.click('#audio-demo');
   await page.waitForFunction(() => AvatarLab.getState().audio.phase === 'ready');
   await page.click('#audio-play');
@@ -103,6 +104,20 @@ async function executable() {
   await page.waitForFunction(() => AvatarLab.getState().audio.phase === 'ready');
   assert.deepEqual(await activeShapes(), [], 'audio end must return the actual face to neutral');
   assert(await page.locator('#shape').isEnabled());
+  await page.click('#audio-files summary');
+  await page.click('#audio-record');
+  await page.waitForFunction(() => AvatarLab.getState().audio.phase === 'recording');
+  assert.match(await page.locator('#audio-record').textContent(), /Завершить запись/);
+  await page.waitForTimeout(1500);
+  await page.click('#audio-record');
+  await page.waitForFunction(() => AvatarLab.getState().audio.phase === 'ready');
+  assert.match(await page.locator('#audio-status').textContent(), /Моя запись/);
+  await page.click('#audio-play');
+  await page.waitForFunction(() => AvatarLab.getState().audio.phase === 'playing' && AvatarLab.getState().audio.amount > .01);
+  assert((await activeShapes()).includes('viseme_aa'), 'recorded microphone must animate the actual avatar');
+  await page.screenshot({ path: path.join(screenshots, 'lab-microphone.png') });
+  await page.waitForFunction(() => AvatarLab.getState().audio.phase === 'ready');
+  assert.deepEqual(await activeShapes(), []);
   for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     await page.setViewportSize(viewport);
     assert(await page.locator('#controls').isEnabled());

@@ -1,4 +1,4 @@
-// Isolated asset inspection. No account, room, audio capture or network speech.
+// Isolated asset/audio inspection. No account, room or network speech.
 (() => {
   const $ = id => document.getElementById(id);
   let disposed = false, ready = false, group, manifest, initialRootPosition, audio;
@@ -28,17 +28,23 @@
   }
   function refreshAudio(state) {
     if (disposed) return;
-    const busy = ['loading', 'starting', 'playing'].includes(state.phase);
+    const busy = ['loading', 'starting', 'playing', 'requesting', 'recording', 'preparing'].includes(state.phase);
     for (const id of ['shape', 'amount', 'neutral']) $(id).disabled = busy;
     if (state.phase === 'starting') $('shape').value = 'viseme_aa';
     $('audio-play').disabled = !ready || !state.duration || busy;
     $('audio-stop').disabled = !busy;
-    $('audio-progress').max = state.duration || 1;
+    $('audio-record').disabled = !ready || ['preparing', 'starting'].includes(state.phase);
+    $('audio-record').textContent = state.phase === 'requesting' ? 'Отменить запрос микрофона' :
+      state.phase === 'recording' ? 'Завершить запись' : 'Записать с микрофона';
+    $('audio-progress').max = state.phase === 'recording' ? 30 : state.duration || 1;
     $('audio-progress').value = state.elapsed;
-    $('audio-time').value = state.duration ? state.elapsed.toFixed(1) + ' / ' + state.duration.toFixed(1) + ' с' : '';
-    const text = state.phase === 'error' ? state.error : state.phase === 'loading' ? 'Чтение локальной записи…' :
+    $('audio-time').value = state.phase === 'recording' ? state.elapsed.toFixed(1) + ' / 30 с' :
+      state.duration ? state.elapsed.toFixed(1) + ' / ' + state.duration.toFixed(1) + ' с' : '';
+    const text = state.phase === 'requesting' ? 'Разрешите доступ к микрофону в браузере.' :
+      state.phase === 'recording' ? 'Идёт запись. Говорите, затем завершите её.' :
+      state.phase === 'preparing' ? 'Подготовка вашей записи…' : state.phase === 'error' ? state.error : state.phase === 'loading' ? 'Чтение локальной записи…' :
       state.phase === 'starting' ? 'Запуск аудио…' : state.phase === 'playing' ? 'Воспроизведение: ' + state.name :
-      state.duration ? 'Готово: ' + state.name : 'Выберите WAV или загрузите пример.';
+      state.duration ? 'Готово: ' + state.name + '. Нажмите «Воспроизвести».' : 'Нажмите «Записать с микрофона».';
     if ($('audio-status').textContent !== text) $('audio-status').textContent = text;
   }
   audio = window.AvatarLabAudio.create({ onState: refreshAudio, onMouth: amount => {
@@ -100,6 +106,12 @@
   $('audio-demo').onclick = () => audio.loadDemo();
   $('audio-play').onclick = () => audio.play();
   $('audio-stop').onclick = () => audio.stop();
+  $('audio-record').onclick = () => {
+    const phase = audio.getState().phase;
+    if (phase === 'requesting') audio.stop();
+    else if (phase === 'recording') audio.finishRecording();
+    else audio.record();
+  };
 
   async function initialize() {
     const response = await fetch('/manifest.json');

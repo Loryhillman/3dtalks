@@ -18,7 +18,7 @@
 </head>
 <body>
   <header><span class="brand">3DTalks / Research</span><h1>Тело, голова и формы рта</h1>
-    <p>MPFB — технический образец, а не выбранный внешний вид персонажа. Здесь нет подключения к комнатам и микрофону.</p></header>
+    <p>MPFB — технический образец, а не выбранный внешний вид персонажа. Запишите голос и прослушайте его с движением рта. Запись остаётся в этом браузере.</p></header>
   <main>
     <section class="viewer" aria-label="Предпросмотр персонажа"><canvas id="viewport" aria-label="Трёхмерный персонаж"></canvas></section>
     <aside>
@@ -32,11 +32,15 @@
         </details>
       </fieldset>
       <fieldset disabled id="audio-controls"><legend>Рот по звуку</legend>
+        <button id="audio-record" type="button">Записать с микрофона</button>
+        <p class="hint">Говорите до 30 секунд, завершите запись и нажмите «Воспроизвести». Микрофон включается только по кнопке.</p>
+        <details id="audio-files"><summary>Аудиофайл и пример</summary>
         <label>Запись WAV<input id="audio-file" type="file" accept=".wav,audio/wav"></label>
         <p class="hint">PCM 16-bit, до 60 секунд и 12 МиБ. Файл читается только в браузере, на сервер не загружается.</p>
         <button id="audio-demo" type="button" hidden>Загрузить пример речи</button>
+        </details>
         <div class="audio-actions"><button id="audio-play" type="button" disabled>Воспроизвести</button><button id="audio-stop" type="button" disabled>Остановить</button></div>
-        <p id="audio-status" role="status">Выберите WAV или загрузите пример.</p>
+        <p id="audio-status" role="status">Нажмите «Записать с микрофона».</p>
         <progress id="audio-progress" max="1" value="0" aria-label="Воспроизведение"></progress>
         <output id="audio-time" for="audio-progress"></output>
       </fieldset>

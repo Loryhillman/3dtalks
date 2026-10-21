@@ -18,9 +18,11 @@ const server = http.createServer(async (req, res) => {
   if (['/audio-signal.js', '/lab-audio.js'].includes(req.url)) {
     res.setHeader('Content-Type', 'text/javascript'); return res.end(await fs.readFile(path.join(__dirname, '../tools/avatar-lipsync-lab', req.url)));
   }
-  res.setHeader('Content-Type', 'text/html'); res.end(`<!doctype html><button id="play">Play</button><button id="stop">Stop</button>
+  res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(`<!doctype html><button id="play">Play</button><button id="stop">Stop</button>
     <script src="/audio-signal.js"></script><script src="/lab-audio.js"></script><script>
-    window.contexts=[];window.starts=0;window.mouth=0;
+    window.contexts=[];window.starts=0;window.mouth=0;window.streams=[];
+    window.nativeGet=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia=async constraints=>{const stream=await nativeGet(constraints);streams.push(stream);return stream;};
     const NativeAudio=window.AudioContext;window.AudioContext=class extends NativeAudio {
       constructor(){super();contexts.push(this);}
       createBufferSource(){const s=super.createBufferSource(),start=s.start.bind(s);s.start=(...args)=>{starts++;return start(...args);};return s;}
@@ -36,10 +38,58 @@ const server = http.createServer(async (req, res) => {
     const cache = path.join(os.homedir(), '.cache/ms-playwright');
     for (const dir of await fs.readdir(cache)) if (dir.startsWith('chromium-')) executable = path.join(cache, dir, 'chrome-linux64/chrome');
   }
-  browser = await chromium.launch({ executablePath: executable, headless: true, args: ['--no-sandbox'] });
+  browser = await chromium.launch({ executablePath: executable, headless: true, args: ['--no-sandbox', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
   const page = await browser.newPage(), errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('http://127.0.0.1:' + server.address().port);
+  assert.equal(await page.evaluate(() => streams.length), 0, 'loading must not request microphone');
+  await page.evaluate(() => controller.record());
+  await page.waitForFunction(() => state.phase === 'recording');
+  assert.equal(await page.evaluate(() => starts), 0);
+  assert.equal(await page.evaluate(() => mouth), 0);
+  await page.waitForTimeout(1200);
+  await page.evaluate(() => controller.finishRecording());
+  assert(await page.evaluate(() => streams.every(s=>s.getTracks().every(t=>t.readyState==='ended'))));
+  await page.waitForFunction(() => state.phase === 'ready');
+  assert(await page.evaluate(() => state.duration > .5));
+  await page.click('#play');
+  await page.waitForFunction(() => state.phase === 'playing' && mouth > .01);
+  await page.waitForFunction(() => state.phase === 'ready');
+  assert.equal(await page.evaluate(() => mouth), 0);
+  await page.evaluate(() => controller.record());
+  await page.waitForFunction(() => state.phase === 'recording');
+  await page.click('#stop');
+  assert(await page.evaluate(() => streams.every(s=>s.getTracks().every(t=>t.readyState==='ended'))));
+  await page.evaluate(async () => {
+    navigator.mediaDevices.getUserMedia=async()=>{throw new DOMException('Denied','NotAllowedError');};
+    await controller.record();
+  });
+  assert.match(await page.evaluate(() => state.error), /Доступ к микрофону запрещён/);
+  await page.evaluate(() => {
+    navigator.mediaDevices.getUserMedia=()=>new Promise(resolve=>window.releaseMicrophone=async()=>{const s=await nativeGet({audio:true});streams.push(s);resolve(s);});
+    controller.record();
+  });
+  await page.click('#stop');
+  await page.evaluate(() => releaseMicrophone());
+  await page.waitForFunction(() => streams.every(s=>s.getTracks().every(t=>t.readyState==='ended')));
+  assert.equal(await page.evaluate(() => state.phase), 'empty');
+  // Automatic deadline and hidden-tab cancellation release real capture tracks.
+  await page.evaluate(() => {
+    navigator.mediaDevices.getUserMedia=async constraints=>{const s=await nativeGet(constraints);streams.push(s);return s;};
+    window.originalTimeout=window.setTimeout;
+    window.setTimeout=(fn,ms,...args)=>originalTimeout(fn,ms===30000?1000:ms,...args);
+    controller.record();
+  });
+  await page.waitForFunction(() => state.phase === 'recording');
+  await page.waitForFunction(() => state.phase === 'ready');
+  assert(await page.evaluate(() => streams.every(s=>s.getTracks().every(t=>t.readyState==='ended'))));
+  await page.evaluate(() => {window.setTimeout=originalTimeout;controller.record();});
+  await page.waitForFunction(() => state.phase === 'recording');
+  await page.evaluate(() => {Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});
+  assert.equal(await page.evaluate(() => state.phase), 'empty');
+  assert(await page.evaluate(() => streams.every(s=>s.getTracks().every(t=>t.readyState==='ended'))));
+  await page.evaluate(() => {Object.defineProperty(document,'hidden',{configurable:true,value:false});});
+  await page.evaluate(() => { starts=0; });
   await page.evaluate(() => controller.loadDemo());
   assert.equal(await page.evaluate(() => state.phase), 'ready');
   assert.equal(await page.evaluate(() => starts), 0, 'selecting audio must not autoplay');
@@ -74,7 +124,7 @@ const server = http.createServer(async (req, res) => {
   assert.equal(await page.evaluate(() => state.phase), 'disposed');
   assert(requests.every(request => request.method === 'GET'), 'audio file must not be uploaded');
   assert.deepEqual(errors, []);
-  console.log('Lab audio passed: bounded WAV, stereo energy, silence gate, real AudioContext/output/source, audio-clock animation, end/stop, late resume/read, simulated hidden and context disposal; no upload');
+  console.log('Lab audio passed: native microphone recording/replay, denial/retry, late permission, deadline, capture cleanup; bounded WAV, silence, audio-clock animation, late resume/read, hidden and disposal; no upload');
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {
   await browser?.close(); await new Promise(resolve => server.close(resolve));
 });

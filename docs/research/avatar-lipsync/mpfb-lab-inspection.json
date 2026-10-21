@@ -39,7 +39,7 @@
     ],
     "jsErrors": [],
     "audioImplemented": true,
-    "audioScope": "Local lab only, RMS to viseme_aa, native Web Audio clock; no microphone or room integration"
+    "audioScope": "Local lab only, explicit microphone capture up to 30 seconds and replay, optional WAV, RMS to viseme_aa, native Web Audio clock; no upload or room integration"
   },
   "retainedTargets": [
     {
