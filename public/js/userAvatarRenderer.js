@@ -49,6 +49,7 @@
         if(data.accountAvatarTicket!==ticket||!root.parent){dispose(gltf.scene);return;}
         normalize(gltf.scene,'body');gltf.scene.rotation.y=(config.bodyYaw||0)*Math.PI/180;
         root.add(gltf.scene);data.glbModel=root;data.boneMap=config.asset.boneMap||{};
+        data.accountAvatarGeometryVersion=(data.accountAvatarGeometryVersion||0)+1;
         data.seatFallbackParts?.forEach(part=>{part.visible=false;});
         return;
       }
@@ -83,6 +84,7 @@
       data.defaultSeatHead.visible=false;data.seatHead=root;
       if(data.nameSprite)data.nameSprite.position.y=root.position.y+.4*(config.headScale||1)+.25;
       if(data.seatFallbackParts)data.seatFallbackParts[1]=root;
+      data.accountAvatarGeometryVersion=(data.accountAvatarGeometryVersion||0)+1;
     }catch(error){
       if(data.accountAvatarTicket!==ticket)return;
       group.remove(root);dispose(root);data.accountAvatarRoot=null;

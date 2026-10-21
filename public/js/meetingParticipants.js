@@ -43,6 +43,7 @@
       if (!entry) return;
       // Invalidate pending GLB/image work even if its root has not been attached yet.
       const data = entry.group.userData;
+      window.MeetingMouthAnimation?.remove(entry.group);
       data.accountAvatarTicket = (data.accountAvatarTicket || 0) + 1;
       entry.group.parent?.remove(entry.group);
       window.UserAvatarRenderer.dispose(entry.group);

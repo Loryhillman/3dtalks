@@ -26,7 +26,7 @@ async function createAvatarLab(modelPath, { demoPath } = {}) {
     ['/lab-audio.js', ['tools/avatar-lipsync-lab/lab-audio.js', 'text/javascript; charset=utf-8']],
     ['/lab.css', ['tools/avatar-lipsync-lab/lab.css', 'text/css; charset=utf-8']],
     ...['lib/three.min.js', 'lib/GLTFLoader.js', 'avatarBase.js', 'avatarRig.js',
-      'roomSeatAvatar.js', 'userAvatarRenderer.js'].map(file => ['/js/' + file,
+      'roomSeatAvatar.js', 'userAvatarRenderer.js', 'avatarAudioSignal.js'].map(file => ['/js/' + file,
       ['public/js/' + file, 'text/javascript; charset=utf-8']])
   ]);
   const server = http.createServer(async (req, res) => {

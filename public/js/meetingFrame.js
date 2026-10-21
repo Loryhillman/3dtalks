@@ -25,6 +25,7 @@ window.MeetingFrame = {
       }
     }
     window.RoomSeating.renderPoses(world);
+    window.MeetingMouthAnimation?.update(world);
     world.renderer.render(world.scene, world.camera);
   }
 };

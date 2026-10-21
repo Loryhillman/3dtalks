@@ -33,27 +33,7 @@
     }
     return { channels, sampleRate: f.rate, duration };
   }
-  function envelope(clip) {
-    const hop = Math.max(1, Math.round(clip.sampleRate * .02)), length = clip.channels[0].length;
-    const weights = new Float32Array(Math.ceil(length / hop) + 1);
-    let value = 0, open = false;
-    for (let frame = 0; frame < length; frame += hop) {
-      const end = Math.min(length, frame + hop); let energy = 0;
-      for (const channel of clip.channels) for (let i = frame; i < end; i++) energy += channel[i] * channel[i];
-      const rms = Math.sqrt(energy / ((end - frame) * clip.channels.length));
-      open = rms > (open ? .009 : .014);
-      const target = open ? Math.min(.85, Math.max(0, (rms - .009) * 7)) : 0;
-      value += (target - value) * (1 - Math.exp(-.02 / (target > value ? .025 : .06)));
-      if (value < .003) value = 0;
-      weights[Math.floor(frame / hop)] = value;
-    }
-    return { weights, step: hop / clip.sampleRate, duration: clip.duration };
-  }
-  function at(signal, seconds) {
-    if (!signal || seconds < 0 || seconds >= signal.duration) return 0;
-    const position = seconds / signal.step, index = Math.floor(position), fraction = position - index;
-    return signal.weights[index] * (1 - fraction) + signal.weights[Math.min(index + 1, signal.weights.length - 1)] * fraction;
-  }
+  const { envelope, at } = typeof module !== 'undefined' ? require('../../public/js/avatarAudioSignal') : root.AvatarAudioSignal;
   const api = { MAX_BYTES, parseWav, envelope, at };
   if (typeof module !== 'undefined') module.exports = api; else root.AvatarLabSignal = api;
 })(typeof window === 'undefined' ? globalThis : window);

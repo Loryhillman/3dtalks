@@ -15,11 +15,14 @@ let browser; const requests = [];
 const server = http.createServer(async (req, res) => {
   requests.push({ url: req.url, method: req.method });
   if (req.url === '/demo.wav') { res.setHeader('Content-Type', 'audio/wav'); return res.end(sample); }
+  if (req.url === '/js/avatarAudioSignal.js') {
+    res.setHeader('Content-Type', 'text/javascript; charset=utf-8'); return res.end(await fs.readFile(path.join(__dirname, '../public/js/avatarAudioSignal.js')));
+  }
   if (['/audio-signal.js', '/lab-audio.js'].includes(req.url)) {
     res.setHeader('Content-Type', 'text/javascript'); return res.end(await fs.readFile(path.join(__dirname, '../tools/avatar-lipsync-lab', req.url)));
   }
   res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(`<!doctype html><button id="play">Play</button><button id="stop">Stop</button>
-    <script src="/audio-signal.js"></script><script src="/lab-audio.js"></script><script>
+    <script src="/js/avatarAudioSignal.js"></script><script src="/audio-signal.js"></script><script src="/lab-audio.js"></script><script>
     window.contexts=[];window.starts=0;window.mouth=0;window.streams=[];
     window.nativeGet=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia=async constraints=>{const stream=await nativeGet(constraints);streams.push(stream);return stream;};

@@ -214,6 +214,9 @@ class VoiceChatManager {
     if (this.disposed || this.muted) return;
     const { characterId, audio, durationMs } = payload;
     const epoch=this.playbackEpoch;
+    const meetingWorld=window.gameWorld?.isMeeting ? window.gameWorld : null;
+    const meetingGroup=meetingWorld?.players.get(characterId)?.group;
+    if(meetingWorld&&!meetingGroup)return;
     if (!audio || characterId === (window.GAME_STATE && GAME_STATE.characterId)) return;
 
     // 距离衰减：30m 外静音
@@ -240,7 +243,9 @@ class VoiceChatManager {
       const buffer = await audioCtx.decodeAudioData(bytes.buffer);
 
       if (this.disposed||this.muted||epoch!==this.playbackEpoch) return;
+      if(meetingWorld&&(window.gameWorld!==meetingWorld||meetingWorld.players.get(characterId)?.group!==meetingGroup))return;
       const source = audioCtx.createBufferSource();
+      const mouthSignal = window.gameWorld?.isMeeting ? window.MeetingMouthAnimation?.prepare(buffer) : null;
       source.buffer = buffer;
       const gain = audioCtx.createGain();
       gain.gain.value = volume;
@@ -249,10 +254,17 @@ class VoiceChatManager {
       let ended=false;
       const finish=()=>{
         if(ended)return;ended=true;this.playbackSources.delete(source);this.playbackCleanup.delete(source);
+        window.MeetingMouthAnimation?.end(source);
         window.MeetingRoster?.playback(characterId,source,false);source.disconnect();gain.disconnect();
       };
       this.playbackCleanup.set(source,finish);source.onended=finish;
-      try{source.start();if(!ended)window.MeetingRoster?.playback(characterId,source,true);}
+      try{
+        const startedAt=audioCtx.currentTime;source.start(startedAt);
+        if(!ended){
+          window.MeetingMouthAnimation?.start(characterId,source,audioCtx,startedAt,mouthSignal);
+          window.MeetingRoster?.playback(characterId,source,true);
+        }
+      }
       catch(error){finish();throw error;}
     } catch (error) {
       console.warn('[VoiceChat] 播放失败:', error.message);
@@ -312,6 +324,7 @@ class VoiceChatManager {
       this.playbackCleanup.get(source)?.();
     }
     this.playbackSources.clear();this.playbackCleanup.clear();
+    window.MeetingMouthAnimation?.clear();
   }
 
   cancelRoomAudio() {
