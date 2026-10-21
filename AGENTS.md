@@ -517,3 +517,16 @@ cleanup/mute/removal/rejoin и запоздалая загрузка GLB. Ста
 каталог и единый default для кабинета/WS/редактора/комнаты. Не подменять
 принадлежность пользовательских asset и не стирать собственное оформление.
 Проверки и ограничения перечислены в плане. Push/VPS не выполнялись.
+
+Следующим этапом подготовлены CC0-кандидаты public/assets/avatars/meeting-human-v1:
+мужчина азиатской внешности (3,2 МиБ/35 580 tris) и женский вариант
+(3,7 МиБ/37 588 tris). MPFB 2.0.18 pinned commit + Blender 4.5.3, отдельный
+offline build-meeting-avatar-assets.py. Catalog/recipe/лицензии/SHA-256 в комплекте.
+В alpha BLEND был дефект просвечивания лица, исправлен opaque/mask материалами.
+Штатный validator не ослаблялся. Полный Chromium test-meeting-avatar-assets-browser.js
+проверяет лицо/рот/посадку, native capture/replay, UI 390px, шесть независимых
+экземпляров и возврат GPU-счётчиков к базовой сцене (DFG_LUT рендерера сохраняется).
+Это не benchmark полной комнаты на телефоне; ориентир 25k не достигнут.
+Локальный стенд --meeting-candidates показывает оба варианта; default аккаунта,
+WS и редактора ещё не заменён. Следующий этап — раздел 3 плана интеграции.
+Отчёт: docs/research/avatar-lipsync/MEETING_HUMAN_V1.md. Push/VPS не выполнялись.

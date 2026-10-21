@@ -114,12 +114,19 @@
   };
 
   async function initialize() {
-    const response = await fetch('/manifest.json');
+    const response = await fetch('/manifest.json' + location.search);
     if (!response.ok) throw Error('Не удалось прочитать профиль модели');
     manifest = await response.json();
     if (disposed) return;
+    if (manifest.candidates?.length) {
+      $('model-choice').hidden = false;
+      for (const candidate of manifest.candidates) $('model-variant').add(new Option(candidate.label, candidate.id));
+      $('model-variant').value = manifest.candidateId;
+      $('model-variant').onchange = () => location.assign('/?avatar=' + encodeURIComponent($('model-variant').value));
+      $('model-note').textContent = 'Подготовленные человеческие модели для проверки внешности, посадки и рта. Запишите свой голос и воспроизведите его. Запись остаётся в браузере.';
+    }
     group = window.AvatarBase.create().characterGroup; scene.add(group);
-    await window.UserAvatarRenderer.apply(group, { mode: 'full', asset: { path: '/model.glb', boneMap: manifest.boneMap } });
+    await window.UserAvatarRenderer.apply(group, { mode: 'full', asset: { path: '/model.glb' + location.search, boneMap: manifest.boneMap } });
     if (disposed) return;
     if (group.userData.accountAvatarError || !group.userData.accountAvatarRoot?.children.length) throw Error('Модель не загрузилась');
     const root = group.userData.accountAvatarRoot;
@@ -129,11 +136,13 @@
       for (const [name, index] of Object.entries(node.morphTargetDictionary || {})) targets.push({ mesh: node, name, index });
     });
     if (!targets.some(item => item.name === 'viseme_aa')) throw Error('У модели нет формы А');
+    for (const option of $('shape').options) option.disabled = !targets.some(item => item.name === option.value);
     ready = true; $('controls').disabled = false;
     $('audio-controls').disabled = false; $('audio-demo').hidden = !manifest.hasDemo;
     refreshAudio(audio.getState());
     $('status').textContent = 'Готово: модель прошла штатную проверку импорта';
-    $('details').textContent = (manifest.bytes / 1048576).toFixed(1) + ' МиБ · ' + manifest.triangles.toLocaleString('ru-RU') + ' треугольников. Это ещё не облегчённая модель для шести участников.';
+    $('details').textContent = (manifest.bytes / 1048576).toFixed(1) + ' МиБ · ' + manifest.triangles.toLocaleString('ru-RU') +
+      (manifest.candidateId ? ' треугольников. Кандидат на стандартный аватар; выбор в аккаунте пока не подключён.' : ' треугольников. Это ещё не облегчённая модель для шести участников.');
     render();
   }
   initialize().catch(error => {

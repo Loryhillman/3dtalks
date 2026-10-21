@@ -1,0 +1,126 @@
+[
+  {
+    "variant": "male-asian",
+    "bytes": 3360528,
+    "macro": {
+      "gender": 1.0,
+      "age": 0.5,
+      "muscle": 0.45,
+      "weight": 0.45,
+      "proportions": 0.5,
+      "height": 0.5,
+      "cupsize": 0.5,
+      "firmness": 0.5,
+      "race": {
+        "asian": 1.0,
+        "african": 0.0,
+        "caucasian": 0.0
+      }
+    },
+    "skin": "young_asian_male.mhmat",
+    "parts": [
+      [
+        "eyes",
+        "low-poly.mhclo",
+        "Eyes"
+      ],
+      [
+        "eyebrows",
+        "eyebrow001.mhclo",
+        "Eyebrows"
+      ],
+      [
+        "eyelashes",
+        "eyelashes01.mhclo",
+        "Eyelashes"
+      ],
+      [
+        "tongue",
+        "tongue01.mhclo",
+        "Tongue"
+      ],
+      [
+        "teeth",
+        "teeth_base.mhclo",
+        "Teeth"
+      ],
+      [
+        "hair",
+        "short02.mhclo",
+        "Hair"
+      ],
+      [
+        "clothes",
+        "male_casualsuit03.mhclo",
+        "Clothes"
+      ],
+      [
+        "clothes",
+        "shoes01.mhclo",
+        "Clothes"
+      ]
+    ]
+  },
+  {
+    "variant": "female-neutral",
+    "bytes": 3868412,
+    "macro": {
+      "gender": 0.0,
+      "age": 0.5,
+      "muscle": 0.45,
+      "weight": 0.45,
+      "proportions": 0.5,
+      "height": 0.5,
+      "cupsize": 0.5,
+      "firmness": 0.5,
+      "race": {
+        "asian": 0.333,
+        "african": 0.333,
+        "caucasian": 0.334
+      }
+    },
+    "skin": "young_caucasian_female.mhmat",
+    "parts": [
+      [
+        "eyes",
+        "low-poly.mhclo",
+        "Eyes"
+      ],
+      [
+        "eyebrows",
+        "eyebrow001.mhclo",
+        "Eyebrows"
+      ],
+      [
+        "eyelashes",
+        "eyelashes01.mhclo",
+        "Eyelashes"
+      ],
+      [
+        "tongue",
+        "tongue01.mhclo",
+        "Tongue"
+      ],
+      [
+        "teeth",
+        "teeth_base.mhclo",
+        "Teeth"
+      ],
+      [
+        "hair",
+        "ponytail01.mhclo",
+        "Hair"
+      ],
+      [
+        "clothes",
+        "male_casualsuit03.mhclo",
+        "Clothes"
+      ],
+      [
+        "clothes",
+        "shoes01.mhclo",
+        "Clothes"
+      ]
+    ]
+  }
+]

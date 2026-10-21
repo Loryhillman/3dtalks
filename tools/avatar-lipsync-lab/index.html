@@ -19,11 +19,12 @@
 </head>
 <body>
   <header><span class="brand">3DTalks / Research</span><h1>Тело, голова и формы рта</h1>
-    <p>MPFB — технический образец, а не выбранный внешний вид персонажа. Запишите голос и прослушайте его с движением рта. Запись остаётся в этом браузере.</p></header>
+    <p id="model-note">MPFB — технический образец, а не выбранный внешний вид персонажа. Запишите голос и прослушайте его с движением рта. Запись остаётся в этом браузере.</p></header>
   <main>
     <section class="viewer" aria-label="Предпросмотр персонажа"><canvas id="viewport" aria-label="Трёхмерный персонаж"></canvas></section>
     <aside>
       <p id="status" role="status">Загрузка проверенной модели…</p>
+      <label id="model-choice" hidden>Модель<select id="model-variant" aria-label="Модель персонажа"></select></label>
       <fieldset disabled id="controls"><legend>Проверка модели</legend>
         <label>Ракурс<select id="view"><option value="body">Персонаж целиком</option><option value="head">Лицо крупно</option><option value="seat">Посадка</option></select></label>
         <details id="manual-controls"><summary>Ручные формы рта</summary>
