@@ -457,3 +457,12 @@ Backup /opt/3dtalks-backups/3dtalks-20261021T061923Z, прежний image
 поздний вход/изоляцию. Физические устройства остаются ручной проверкой.
 См. SERVER_DEPLOYMENT.md. Не двигать checkpoint-теги и не продолжать WebRTC
 автоматически. Следующий шаг — пользовательская проверка развёрнутого сайта.
+
+
+Навигация /play: любой pagehide вызывает MeetingMain.stop, включая
+persisted=true (BFCache). При pageshow.persisted нужен reload текущей entry:
+stop уничтожает one-shot сервисы, поэтому старую сцену/socket нельзя оживлять
+через start. Auth/admission/посадка выполняются заново. Обычное переключение
+вкладки не является выходом. Проверки: test-meeting-startup-boundaries.js,
+test-meeting-history-browser.js (реальная history/BFCache/WS, серверные данные
+и рендер — фикстуры), test-meeting-startup-browser.js --builtin-v2.

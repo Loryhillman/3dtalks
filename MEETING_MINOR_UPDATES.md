@@ -58,3 +58,28 @@ test-meeting-startup-browser.js --builtin-v2 пройдены. HUD/пригла�
 временными аккаунтами. Это дополняет локальные фикстурные тесты выше;
 телефоны/физические микрофоны/Safari остаются ручной проверкой.
 Резервная копия и откат описаны в SERVER_DEPLOYMENT.md.
+
+
+## Исправление навигации браузера
+
+По сообщению пользователя найден пропущенный cleanup: прежний pagehide
+вызывал MeetingMain.stop только при persisted=false. При заморозке документа
+в back/forward cache socket и присутствие могли оставаться активными.
+Теперь любой pagehide вызывает идемпотентный stop: закрываются WS/микрофон,
+очереди/retry, показ, участники и рендер. Обычное скрытие вкладки не является
+выходом. При pageshow.persisted выполняется reload этой же history entry,
+затем штатные auth/admission/посадка/показ с новыми разрешениями сервера.
+Нельзя повторно запускать start поверх уничтоженных one-shot сервисов.
+Новые endpoints/beacon, токены в URL, beforeunload/unload не добавлены.
+При обычном сетевом отключении прежняя краткая бронь места сохраняется;
+она не означает, что аватар должен оставаться онлайн.
+
+QA: test-meeting-startup-boundaries.js проверяет оба значения persisted,
+идемпотентный stop, очередь, socket/mic/guard и запоздалый ответ API.
+Новый test-meeting-history-browser.js запускает настоящий Chromium с включённым
+BFCache и настоящие WebSocket: наблюдатель видит уход/возврат при Back/Forward
+в обоих направлениях и повторных циклах. Получено 4 pagehide.persisted=true;
+каждый возврат повторяет admission, JS errors отсутствуют. Auth/room API,
+отрисовка и микрофон в этом отдельном тесте — фикстуры; это не PostgreSQL gate.
+Пройдены также test-meeting-startup-browser.js --builtin-v2 (настоящая сцена,
+тестовые API), test-voice-lifecycle.js и test-room-presence-stop.js.

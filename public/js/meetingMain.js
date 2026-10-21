@@ -132,5 +132,11 @@
     if (event.key === 'userId' || event.key === 'characterId' || event.key === null ||
         (event.key === 'token' && !event.newValue)) { stop(); location.replace('/rooms'); }
   });
-  window.addEventListener('pagehide', event => { if (!event.persisted) stop(); });
+  // A page frozen in the back/forward cache must not remain in the meeting.
+  window.addEventListener('pagehide', stop);
+  window.addEventListener('pageshow', event => {
+    // stop() disposes one-shot services. Re-enter through normal auth/admission
+    // instead of resuming stale sockets, seat claims and presentation grants.
+    if (event.persisted) location.reload();
+  });
 })();
