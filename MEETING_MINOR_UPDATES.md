@@ -88,3 +88,24 @@ BFCache и настоящие WebSocket: наблюдатель видит ух�
 подтвердила удаление/возврат настоящего аватара у второго аккаунта: 4 выхода
 PLAYER_LEFT, 4 cached pagehide и 4 admission-запроса, ошибок JS нет.
 Сведения о backup/откате и очистке QA — SERVER_DEPLOYMENT.md.
+
+
+## Названия вкладок 3DTalks
+
+У /play старый inline loadSEOConfig запрашивал /api/config/seo, чей fallback
+содержит китайское имя прежнего продукта. Скрипт помечен data-world-only и
+удаляется существующим renderMeetingPage; прежний режим сохраняет свой SEO.
+Основные вкладки (кабинет/приглашения, /play, admin, редактор) получили
+стабильные названия 3DTalks с назначением страницы. Страница аватара уже имела
+такое название. Интерфейс страниц по-прежнему переводится независимо.
+Admin login получил 3DTalks в трёх переводах заголовка и English fallback,
+как кабинет: preferredLocale имеет приоритет над поддерживаемым прежним
+adminLoginLang, ошибочное значение игнорируется. Явный выбор zh сохранён.
+
+Пройдены test-room-admin-browser.js (fixture API, fresh English/ru preference/
+invalid legacy choice/explicit zh и прежняя регрессия), test-room-pages.js,
+test-meeting-startup-browser.js --builtin-v2 (реальная сцена, fixture API).
+Последний проверяет title и отсутствие запроса legacy SEO. Новых API/SQL/npm
+нет. Этот этап пока не развёрнут; сервер остаётся на runtime 71025343.
+Оставшиеся старые world-only HTML/генераторы и их локализация этим этапом
+не перерабатывались; служебные комментарии/уведомления об авторстве сохранены.

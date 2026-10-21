@@ -7,7 +7,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title data-i18n="pageTitle">创世虚拟世界CRM系统 - 管理员登录</title>
+  <title data-i18n="pageTitle">3DTalks — Admin login</title>
   <style>
     * {
       margin: 0;
@@ -329,7 +329,7 @@
   <script>
     const i18n = {
       zh: {
-        pageTitle: '创世虚拟世界CRM系统 - 管理员登录',
+        pageTitle: '3DTalks — 管理员登录',
         loginTitle: '🎮 管理后台登录',
         systemName: '创世虚拟世界CRM系统',
         defaultAccount: 'ℹ️ 默认账号',
@@ -363,7 +363,7 @@
         copiedAlert: '已复制到剪贴板'
       },
       ru: {
-        pageTitle: 'Виртуальный мир — вход администратора', loginTitle: '🎮 Вход администратора',
+        pageTitle: '3DTalks — Вход администратора', loginTitle: '🎮 Вход администратора',
         systemName: 'Управление виртуальным миром', defaultAccount: 'ℹ️ Начальная учётная запись',
         defaultPassword: 'Начальный пароль', changePasswordHint: 'Смените пароль после первого входа',
         usernameLabel: '👤 Имя администратора', usernamePlaceholder: 'Введите имя администратора',
@@ -383,7 +383,7 @@
         copiedAlert: 'Скопировано'
       },
       en: {
-        pageTitle: 'Genesis Virtual World CRM - Admin Login',
+        pageTitle: '3DTalks — Admin login',
         loginTitle: '🎮 Admin Login',
         systemName: 'Genesis Virtual World CRM System',
         defaultAccount: 'ℹ️ Default Account',
@@ -418,7 +418,9 @@
       }
     };
 
-    let currentLang = ({'zh-CN':'zh','en-US':'en','ru-RU':'ru'}[localStorage.getItem('preferredLocale')] || localStorage.getItem('adminLoginLang') || 'zh');
+    const savedLoginLang = localStorage.getItem('adminLoginLang');
+    let currentLang = ({'zh-CN':'zh','en-US':'en','ru-RU':'ru'}[localStorage.getItem('preferredLocale')] ||
+      (['zh','en','ru'].includes(savedLoginLang) ? savedLoginLang : 'en'));
 
     function t(key, vars) {
       let text = i18n[currentLang][key] || i18n['zh'][key] || key;

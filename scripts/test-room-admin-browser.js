@@ -82,6 +82,21 @@ let browser;
   const guest = await browser.newPage(); await guest.goto(base + '/admin.html'); await guest.waitForURL('**/admin_login.html');
   const expired = await browser.newPage(); await expired.addInitScript(seed);
   await expired.goto(base + '/admin.html'); await expired.waitForSelector('#admin-app:not([hidden])');
+  // Fresh admin login must match the product's English fallback, not legacy Chinese.
+  assert.equal(await guest.title(), '3DTalks — Admin login');
+  for (const [preferred, saved, expected] of [
+    ['ru-RU','zh','3DTalks — Вход администратора'],
+    ['', 'invalid', '3DTalks — Admin login'],
+    ['', 'zh', '3DTalks — 管理员登录']
+  ]) {
+    const loginContext = await browser.newContext();
+    await loginContext.addInitScript(({preferred,saved}) => {
+      if(preferred)localStorage.setItem('preferredLocale',preferred);
+      localStorage.setItem('adminLoginLang',saved);
+    }, {preferred,saved});
+    const loginPage = await loginContext.newPage();await loginPage.goto(base+'/admin_login.html');
+    assert.equal(await loginPage.title(),expected);await loginContext.close();
+  }
   denyUsers = true; await expired.locator('[data-panel="users"]').click(); await expired.waitForURL('**/admin_login.html');
   assert.equal(await expired.evaluate(() => localStorage.getItem('adminToken')), null, 'expired administrator session cleared');
   assert(calls.some(call => call === 'POST /admin/rooms/models/upload'));
