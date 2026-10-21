@@ -12,6 +12,8 @@
   <script src="/js/avatarRig.js" defer></script>
   <script src="/js/roomSeatAvatar.js" defer></script>
   <script src="/js/userAvatarRenderer.js" defer></script>
+  <script src="/audio-signal.js" defer></script>
+  <script src="/lab-audio.js" defer></script>
   <script src="/lab.js" defer></script>
 </head>
 <body>
@@ -23,11 +25,22 @@
       <p id="status" role="status">Загрузка проверенной модели…</p>
       <fieldset disabled id="controls"><legend>Проверка модели</legend>
         <label>Ракурс<select id="view"><option value="body">Персонаж целиком</option><option value="head">Лицо крупно</option><option value="seat">Посадка</option></select></label>
+        <details id="manual-controls"><summary>Ручные формы рта</summary>
         <label>Форма рта<select id="shape"><option value="viseme_aa">А — открытый рот</option><option value="viseme_O">О — округлённые губы</option><option value="viseme_PP">М / П / Б — сомкнутые губы</option><option value="jawOpen">Открытие челюсти</option></select></label>
         <label>Сила формы <output id="amount-value" for="amount">0%</output><input id="amount" type="range" min="0" max="1" step="0.01" value="0"></label>
         <button id="neutral" type="button">Вернуть нейтральное лицо</button>
+        </details>
       </fieldset>
-      <p class="hint">Ползунок показывает готовую деформацию лица. Синхронизация со звуком на этом этапе ещё не подключена.</p>
+      <fieldset disabled id="audio-controls"><legend>Рот по звуку</legend>
+        <label>Запись WAV<input id="audio-file" type="file" accept=".wav,audio/wav"></label>
+        <p class="hint">PCM 16-bit, до 60 секунд и 12 МиБ. Файл читается только в браузере, на сервер не загружается.</p>
+        <button id="audio-demo" type="button" hidden>Загрузить пример речи</button>
+        <div class="audio-actions"><button id="audio-play" type="button" disabled>Воспроизвести</button><button id="audio-stop" type="button" disabled>Остановить</button></div>
+        <p id="audio-status" role="status">Выберите WAV или загрузите пример.</p>
+        <progress id="audio-progress" max="1" value="0" aria-label="Воспроизведение"></progress>
+        <output id="audio-time" for="audio-progress"></output>
+      </fieldset>
+      <p class="hint">Во время воспроизведения рот реагирует на энергию звука и закрывается в паузах. Это ещё не распознавание звуков речи и разных положений губ.</p>
       <p id="details" class="details"></p>
     </aside>
   </main>

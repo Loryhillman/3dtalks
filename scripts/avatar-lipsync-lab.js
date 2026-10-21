@@ -6,15 +6,24 @@ const crypto = require('node:crypto');
 const { inspectGlb, LIMITS } = require('../src/services/avatarValidation');
 const root = path.resolve(__dirname, '..');
 
-async function createAvatarLab(modelPath) {
+async function createAvatarLab(modelPath, { demoPath } = {}) {
   if ((await fs.stat(modelPath)).size > LIMITS.body) throw Error('Model exceeds existing body budget');
   const model = await fs.readFile(modelPath);
   const inspection = inspectGlb(model, 'body');
-  const manifest = { ...inspection, bytes: model.length,
+  let demo;
+  if (demoPath) {
+    const signal = require('../tools/avatar-lipsync-lab/audio-signal');
+    if ((await fs.stat(demoPath)).size > signal.MAX_BYTES) throw Error('Demo WAV exceeds lab budget');
+    demo = await fs.readFile(demoPath);
+    signal.parseWav(demo.buffer.slice(demo.byteOffset, demo.byteOffset + demo.byteLength));
+  }
+  const manifest = { ...inspection, bytes: model.length, hasDemo: !!demo,
     sha256: crypto.createHash('sha256').update(model).digest('hex') };
   const assets = new Map([
     ['/', ['tools/avatar-lipsync-lab/index.html', 'text/html; charset=utf-8']],
     ['/lab.js', ['tools/avatar-lipsync-lab/lab.js', 'text/javascript; charset=utf-8']],
+    ['/audio-signal.js', ['tools/avatar-lipsync-lab/audio-signal.js', 'text/javascript; charset=utf-8']],
+    ['/lab-audio.js', ['tools/avatar-lipsync-lab/lab-audio.js', 'text/javascript; charset=utf-8']],
     ['/lab.css', ['tools/avatar-lipsync-lab/lab.css', 'text/css; charset=utf-8']],
     ...['lib/three.min.js', 'lib/GLTFLoader.js', 'avatarBase.js', 'avatarRig.js',
       'roomSeatAvatar.js', 'userAvatarRenderer.js'].map(file => ['/js/' + file,
@@ -29,6 +38,7 @@ async function createAvatarLab(modelPath) {
       const url = new URL(req.url, 'http://localhost').pathname;
       if (url === '/model.glb') { res.setHeader('Content-Type', 'model/gltf-binary'); res.end(model); return; }
       if (url === '/manifest.json') { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(manifest)); return; }
+      if (url === '/demo.wav' && demo) { res.setHeader('Content-Type', 'audio/wav'); res.end(demo); return; }
       const asset = assets.get(url);
       if (!asset) { res.writeHead(404); res.end('Not found'); return; }
       res.setHeader('Content-Type', asset[1]);
@@ -39,13 +49,13 @@ async function createAvatarLab(modelPath) {
 }
 
 if (require.main === module) {
-  const [modelPath, rawPort = '4187'] = process.argv.slice(2);
+  const [modelPath, rawPort = '4187', demoPath] = process.argv.slice(2);
   const port = Number(rawPort);
   if (!modelPath || !Number.isInteger(port) || port < 1024 || port > 65535) {
-    console.error('Usage: node scripts/avatar-lipsync-lab.js /absolute/prepared-model.glb [port]');
+    console.error('Usage: node scripts/avatar-lipsync-lab.js /absolute/prepared-model.glb [port] [local-demo.wav]');
     process.exitCode = 1;
   } else {
-    createAvatarLab(path.resolve(modelPath)).then(({ server, manifest }) => {
+    createAvatarLab(path.resolve(modelPath), { demoPath }).then(({ server, manifest }) => {
       server.on('error', error => { console.error(error.message); process.exitCode = 1; });
       server.listen(port, '127.0.0.1', () => {
         console.log('Avatar research lab: http://127.0.0.1:' + port);

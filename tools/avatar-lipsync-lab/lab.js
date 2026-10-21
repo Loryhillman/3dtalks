@@ -1,7 +1,7 @@
 // Isolated asset inspection. No account, room, audio capture or network speech.
 (() => {
   const $ = id => document.getElementById(id);
-  let disposed = false, ready = false, group, manifest, initialRootPosition;
+  let disposed = false, ready = false, group, manifest, initialRootPosition, audio;
   const rest = [], targets = [], scene = new THREE.Scene();
   scene.background = new THREE.Color('#e8edf2');
   const camera = new THREE.PerspectiveCamera(35, 1, .01, 100);
@@ -21,6 +21,31 @@
   }
   chair.visible = false; scene.add(chair);
 
+  function mouth(amount, shape) {
+    for (const item of targets) item.mesh.morphTargetInfluences[item.index] = item.name === shape ? amount : 0;
+    $('amount').value = String(amount);
+    $('amount-value').value = Math.round(amount * 100) + '%';
+  }
+  function refreshAudio(state) {
+    if (disposed) return;
+    const busy = ['loading', 'starting', 'playing'].includes(state.phase);
+    for (const id of ['shape', 'amount', 'neutral']) $(id).disabled = busy;
+    if (state.phase === 'starting') $('shape').value = 'viseme_aa';
+    $('audio-play').disabled = !ready || !state.duration || busy;
+    $('audio-stop').disabled = !busy;
+    $('audio-progress').max = state.duration || 1;
+    $('audio-progress').value = state.elapsed;
+    $('audio-time').value = state.duration ? state.elapsed.toFixed(1) + ' / ' + state.duration.toFixed(1) + ' с' : '';
+    const text = state.phase === 'error' ? state.error : state.phase === 'loading' ? 'Чтение локальной записи…' :
+      state.phase === 'starting' ? 'Запуск аудио…' : state.phase === 'playing' ? 'Воспроизведение: ' + state.name :
+      state.duration ? 'Готово: ' + state.name : 'Выберите WAV или загрузите пример.';
+    if ($('audio-status').textContent !== text) $('audio-status').textContent = text;
+  }
+  audio = window.AvatarLabAudio.create({ onState: refreshAudio, onMouth: amount => {
+    if (disposed || !ready) return;
+    mouth(amount, 'viseme_aa'); renderer.render(scene, camera);
+  } });
+
   function render() {
     if (disposed) return;
     const canvas = renderer.domElement, width = Math.max(1, canvas.clientWidth), height = Math.max(1, canvas.clientHeight);
@@ -31,9 +56,8 @@
       root.position.copy(initialRootPosition); group.position.set(0, 0, 0);
       const seated = $('view').value === 'seat'; chair.visible = seated;
       if (seated) window.RoomSeatAvatar.apply(group);
-      const amount = Number($('amount').value), shape = $('shape').value;
-      for (const item of targets) item.mesh.morphTargetInfluences[item.index] = item.name === shape ? amount : 0;
-      $('amount-value').value = Math.round(amount * 100) + '%';
+      const state = audio.getState(), automatic = ['starting', 'playing'].includes(state.phase);
+      mouth(automatic ? state.amount : Number($('amount').value), automatic ? 'viseme_aa' : $('shape').value);
       scene.updateMatrixWorld(true);
       const head = root.getObjectByName(manifest.boneMap.head);
       if ($('view').value === 'head' && head) {
@@ -50,6 +74,7 @@
   function stop() {
     if (disposed) return;
     disposed = true;
+    audio.dispose();
     window.removeEventListener('resize', render);
     if (group) {
       ++group.userData.accountAvatarTicket;
@@ -61,7 +86,7 @@
   }
   window.AvatarLab = {
     getState: () => ({ ready, disposed, seated: $('view').value === 'seat', supported: group?.userData.roomSeatRig?.supported,
-      shapes: [...new Set(targets.map(item => item.name))], manifest }),
+      shapes: [...new Set(targets.map(item => item.name))], manifest, audio: audio.getState() }),
     model: () => group?.userData.accountAvatarRoot,
     render, stop
   };
@@ -71,6 +96,10 @@
   for (const id of ['view', 'shape']) $(id).addEventListener('change', render);
   $('amount').addEventListener('input', render);
   $('neutral').onclick = () => { $('amount').value = '0'; render(); };
+  $('audio-file').onchange = () => audio.loadFile($('audio-file').files[0]);
+  $('audio-demo').onclick = () => audio.loadDemo();
+  $('audio-play').onclick = () => audio.play();
+  $('audio-stop').onclick = () => audio.stop();
 
   async function initialize() {
     const response = await fetch('/manifest.json');
@@ -89,6 +118,8 @@
     });
     if (!targets.some(item => item.name === 'viseme_aa')) throw Error('У модели нет формы А');
     ready = true; $('controls').disabled = false;
+    $('audio-controls').disabled = false; $('audio-demo').hidden = !manifest.hasDemo;
+    refreshAudio(audio.getState());
     $('status').textContent = 'Готово: модель прошла штатную проверку импорта';
     $('details').textContent = (manifest.bytes / 1048576).toFixed(1) + ' МиБ · ' + manifest.triangles.toLocaleString('ru-RU') + ' треугольников. Это ещё не облегчённая модель для шести участников.';
     render();

@@ -5,6 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { chromium } = require('playwright');
 const { createAvatarLab } = require('./avatar-lipsync-lab');
+const { wav } = require('./avatar-lab-audio-fixture');
 let browser, server;
 async function executable() {
   const options = [process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE, chromium.executablePath()].filter(Boolean);
@@ -16,7 +17,9 @@ async function executable() {
 (async () => {
   const [prepared, reference] = process.argv.slice(2);
   if (!prepared || !reference) throw Error('Pass prepared GLB and pinned original MPFB GLB');
-  const lab = await createAvatarLab(prepared); server = lab.server;
+  const audioDirectory = await fs.mkdtemp(path.join(os.tmpdir(), '3dtalks-avatar-audio-'));
+  const demoPath = path.join(audioDirectory, 'fixture.wav'); await fs.writeFile(demoPath, wav());
+  const lab = await createAvatarLab(prepared, { demoPath }); server = lab.server;
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = 'http://127.0.0.1:' + server.address().port;
   assert.equal((await fetch(base + '/manifest.json', { method: 'POST' })).status, 405);
@@ -64,6 +67,7 @@ async function executable() {
   assert(equivalence.vertices > 10000 && equivalence.morphComponents > 100000);
   await page.screenshot({ path: path.join(screenshots, 'lab-body.png') });
   await page.selectOption('#view', 'head');
+  await page.locator('#manual-controls summary').click();
   await page.locator('#amount').fill('0.7'); await page.locator('#amount').dispatchEvent('input');
   assert.equal(await page.locator('#amount-value').textContent(), '70%');
   const activeShapes = () => page.evaluate(() => {
@@ -84,6 +88,21 @@ async function executable() {
   assert.equal(await page.evaluate(() => AvatarLab.getState().supported), true);
   await page.screenshot({ path: path.join(screenshots, 'lab-seat.png') });
   await page.selectOption('#view', 'body');
+  await page.locator('#manual-controls summary').click();
+  await page.click('#audio-demo');
+  await page.waitForFunction(() => AvatarLab.getState().audio.phase === 'ready');
+  await page.click('#audio-play');
+  await page.waitForFunction(() => {
+    if (AvatarLab.getState().audio.phase !== 'playing') return false;
+    let open=false; AvatarLab.model().traverse(node => {
+      const index=node.morphTargetDictionary?.viseme_aa;
+      if(index!==undefined&&node.morphTargetInfluences[index]>.05)open=true;
+    }); return open;
+  });
+  assert(await page.locator('#shape').isDisabled());
+  await page.waitForFunction(() => AvatarLab.getState().audio.phase === 'ready');
+  assert.deepEqual(await activeShapes(), [], 'audio end must return the actual face to neutral');
+  assert(await page.locator('#shape').isEnabled());
   for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     await page.setViewportSize(viewport);
     assert(await page.locator('#controls').isEnabled());

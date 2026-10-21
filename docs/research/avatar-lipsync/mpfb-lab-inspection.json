@@ -38,7 +38,8 @@
       844
     ],
     "jsErrors": [],
-    "audioImplemented": false
+    "audioImplemented": true,
+    "audioScope": "Local lab only, RMS to viseme_aa, native Web Audio clock; no microphone or room integration"
   },
   "retainedTargets": [
     {

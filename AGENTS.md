@@ -486,5 +486,14 @@ AVATAR_LIPSYNC_RESEARCH.md. MPFB-кандидат реально просмот�
 Отдельный localhost-only стенд tools/avatar-lipsync-lab и offline preparation
 не подключены к Express/комнатам. Проверка: test-avatar-lab-browser.js с двумя
 явными локальными GLB; сравнивает геометрию/формы с оригиналом, посадку/reset.
-См. раздел 11 AVATAR_LIPSYNC_RESEARCH.md. Автоматический звук→рот ещё не внедрён.
+См. раздел 11 AVATAR_LIPSYNC_RESEARCH.md. На этом этапе автоматический звук→рот ещё не был внедрён.
 Следующий шаг согласовать после просмотра модели; не менять стандартные аватары.
+
+
+Следующим поручением добавлен только в локальный avatar-lipsync-lab RMS→viseme_aa
+по AudioContext clock, WAV PCM16/<=60с/<=12МиБ, без capture/комнат/внешнего API.
+Source/rAF и поздние resume/read закрываются stop/dispose; тесты —
+test-avatar-lab-audio.js и test-avatar-lab-browser.js. Это не распознавание визем.
+См. раздел 12 исследования. Следующий подбор: мужчина нейтральной азиатской
+внешности, стилизованный без сильной мультяшности, со способным к речи лицом.
+Не считать нынешний MPFB утверждённым внешним видом; VPS/push не выполнялись.
