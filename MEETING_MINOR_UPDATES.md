@@ -83,3 +83,8 @@ BFCache и настоящие WebSocket: наблюдатель видит ух�
 отрисовка и микрофон в этом отдельном тесте — фикстуры; это не PostgreSQL gate.
 Пройдены также test-meeting-startup-browser.js --builtin-v2 (настоящая сцена,
 тестовые API), test-voice-lifecycle.js и test-room-presence-stop.js.
+
+Патч развёрнут как 71025343. Дополнительная live HTTPS/HTTP/SQL/WS-проверка
+подтвердила удаление/возврат настоящего аватара у второго аккаунта: 4 выхода
+PLAYER_LEFT, 4 cached pagehide и 4 admission-запроса, ошибок JS нет.
+Сведения о backup/откате и очистке QA — SERVER_DEPLOYMENT.md.
