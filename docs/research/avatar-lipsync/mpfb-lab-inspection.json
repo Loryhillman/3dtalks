@@ -1,0 +1,122 @@
+{
+  "checkedAt": "2026-10-21",
+  "sourceSha256": "63c645a2a863b9972e9a9c2ed576a1de4c390b8475508e1473e69c87a3ee299c",
+  "preparedSha256": "ee4fa598f58545c8afcaa10da5723681e706d546ac2d200ab2e48ce5e907b9b8",
+  "preparedBytes": 30391976,
+  "triangles": 83686,
+  "sparseAccessors": 0,
+  "existingBodyValidator": "PASS",
+  "boneMap": {
+    "hips": "Hips",
+    "head": "Head",
+    "leftUpLeg": "LeftUpLeg",
+    "leftLeg": "LeftLeg",
+    "leftFoot": "LeftFoot",
+    "rightUpLeg": "RightUpLeg",
+    "rightLeg": "RightLeg",
+    "rightFoot": "RightFoot",
+    "leftArm": "LeftArm",
+    "leftForeArm": "LeftForeArm",
+    "leftHand": "LeftHand",
+    "rightArm": "RightArm",
+    "rightForeArm": "RightForeArm",
+    "rightHand": "RightHand"
+  },
+  "browserChecks": {
+    "comparedVertices": 53116,
+    "comparedMorphComponents": 1910568,
+    "comparisonTolerance": 1e-07,
+    "mouthForms": [
+      "viseme_aa",
+      "viseme_O",
+      "viseme_PP",
+      "jawOpen"
+    ],
+    "actualRoomSeatAvatarSupported": true,
+    "mobileViewport": [
+      390,
+      844
+    ],
+    "jsErrors": [],
+    "audioImplemented": false
+  },
+  "retainedTargets": [
+    {
+      "mesh": "base",
+      "names": [
+        "viseme_RR",
+        "viseme_FF",
+        "viseme_PP",
+        "viseme_DD",
+        "viseme_aa",
+        "viseme_kk",
+        "viseme_nn",
+        "eyeBlinkLeft",
+        "viseme_TH",
+        "viseme_SS",
+        "viseme_E",
+        "eyeBlinkRight",
+        "viseme_I",
+        "jawOpen",
+        "viseme_U",
+        "viseme_O",
+        "viseme_CH"
+      ]
+    },
+    {
+      "mesh": "female_casualsuit01",
+      "names": []
+    },
+    {
+      "mesh": "high-poly",
+      "names": []
+    },
+    {
+      "mesh": "mind_eyebrows_02",
+      "names": [
+        "eyeBlinkLeft",
+        "eyeBlinkRight"
+      ]
+    },
+    {
+      "mesh": "mind_eyelashes_02",
+      "names": [
+        "jawOpen",
+        "eyeBlinkLeft",
+        "eyeBlinkRight"
+      ]
+    },
+    {
+      "mesh": "ponytail01",
+      "names": []
+    },
+    {
+      "mesh": "teeth_base",
+      "names": [
+        "viseme_PP",
+        "viseme_DD",
+        "viseme_aa",
+        "viseme_kk",
+        "viseme_nn",
+        "viseme_TH",
+        "viseme_E",
+        "jawOpen",
+        "viseme_O"
+      ]
+    },
+    {
+      "mesh": "tongue01",
+      "names": [
+        "viseme_PP",
+        "viseme_DD",
+        "viseme_aa",
+        "viseme_kk",
+        "viseme_nn",
+        "viseme_TH",
+        "viseme_E",
+        "jawOpen",
+        "viseme_O"
+      ]
+    }
+  ]
+}

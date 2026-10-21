@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>3DTalks — Лаборатория аватара</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/lab.css">
+  <script src="/js/lib/three.min.js" defer></script>
+  <script src="/js/lib/GLTFLoader.js" defer></script>
+  <script src="/js/avatarBase.js" defer></script>
+  <script src="/js/avatarRig.js" defer></script>
+  <script src="/js/roomSeatAvatar.js" defer></script>
+  <script src="/js/userAvatarRenderer.js" defer></script>
+  <script src="/lab.js" defer></script>
+</head>
+<body>
+  <header><span class="brand">3DTalks / Research</span><h1>Тело, голова и формы рта</h1>
+    <p>MPFB — технический образец, а не выбранный внешний вид персонажа. Здесь нет подключения к комнатам и микрофону.</p></header>
+  <main>
+    <section class="viewer" aria-label="Предпросмотр персонажа"><canvas id="viewport" aria-label="Трёхмерный персонаж"></canvas></section>
+    <aside>
+      <p id="status" role="status">Загрузка проверенной модели…</p>
+      <fieldset disabled id="controls"><legend>Проверка модели</legend>
+        <label>Ракурс<select id="view"><option value="body">Персонаж целиком</option><option value="head">Лицо крупно</option><option value="seat">Посадка</option></select></label>
+        <label>Форма рта<select id="shape"><option value="viseme_aa">А — открытый рот</option><option value="viseme_O">О — округлённые губы</option><option value="viseme_PP">М / П / Б — сомкнутые губы</option><option value="jawOpen">Открытие челюсти</option></select></label>
+        <label>Сила формы <output id="amount-value" for="amount">0%</output><input id="amount" type="range" min="0" max="1" step="0.01" value="0"></label>
+        <button id="neutral" type="button">Вернуть нейтральное лицо</button>
+      </fieldset>
+      <p class="hint">Ползунок показывает готовую деформацию лица. Синхронизация со звуком на этом этапе ещё не подключена.</p>
+      <p id="details" class="details"></p>
+    </aside>
+  </main>
+</body>
+</html>

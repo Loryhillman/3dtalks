@@ -475,6 +475,16 @@ test-meeting-history-browser.js (реальная history/BFCache/WS, серве
 Исследование в codex/avatar-lipsync-research от d9efb866:
 AVATAR_LIPSYNC_RESEARCH.md. MPFB-кандидат реально просмотрен и имеет morphs,
 но sparse GLB не проходит нынешний импорт; это технический эталон, не выбранный
-стандартный персонаж. Quaternius — стилевой кандидат, лицо/файл не проверены.
+стандартный персонаж. Quaternius Standard проверен: только Superhero Male/Female без mouth morphs/jaw.
 Не ослаблять validator и не заменять пользовательские аватары автоматически.
 Исследование не включает реализацию lip-sync, push или развёртывание.
+
+
+По следующему запросу подготовлен MPFB с mouth/blink subset и dense accessors:
+старый validator принимает его без изменений, 29 МиБ/83 686 треугольников.
+Это технический образец, не утверждённая внешность/мобильный бюджет.
+Отдельный localhost-only стенд tools/avatar-lipsync-lab и offline preparation
+не подключены к Express/комнатам. Проверка: test-avatar-lab-browser.js с двумя
+явными локальными GLB; сравнивает геометрию/формы с оригиналом, посадку/reset.
+См. раздел 11 AVATAR_LIPSYNC_RESEARCH.md. Автоматический звук→рот ещё не внедрён.
+Следующий шаг согласовать после просмотра модели; не менять стандартные аватары.
