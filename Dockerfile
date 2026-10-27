@@ -3,7 +3,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 # 安装运行时依赖
-RUN apk add --no-cache tini curl
+RUN apk add --no-cache tini curl ffmpeg
 
 # 复制依赖文件并安装
 COPY package*.json ./

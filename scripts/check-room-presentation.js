@@ -92,6 +92,10 @@ async function main(){
    (id,room_id,owner_user_id,request_id,kind,display_name,declared_bytes,reserved_bytes,storage_key,state,byte_size,page_count,mime,checksum,lease_until)
    VALUES($1,$2,$3,$4,'image','Foreign',1,1,$5,'ready',1,1,'image/webp',$6,now())`,[foreign,rooms[1],users[0].id,randomUUID(),randomUUID(),'0'.repeat(64)]);
   assert.equal((await presentation.command(connection,body(state,{type:'show',assetId:foreign}))).code,'MATERIAL_NOT_FOUND','even the owner cannot show a different room material');
+  const videoId=randomUUID();await pool.query(`INSERT INTO room_media_assets
+   (id,room_id,owner_user_id,request_id,kind,display_name,declared_bytes,reserved_bytes,storage_key,state,byte_size,page_count,mime,checksum,lease_until,video_duration_ms,video_width,video_height,video_fps,video_codec,video_pixel_format)
+   VALUES($1,$2,$3,$4,'video','Video fixture',1,1,$5,'ready',1,NULL,'video/mp4',$6,now(),1000,160,90,24,'h264','yuv420p')`,[videoId,rooms[0],users[0].id,randomUUID(),randomUUID(),'0'.repeat(64)]);
+  assert.equal((await presentation.command(connection,body(state,{type:'show',assetId:videoId}))).code,'MATERIAL_NOT_FOUND','V1 cannot show a prepared video before the playback stage');
   state=(await presentation.command(connection,body(state,{type:'show',assetId:asset.id}))).state;
   assert.equal((await presentation.command(connection,body(state,{type:'page',pageIndex:2}))).code,'INVALID_COMMAND');
   await assert.rejects(presentation.command(connection,{...body(state,{type:'stop'}),roomId:rooms[1]}),e=>e.code==='INVALID_COMMAND');

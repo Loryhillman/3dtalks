@@ -634,3 +634,15 @@ mobile bounds и отсутствие ошибок JS. Прежние 13 стр�
 дважды; Chromium регрессия общего экрана. Рабочая БД/VPS не менялись,
 временная тестовая БД удалена; push/deployment не выполнялись. Видео/PPTX
 пока недоступны. Следующий этап 2 согласуется отдельно; подробности в разделе 9.
+
+
+По следующему согласию выполнен этап 2 ROOM_MEDIA_V2_PLAN.md: MP4 в общей
+roomMedia, ffprobe в supervised worker group, приватные owner-preview grants,
+HEAD/Range и cleanup/квоты. Upload-флаг теперь подключён, но по умолчанию false;
+playback/PPTX ещё не подключены. V1 скрывает video и запрещает его show.
+Compose передаёт flags=false, Dockerfile требует ffmpeg и новой сборки образа.
+Пройдены настоящие PostgreSQL/HTTP/Multer/JWT/ffprobe и нативный Chromium video
+(cookie/H264-AAC/play/seek), отрицательные ranges/grants/codec/RSS, регрессия
+PDF/image/presentation. Node 22/FFmpeg 4.4.2 WSL; Node20-Alpine/VPS gate ещё нужен.
+Рабочая БД/VPS не менялись; тестовая БД/файлы удалены. Push/deploy не выполнялись.
+Этап 3 (общая временная шкала и UI) требует согласования; подробности — раздел 10.

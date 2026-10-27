@@ -3,6 +3,8 @@ const fs=require('node:fs/promises'),crypto=require('node:crypto');
 const limits=require('./roomMediaLimits');
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 async function inspect(kind,input,output){
+  if(kind==='video')return require('./roomVideoProbe.cjs').inspectVideo(input);
+  if(!['pdf','image'].includes(kind))fail('INVALID_UPLOAD');
   const stat=await fs.stat(input);
   if(!stat.isFile()||stat.size<1||stat.size>(kind==='pdf'?limits.pdfBytes:limits.imageBytes))fail('FILE_TOO_LARGE');
   if(kind==='pdf'){
@@ -52,7 +54,11 @@ async function inspect(kind,input,output){
   return {pageCount:1,bytes:result.length,mime:'image/webp',checksum:crypto.createHash('sha256').update(result).digest('hex')};
 }
 const [kind,input,output]=process.argv.slice(2);
-process.once('disconnect',()=>process.exit(1));
+process.once('disconnect',()=>{
+  // The app may die before the supervisor can kill its native descendants.
+  if(process.platform==='linux')try{process.kill(-process.pid,'SIGKILL');}catch(_){}
+  process.exit(1);
+});
 const finish=message=>process.send(message,()=>process.exit(0));
 inspect(kind,input,output).then(result=>finish({result}),error=>finish({error:
-  ['FILE_TOO_LARGE','ENCRYPTED_PDF','TOO_MANY_PAGES'].includes(error.code)?error.code:kind==='pdf'?'INVALID_PDF':'INVALID_IMAGE'}));
+  ['FILE_TOO_LARGE','ENCRYPTED_PDF','TOO_MANY_PAGES','PROCESSOR_UNAVAILABLE','UNSUPPORTED_VIDEO','INVALID_VIDEO'].includes(error.code)?error.code:kind==='video'?'INVALID_VIDEO':kind==='pdf'?'INVALID_PDF':'INVALID_IMAGE'}));

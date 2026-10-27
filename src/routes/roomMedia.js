@@ -5,6 +5,8 @@ const limits=require('../services/roomMediaLimits');
 function createRoomMediaRouter(service,authenticate=require('../middleware/auth').authenticateToken,{idleMs=limits.idleMs,uploadMs=limits.uploadMs}={}){
   const router=express.Router({mergeParams:true});
   router.use((_req,res,next)=>{res.set({'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Vary':'Authorization'});next();});
+  // Cookie-authenticated video requests must be routed before JWT-only APIs.
+  router.use('/:assetId/video',require('./roomVideo').createRoomVideoRouter(service,authenticate));
   router.use(authenticate);
   const sendError=(res,e)=>{
     const code=e.code==='LIMIT_FILE_SIZE'?'FILE_TOO_LARGE':e instanceof multer.MulterError?'INVALID_UPLOAD':e.code;
@@ -12,7 +14,7 @@ function createRoomMediaRouter(service,authenticate=require('../middleware/auth'
     if(!e.status&&!(e instanceof multer.MulterError))console.warn('[roomMedia] request failed',{code:code||'INTERNAL_ERROR'});
   };
   const route=fn=>async(req,res)=>{try{await fn(req,res);}catch(e){sendError(res,e);}};
-  router.get('/',route(async(req,res)=>res.json({success:true,...await service.list(req.user.userId,req.params.id)})));
+  router.get('/',route(async(req,res)=>res.json({success:true,...await service.list(req.user.userId,req.params.id,{includeVideo:req.query.protocolVersion==='2'})})));
   router.post('/uploads',route(async(req,res)=>{const data=await service.reserve(req.user.userId,req.params.id,req.body);res.status(data.reused?200:201).json({success:true,...data});}));
   router.get('/uploads/:uploadId',route(async(req,res)=>res.json({success:true,upload:await service.get(req.user.userId,req.params.id,req.params.uploadId)})));
   router.delete('/uploads/:uploadId',route(async(req,res)=>res.json({success:true,upload:await service.cancel(req.user.userId,req.params.id,req.params.uploadId)})));

@@ -49,7 +49,7 @@ async function main(){
   await pool.query("UPDATE room_presentation_state SET asset_id=NULL,playback_status='paused',playback_position_ms=0,playback_anchor_at=NULL WHERE room_id=$1",[room]);
   await pool.query('UPDATE room_media_assets SET source_format=$2 WHERE id=$1',[pdf,'pptx']);
   const service=require('../src/services/roomMedia').createRoomMediaService(pool,{processor:{available:()=>true,close(){}}});
-  try{for(const kind of ['video','pptx'])await assert.rejects(service.reserve(owner,room,{requestId:randomUUID(),kind,name:'Unsupported',bytes:10}),e=>e.code==='INVALID_UPLOAD');}finally{await service.close();}
+  try{for(const kind of ['video','pptx'])await assert.rejects(service.reserve(owner,room,{requestId:randomUUID(),kind,name:'Unsupported',bytes:10}),e=>e.code===(kind==='video'?'VIDEO_UNAVAILABLE':'INVALID_UPLOAD'));}finally{await service.close();}
   await apply();
   console.log('PostgreSQL V2: repeated migration preserved V1 assets/rooms/state/receipts; SQL rejected invalid video metadata/ready states/timeline; upload remained fail-closed.');
  }finally{await pool.end();await admin.query('DROP SCHEMA '+schema+' CASCADE');await admin.end();}

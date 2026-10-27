@@ -64,7 +64,7 @@ function createRoomPresentationService(pool,{identity,broadcast=()=>{}}){
         let asset=state.asset_id,index=state.page_index;
         if(body.command.type==='stop'){asset=null;index=0;}
         else if(body.command.type==='show'){
-          const a=(await client.query("SELECT id FROM room_media_assets WHERE id=$1 AND room_id=$2 AND owner_user_id=$3 AND state='ready' FOR SHARE",[body.command.assetId,room.id,actor.userId])).rows[0];
+          const a=(await client.query("SELECT id FROM room_media_assets WHERE id=$1 AND room_id=$2 AND owner_user_id=$3 AND state='ready' AND kind IN ('pdf','image') FOR SHARE",[body.command.assetId,room.id,actor.userId])).rows[0];
           if(!a)result={requestId:body.requestId,success:false,code:'MATERIAL_NOT_FOUND',status:404,state:snapshot};
           else{asset=a.id;index=0;}
         }else if(!snapshot.asset||body.command.pageIndex>=snapshot.asset.pageCount)result={requestId:body.requestId,success:false,code:'INVALID_COMMAND',status:400,state:snapshot};

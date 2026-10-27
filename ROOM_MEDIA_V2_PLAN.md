@@ -1,6 +1,6 @@
 # Материалы переговорной v2: видео и импорт PPTX
 
-Статус: этап 1 реализован, 27 октября 2026; видео/PPTX ещё недоступны.
+Статус: этапы 1–2 реализованы, 27 октября 2026; общий видеопоказ/PPTX ещё недоступны.
 База: eb45deb3 и последующие записи о развёртывании. V1 остаётся действующей.
 Задача: расширить существующие материалы/общий экран, не возвращая зависимости
 глобального мира и не создавая вторую медиатеку. План требует согласования
@@ -281,3 +281,127 @@ preview/действия владельца, языки/размеры/фоку�
 синхронизация таймлайна и нагрузка VPS ещё не реализованы и не проверены.
 Новые Docker-сервисы не запускались, VPS/deployment/GitHub push не выполнялись.
 Следующий согласуемый этап — 2: защищённая загрузка/проверка MP4 и Range/grant.
+
+
+## 10. Этап 2: загрузка MP4 и приватная выдача владельцу
+
+Реализован серверный фундамент видео без интерфейса общего показа.
+ROOM_VIDEO_UPLOAD_ENABLED по умолчанию false; при true существующие
+reserve/upload/cancel/delete принимают kind=video. Флаг проверяется при
+reserve/begin/complete и при выдаче preview grant. ROOM_VIDEO_PLAYBACK_ENABLED
+и ROOM_PPTX_IMPORT_ENABLED пока не подключены к runtime. Compose передаёт
+три флага с defaults=false, .env.example содержит безопасные значения.
+Не включать их на рабочем сервере до завершения UI/синхронизации и release gate.
+
+### Обработка
+
+roomMedia использует тот же жизненный цикл и бюджет, без второго каталога.
+Видео сохраняется в приватном room-media по UUID с суффиксом .mp4.
+Входные байты проверяются по фактическому содержимому, не MIME/имени загрузки.
+В roomVideoProbe.cjs проверяются top-level MP4 boxes, ftyp/бренды/moov/mdat,
+границы атомов; далее ffprobe проходит пакеты, проверяет потоки/метаданные.
+Допускаются H.264 avc1/avc3 + yuv420p, AAC либо отсутствие аудио, до 40 МиБ,
+10 минут, 1920×1080 и 30 fps. Аудио — 1–2 канала, 8–48 кГц. В этой версии
+отклоняются fragmented MP4, ненулевой rotation/start offset и посторонние
+потоки. Есть отдельный отказ UNSUPPORTED_VIDEO. Повреждение контейнера —
+INVALID_VIDEO; отсутствующий ffprobe — PROCESSOR_UNAVAILABLE/503.
+
+Исходный проверенный файл переименовывается без перекодирования/копирования.
+Moov в конце допустим: нативный браузер использует Range; проверено настоящим
+роликом с такой структурой. Поэтому charge видео равен входному объёму;
+80 МиБ из SQL — верхняя допустимая резервная граница, а не обязательная
+двойная резервация для этой реализации. На успехе сохраняются duration,
+width/height/fps, codec/pixel format/audio codec, checksum и размер.
+Проверка пакетов не является полным декодированием каждого кадра: ошибки
+воспроизведения ещё должен обрабатывать клиент этапа 3.
+
+Используется существующая очередь одного media worker (4 ожидающих), общий
+тайм-аут 10 секунд и heap 96 МиБ. Супервизор теперь считает суммарный RSS
+дочерних процессов, порог 256 МиБ с опросом 40 мс; это мониторинг, не жёсткий
+cgroup-предел. Ограничено число отслеживаемых процессов. В Linux worker
+создаётся как отдельная process group; отмена/тайм-аут/память/close убивают
+также нативные дочерние процессы. Завершение worker очищает потомков,
+IPC disconnect при смерти приложения также завершает его группу.
+FFprobe получает ограниченный JSON output, threads=1, max_alloc=64 МиБ,
+protocol_whitelist=file, format_whitelist=mov, enable_drefs=0 и
+use_absolute_path=0. Передача секретов через env отсутствует. Эти параметры
+ограничивают штатное поведение парсера, но не заменяют OS sandbox.
+
+Dockerfile получил ffmpeg (включает ffprobe). Изменение требует настоящей
+пересборки образа, прежний COPY-overlay для выпуска применять нельзя.
+Сборка Node 20 Alpine/пакетный FFmpeg и нагрузка VPS в этом этапе не запускались.
+
+### API владельца
+
+POST /api/my/rooms/:id/materials/:assetId/video/grant:
+существующий JWT владельца, тело {} или без тела. На успехе возвращаются
+только success/expiresInMs. Случайный token передаётся через Set-Cookie
+room_video, HttpOnly, SameSite=Strict, Secure в production, Path ровно до
+content конкретной комнаты и asset. Domain не задаётся; token не попадает
+в URL/JSON/logs. По HTTPS Secure обязателен; на localhost вне production
+cookie может быть без Secure. Действует 60 секунд; authenticated renewal
+того же owner/room/asset продлевает grant без прерывания текущего потока.
+
+GET/HEAD .../video/content работают по этой cookie, без Authorization на
+video.src. Grant хранится в памяти процесса (не переживает рестарт),
+проверяется до и после асинхронной SQL-авторизации; каждый запрос заново
+проверяет владельца/комнату/ready asset и получает существующий reader lease.
+Owner preview не требует места в комнате. Это НЕ grant зрителя; доступ
+участникам с привязкой к socket/claim/current show будет подключён в этапе 3.
+Один grant может использоваться несколькими вкладками того же владельца
+для того же asset; разные комнаты/материалы имеют разные cookie paths.
+
+Максимум 1000 grants на процесс / 20 на пользователя, renewal до 30/мин,
+чтение до 120 запросов/мин на grant; текущие ограничения 8 readers процесса /
+2 пользователя сохраняются. Максимальный video reader — 630 секунд, каждый
+request завершается/освобождает lease отдельно. Grant expiry проверяется также
+периодически и прерывает открытые readers. Удаление asset, abortRoom и close
+отзывают grants и прерывают потоки. При закрытии preview без отдельного
+серверного события grant живёт до expiry; клиентское продление/cleanup — этап 3.
+Уже полученные/закешированные самим браузером байты отозвать невозможно.
+
+Поддержаны полный GET 200, HEAD без тела, одиночные bytes ranges (обычные,
+open-ended, suffix) с 206 и Content-Range, неверные/множественные ranges —
+416 с размером. HEAD игнорирует Range. Числа/длина ограничены, ответы no-store,
+nosniff/CORP same-origin, выдача потоковая вне SQL-транзакции. Безопасное
+открытие файла O_NOFOLLOW и освобождение lease общие с прежней выдачей.
+
+V1-список материалов скрывает video; owner API с ?protocolVersion=2 получает
+video DTO с метаданными, когда upload-флаг включён. Общая использованная квота
+при этом учитывает и скрытое видео. V1 show явно допускает только pdf/image;
+подготовленное видео не может попасть в старый strict state/renderer.
+Клиентский интерфейс в этапе 2 не менялся.
+
+### Проверки этапа
+
+PASS: test-room-video-grants.js — ranges/overflow, scope/expiry, renewal без
+обрыва потока, revoke/rate и гонка отзыва во время авторизации.
+PASS: test-room-video-processor.js — реальные ffmpeg-фикстуры H.264/AAC и
+silent, checksum/размер, tail-moov, неподдерживаемые codec/fps, повреждения,
+суммарный RSS и завершение настоящего нативного потомка.
+PASS: прежний test-room-media-processor.js (PDF/изображения/тайм-аут/память).
+
+PASS на отдельной временной PostgreSQL 18:
+ROOM_VIDEO_BROWSER_CHECK=1 node scripts/check-room-video.js — реальные
+HTTP/JWT/Multer/ffprobe, ownership/gate/replay/размер, cookie без token в JSON,
+HEAD/full/suffix/open-range/416, чужая комната/дубликат cookie, expiry/delete
+revoke, удержание квоты читателем и освобождение после закрытия. Chromium
+загрузил H.264/AAC через нативный video.src с HttpOnly-cookie, декодировал,
+воспроизвёл и перемотал ролик. Это owner preview, не общий синхронный показ.
+
+Также PASS: check-room-media-v2-postgres.js, прежние check-room-media.js и
+check-room-presentation.js (реальные SQL/HTTP/WS), test-room-presentation-browser.js,
+контракт V2, syntax/diff и Compose config --quiet. В PostgreSQL регрессии
+добавлен запрет V1 show для ready video. Медиатесты/worker выполнены на
+Node 22.22.2 и FFmpeg 4.4.2 в WSL; production Node 20 Alpine требует отдельного
+gate. Временные schema/БД/файлы удалены. Рабочая БД и VPS не изменены;
+новые контейнеры не запускались, GitHub push/deployment не выполнялись.
+
+Источники параметров FFmpeg:
+https://ffmpeg.org/ffprobe.html и
+https://github.com/FFmpeg/FFmpeg/blob/master/doc/demuxers.texi
+(enable_drefs/use_absolute_path). Параметры не доказывают абсолютную изоляцию
+нативного парсера или производительность целевого VPS.
+
+Следующий согласуемый этап 3 — owner controls/загрузка в UI, переговорная
+video timeline, grant зрителя и единый playback на 3D-экране/увеличенном просмотре.
