@@ -5,7 +5,8 @@ const {chromium}=require('playwright');const root=path.resolve(__dirname,'../pub
 const {renderMeetingPage}=require('../src/services/meetingPage');
 const {officeGlb}=require('./room-environment-fixtures');
 const environmentMode=process.argv.includes('--environment');
-const builtinV2Mode=process.argv.includes('--builtin-v2');
+const builtinV3Mode=process.argv.includes('--builtin-v3');
+const builtinV2Mode=process.argv.includes('--builtin-v2')||builtinV3Mode;
 const builtinMode=process.argv.includes('--builtin')||builtinV2Mode;
 const screenMode=process.argv.includes('--screen')||builtinV2Mode;
 const humanMode=process.argv.includes('--human-avatars');
@@ -48,7 +49,8 @@ const server=http.createServer(async(req,res)=>{try{
 let browser;
 (async()=>{
  if(builtinMode){
-  const bundle=await require('../src/services/roomBuiltinBundle').readBundle(path.resolve(__dirname,'../database/seeds/meeting-six-'+(builtinV2Mode?'v2':'v1')));
+  const bundle=await require('../src/services/roomBuiltinBundle').readBundle(path.resolve(__dirname,'../database/seeds/meeting-six-'+(builtinV3Mode?'v3':builtinV2Mode?'v2':'v1')));
+  if(builtinV3Mode)room.avatar_scale=bundle.manifest.avatarScale;
   for(const asset of bundle.assets)bundledFiles.set(asset.runtimePath,asset.data);
   objects.splice(0,objects.length,...bundle.layout.map((item,index)=>{
    const row={id:item.type==='presentation_screen'?100:index+1,type:item.type==='presentation_screen'?item.type:'uploaded_model',model_type:item.model_path?'gltf':null,name:item.name,model_path:item.model_path||null,presentation_screen:item.screen||null,
@@ -202,7 +204,7 @@ let browser;
    WSClient.handleMessage({type:'WORLD_STATE',payload:{players:entries}});
   },{male:humanConfig,female:presetConfig('female-neutral-v1')});
   await page.waitForFunction(()=>gameWorld.players.size===6&&[...gameWorld.players.values()].every(p=>p.group.userData.accountAvatarRoot?.children.length&&p.group.userData.roomSeatRig?.supported));
-  assert(await page.evaluate(()=>[...gameWorld.players.values()].every(({group})=>{group.updateWorldMatrix(true,true);return group.scale.x===1.4&&group.userData.roomSeatRig.found.hips.getWorldPosition(new THREE.Vector3()).distanceTo(group.getWorldPosition(new THREE.Vector3()))<1e-6;})),'room snapshot scales every seated participant around its hips');
+  assert(await page.evaluate(scale=>[...gameWorld.players.values()].every(({group})=>{group.updateWorldMatrix(true,true);return group.scale.x===scale&&group.userData.roomSeatRig.found.hips.getWorldPosition(new THREE.Vector3()).distanceTo(group.getWorldPosition(new THREE.Vector3()))<1e-6;}),room.avatar_scale),'room snapshot scales every seated participant around its hips');
   const audio=require('./avatar-lab-audio-fixture').wav().toString('base64');
   await page.evaluate(audio=>WSClient.handleMessage({type:'VOICE_MESSAGE',payload:{characterId:'peer',audio,durationMs:3000}}),audio);
   await page.waitForFunction(()=>{let open=false;gameWorld.players.get('peer').group.traverse(n=>{const i=n.morphTargetDictionary?.viseme_aa;if(i!==undefined&&n.morphTargetInfluences[i]>.1)open=true;});return open;});

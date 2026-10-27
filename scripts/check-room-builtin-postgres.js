@@ -142,11 +142,12 @@ async function main() {
       await assert.rejects(readBundle(changedSource), /checksum mismatch/);
     });
     await scenario('fresh-v2-and-restart',async(pool,{publicDir})=>{
-      const bundle=await readBundle();assert.equal(bundle.manifest.bundle,'meeting-six-v2');
+      const directory=path.resolve(__dirname,'../database/seeds/meeting-six-v2');
+      const bundle=await readBundle(directory);assert.equal(bundle.manifest.bundle,'meeting-six-v2');
       const predecessor=await readBundle(source);
       assert.deepEqual(bundle.assets.map(a=>a.runtimePath),predecessor.assets.map(a=>a.runtimePath));
       assert.deepEqual(bundle.layout.slice(0,-1),predecessor.layout,'the screen must not move furniture or seats');
-      const results=await Promise.all([ensureBuiltinMeeting(pool,{publicDir}),ensureBuiltinMeeting(pool,{publicDir})]);
+      const results=await Promise.all([ensureBuiltinMeeting(pool,{publicDir,directory}),ensureBuiltinMeeting(pool,{publicDir,directory})]);
       assert.deepEqual(results.map(r=>r.status).sort(),['installed','present']);
       const template=(await pool.query('SELECT * FROM room_templates ORDER BY version DESC LIMIT 1')).rows[0];
       assert.equal(template.version,4);assert.equal(template.layout.length,9);
@@ -177,6 +178,30 @@ async function main() {
       manifest.assets[0].fromBundle='meeting-six-v1';manifest.name='Changed without version';
       await fs.writeFile(path.join(changedSource,'manifest.json'),JSON.stringify(manifest));
       await assert.rejects(ensureBuiltinMeeting(pool,{publicDir,directory:changedSource}),/without a new version/);
+    });
+    await scenario('fresh-v3-approved-calibration',async(pool,{publicDir})=>{
+      const bundle=await readBundle();assert.equal(bundle.manifest.bundle,'meeting-six-v3');assert.equal(bundle.manifest.avatarScale,1.25);
+      const invalidDirectory=path.join(temporary,'invalid-v3');await fs.mkdir(invalidDirectory);
+      const invalidManifest={...bundle.manifest};delete invalidManifest.avatarScale;
+      await fs.writeFile(path.join(invalidDirectory,'manifest.json'),JSON.stringify(invalidManifest));
+      await assert.rejects(readBundle(invalidDirectory),/Invalid built-in meeting manifest/);
+      const predecessor=await readBundle(source);
+      assert.deepEqual(bundle.assets.map(a=>a.runtimePath),predecessor.assets.map(a=>a.runtimePath),'no duplicate GLBs');
+      const results=await Promise.all([ensureBuiltinMeeting(pool,{publicDir}),ensureBuiltinMeeting(pool,{publicDir})]);
+      assert.deepEqual(results.map(r=>r.status).sort(),['installed','present']);
+      const template=(await pool.query('SELECT * FROM room_templates ORDER BY version DESC LIMIT 1')).rows[0];
+      assert.equal(template.avatar_scale,1.25);assert.equal(template.layout.length,9);
+      assert.deepEqual(template.layout.flatMap(i=>i.seats||[]),bundle.layout.flatMap(i=>i.seats||[]));
+      const stat=absolute=>fs.stat(path.join(publicDir,path.relative(realPublic,absolute)));
+      const owner=randomUUID();await pool.query('INSERT INTO users VALUES($1)',[owner]);
+      const rooms=createUserRoomService(pool,(id,db)=>validateRoom(id,db,stat));
+      const first=(await rooms.create(owner,{name:'Approved default',capacity:6,request_key:randomUUID()})).room;
+      assert.equal(first.avatar_scale,1.25);assert.equal((await validateRoom(first.id,pool,stat)).ok,true);
+      const snapshot=(await pool.query('SELECT * FROM room_seats WHERE room_id=$1 ORDER BY label',[first.id])).rows;
+      await ensureBuiltinMeeting(pool,{publicDir});
+      assert.deepEqual((await pool.query('SELECT * FROM room_seats WHERE room_id=$1 ORDER BY label',[first.id])).rows,snapshot);
+      assert.equal((await pool.query('SELECT count(*)::int n FROM uploaded_models')).rows[0].n,3);
+      assert.deepEqual((await pool.query('SELECT bundle_key FROM room_builtin_bundles')).rows,[{bundle_key:'meeting-six-v3'}]);
     });
     for (const kind of ['publication', 'draft', 'room']) await scenario('preserved-' + kind, async (pool, options) => {
       if (kind === 'publication') await pool.query(`INSERT INTO room_templates(template_key,version,name,layout)

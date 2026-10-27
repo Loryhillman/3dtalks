@@ -54,6 +54,6 @@ let browser,server;
  },{layout:bundle.layout,seats});
  if(process.env.ROOM_SCREEN_V2_SCREENSHOT)await page.screenshot({path:process.env.ROOM_SCREEN_V2_SCREENSHOT,fullPage:true});
  for(const row of result){assert(row.front,'seat '+row.label+' faces the opaque back');assert.deepEqual(row.occluded,[],'screen occluded from seat '+row.label);assert(row.ndc.every(p=>Math.abs(p[0])<1&&Math.abs(p[1])<1&&p[2]>-1&&p[2]<1),'screen outside view at seat '+row.label);}
- assert.deepEqual(errors,[]);console.log('Built-in v2 Chromium: actual GLB scene, screen front and 9 visible canvas samples from all six seated eye positions OK');
+ assert.deepEqual(errors,[]);console.log('Built-in '+bundle.manifest.bundle+' Chromium: actual GLB scene, screen front and 9 visible canvas samples from all six seated eye positions OK');
  console.log(JSON.stringify(result.map(({label,eye,minDistance})=>({label,eye,minDistance}))));
 }finally{await browser?.close();await new Promise(r=>server?server.close(r):r());}})().catch(e=>{console.error(e);process.exitCode=1;});

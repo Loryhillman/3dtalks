@@ -583,3 +583,14 @@ Admin draft API валидирует scale/revision, публикация и о�
 Compose/HTTP/admin JWT/Chromium и регрессия /play с шестью моделями при 1,4.
 Инструкции/границы/проверки — ROOM_AVATAR_CALIBRATION.md. Значения теста не
 являются эталонной калибровкой. VPS/push для этого этапа не выполнялись.
+
+По следующему запросу пользовательская локальная публикация meeting-six v6
+с avatar_scale=1.25 и её настройками мест закреплена как meeting-six-v3.
+Default чистой установки — v3, GLB ссылаются прямо на v1, без дублирования.
+Installed receipts v1/v2, рабочие черновики/публикации/комнаты сохраняются;
+выпущенные manifests v1/v2 не менялись. Источник/политика — README в комплекте.
+Пройдены PostgreSQL 18 install/restart/concurrency/старые установки, canonical
+startup дважды и Chromium /play --builtin-v3 --human-avatars/обзор экрана.
+Не переносить DB model_id в manifest, не переписывать receipt и существующие
+комнаты. Локальная версия v6 уже опубликована самим пользователем; её БД этим
+этапом не менялась. VPS/GitHub push не выполнялись.

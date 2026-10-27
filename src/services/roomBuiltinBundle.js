@@ -5,14 +5,16 @@ const { publicationErrors } = require('./roomTemplateEditor');
 const { inspect } = require('./roomEnvironmentAsset');
 
 const legacyDirectory = path.resolve(__dirname, '../../database/seeds/meeting-six-v1');
-const bundleDirectory = path.resolve(__dirname, '../../database/seeds/meeting-six-v2');
+const screenDirectory = path.resolve(__dirname, '../../database/seeds/meeting-six-v2');
+const bundleDirectory = path.resolve(__dirname, '../../database/seeds/meeting-six-v3');
 const publicDirectory = path.resolve(__dirname, '../../public');
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
 async function readBundle(directory = bundleDirectory) {
   const bytes = await fs.readFile(path.join(directory, 'manifest.json'));
   const manifest = JSON.parse(bytes);
-  if (!['meeting-six-v1','meeting-six-v2'].includes(manifest.bundle) || manifest.templateKey !== 'meeting-six' ||
+  if (!['meeting-six-v1','meeting-six-v2','meeting-six-v3'].includes(manifest.bundle) || manifest.templateKey !== 'meeting-six' ||
+      ((manifest.bundle==='meeting-six-v3'||manifest.avatarScale!==undefined)&&!require('../../public/js/roomAvatarScale').valid(manifest.avatarScale)) ||
       typeof manifest.name !== 'string' || !manifest.name.trim() || manifest.name.length > 120 ||
       !Array.isArray(manifest.assets) || manifest.assets.length !== 3 ||
       new Set(manifest.assets.map(asset => asset.key)).size !== 3 || !Array.isArray(manifest.layout)) {
@@ -21,7 +23,7 @@ async function readBundle(directory = bundleDirectory) {
   const assets = [];
   // Only this shipped predecessor can supply references. Never resolve a
   // manifest-controlled directory, URL or recursive dependency chain.
-  const predecessor = manifest.bundle === 'meeting-six-v2' ? await readBundle(legacyDirectory) : null;
+  const predecessor = manifest.bundle !== 'meeting-six-v1' ? await readBundle(legacyDirectory) : null;
   for (const asset of manifest.assets) {
     if (predecessor) {
       if (Object.keys(asset).some(key => !['key', 'fromBundle', 'assetKey'].includes(key)) ||
@@ -95,8 +97,9 @@ async function ensureBuiltinMeeting(pool, { directory, publicDir = publicDirecto
     await client.query("SELECT pg_advisory_xact_lock(hashtext('room-template-editor'), hashtext($1))", [bundle.manifest.templateKey]);
     if (!directory) {
       const installed = (await client.query(`SELECT bundle_key FROM room_builtin_bundles
-        WHERE bundle_key IN ('meeting-six-v1','meeting-six-v2') ORDER BY bundle_key DESC LIMIT 1`)).rows[0];
+        WHERE bundle_key IN ('meeting-six-v1','meeting-six-v2','meeting-six-v3') ORDER BY bundle_key DESC LIMIT 1`)).rows[0];
       if (installed?.bundle_key === 'meeting-six-v1') bundle = await readBundle(legacyDirectory);
+      if (installed?.bundle_key === 'meeting-six-v2') bundle = await readBundle(screenDirectory);
     }
     const { manifest, assets, layout } = bundle;
     const receipt = (await client.query('SELECT * FROM room_builtin_bundles WHERE bundle_key=$1', [manifest.bundle])).rows[0];
@@ -128,8 +131,8 @@ async function ensureBuiltinMeeting(pool, { directory, publicDir = publicDirecto
       models.set(asset.runtimePath, model.id);
     }
     for (const item of layout) if (item.model_path) item.model_id = models.get(item.model_path);
-    const template = (await client.query(`INSERT INTO room_templates (template_key,version,name,layout)
-      VALUES ($1,4,$2,$3::jsonb) RETURNING id`, [manifest.templateKey, manifest.name, JSON.stringify(layout)])).rows[0];
+    const template = (await client.query(`INSERT INTO room_templates (template_key,version,name,layout,avatar_scale)
+      VALUES ($1,4,$2,$3::jsonb,$4) RETURNING id`, [manifest.templateKey, manifest.name, JSON.stringify(layout),manifest.avatarScale??1])).rows[0];
     for (const modelId of models.values()) await client.query(
       'INSERT INTO room_template_model_refs(template_id,model_id) VALUES ($1,$2)', [template.id, modelId]);
     await client.query('INSERT INTO room_builtin_bundles(bundle_key,manifest_sha256,template_id) VALUES ($1,$2,$3)',
