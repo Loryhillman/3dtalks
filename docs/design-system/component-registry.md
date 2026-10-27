@@ -1,6 +1,6 @@
 # Реестр UI-компонентов
 
-Версия документации: 1.3.0. Аудит: 2026-10-20, ветка `codex/room-presentations`.
+Версия документации: 1.6.0. Основной аудит: 2026-10-20; дополнение видео: 2026-10-27, ветка `codex/room-media-v2`.
 Область: кабинет, оболочка аватара и HTML-интерфейс материалов/презентации.
 Это подтверждённая карта исходников, а не декларация полного соответствия
 дизайн-системе. Lifecycle Stable/Experimental/Deprecated не присвоен:
@@ -384,3 +384,18 @@ IME, repeat и модифицированные комбинации. Disabled/p
 guards переиспользуются через те же кнопки. Нет document-level listener,
 новой очереди команд или смены локальной семантики viewer.
 QA: [MEETING_MINOR_UPDATES.md](../../MEETING_MINOR_UPDATES.md).
+
+
+### Вариант видеоматериала — Experimental
+
+RoomPresentation сохраняет существующий dialog, кнопки и token styles;
+для video paging заменяется Play/Pause, range (0..durationMs) и временем.
+RoomVideoPlayback создаёт локальные volume/enable/status/time; существующий
+RoomScreenPreview временно принимает те же DOM controls, сохраняя один decoder.
+RoomMaterials добавляет MP4 через capabilities и native private preview.
+Глобального обработчика клавиш или отдельной системы токенов нет.
+Реальные файлы: public/js/roomVideoPlayback.js, roomPresentation.js,
+roomMaterials.js, roomScreenPreview.js; стили — room-presentation.css и
+room-materials.css. RU/EN/zh-CN; private preview использует native controls.
+QA: ROOM_MEDIA_V2_PLAN.md, раздел 11. Мобильные/desktop snapshots просмотрены;
+реальные touch/Safari/axe/200% browser zoom не проверены, Stable не присваивается.

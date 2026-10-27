@@ -11,6 +11,15 @@
   локализация и cleanup pending. QA — ../../MEETING_MINOR_UPDATES.md.
   Контрольные теги и WebRTC-ветка не менялись.
 
+## [1.6.0] — 2026-10-27
+### Added
+- Согласованное расширение существующих RoomPresentation/RoomMaterials:
+  MP4 upload/private preview, Play/Pause/range/time и локальный volume/enable.
+- Общий экран и увеличенный viewer используют одни элементы локального звука
+  и один decoder; RU/EN/zh-CN, targets 44 px, Tab/Escape и cleanup.
+- Реализация Experimental, flags по умолчанию выключены. QA и ограничения —
+  ../../ROOM_MEDIA_V2_PLAN.md, раздел 11. Выпуск на VPS этим этапом не выполнялся.
+
 ## [1.5.0] — 2026-10-20
 ### Added
 - Компактные native окна участников/звука, server-derived roster и честные

@@ -75,3 +75,5 @@
   .room-materials .material-kind { display: none; }
   .room-materials .material-actions { grid-column: 1; }
 }
+
+.material-video { width: 100%; max-height: 50dvh; display: block; background: #101010; }

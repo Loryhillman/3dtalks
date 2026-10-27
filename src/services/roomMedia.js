@@ -204,7 +204,7 @@ function createRoomMediaService(pool,{directory=path.resolve(__dirname,'../../up
       }
     }finally{ticking=false;}
   }
-  return {reserve:owned(reserve),list:owned(list),get:identified(get),begin:identified(begin),complete:owned(complete),
+  return {capabilities:owned((userId,roomId)=>transaction(userId,roomId,async()=>features())),reserve:owned(reserve),list:owned(list),get:identified(get),begin:identified(begin),complete:owned(complete),
     failed:identified(failed),cancel:identified(cancel),remove:identified((...args)=>runRoomOperation(()=>remove(...args))),content:identified(content),cleanup,
     async issueVideoGrant(userId,roomId,assetId){return videoGrants.issue({userId:canonical(userId),roomId:canonical(roomId),assetId:canonical(assetId)});},
     async readVideoGrant(token,roomId,assetId){return videoGrants.read(token,{roomId:canonical(roomId),assetId:canonical(assetId)});},

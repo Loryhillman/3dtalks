@@ -13,11 +13,11 @@ const LIMITS = Object.freeze({
 const TYPES = new Set([
   'PLAYER_JOIN', 'PING', 'POSITION_UPDATE', 'ROOM_LOOK', 'ROOM_SEAT_SELECT',
   'ROOM_LEAVE', 'CHAT', 'VOICE_START', 'VOICE_END', 'VOICE_PROBE', 'VOICE_MESSAGE',
-  'ROOM_PRESENTATION_GET_STATE', 'ROOM_PRESENTATION_COMMAND'
+  'ROOM_PRESENTATION_GET_STATE', 'ROOM_PRESENTATION_COMMAND', 'ROOM_PRESENTATION_CAPABILITIES', 'ROOM_PRESENTATION_CLOCK'
 ]);
 const RATES = {
   all: [120, 240], bytes: [1024 * 1024, 8 * 1024 * 1024],
-  join: [0.2, 3], chat: [2, 8], seat: [2, 10], voice: [4, 12], audio: [0.5, 3], presentation: [2, 6]
+  join: [0.2, 3], chat: [2, 8], seat: [2, 10], voice: [4, 12], audio: [0.5, 3], presentation: [2, 6], presentationClock: [1, 4]
 };
 function record(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -58,6 +58,7 @@ function createIngress(now = () => performance.now()) {
     if (!TYPES.has(data.type) || (!joined && !['PLAYER_JOIN', 'PING'].includes(data.type))) return {};
     let bucket;
     if (data.type === 'PLAYER_JOIN') bucket = 'join';
+    else if(data.type==='ROOM_PRESENTATION_CLOCK')bucket='presentationClock';
     else if(data.type.startsWith('ROOM_PRESENTATION_'))bucket='presentation';
     else if (data.type === 'CHAT') bucket = 'chat';
     else if (['ROOM_SEAT_SELECT', 'ROOM_LEAVE'].includes(data.type)) bucket = 'seat';

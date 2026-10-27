@@ -3,6 +3,7 @@
   let active;
   const t=key=>window.i18n?.t('roomScreen.'+key)||key;
   function close(){active?.dialog.close();}
+  function refreshVideoControls(){if(!active)return;active.restoreVideo?.();active.restoreVideo=window.RoomPresentation?.borrowVideoControls?.(active.source,active.dialog);}
   function refresh(source){
     if(active?.source!==source)return;
     if(!source.width||!source.height){close();return;}
@@ -40,14 +41,14 @@
     toolbar.append(minus,value,plus,fit);header.append(toolbar);dialog.append(header,frame,hint);
     const session=active={dialog,canvas,source,scale};
     dialog.addEventListener('keydown',e=>{if(e.key==='Tab'){
-      const nodes=[...dialog.querySelectorAll('button,[tabindex="0"]')].filter(n=>!n.disabled&&n.getClientRects().length),index=nodes.indexOf(document.activeElement);
+      const nodes=[...dialog.querySelectorAll('button,input,[tabindex="0"]')].filter(n=>!n.disabled&&n.getClientRects().length),index=nodes.indexOf(document.activeElement);
       if(e.shiftKey&&(index===0||index<0)){e.preventDefault();nodes.at(-1)?.focus();}
       else if(!e.shiftKey&&(index===nodes.length-1||index<0)){e.preventDefault();nodes[0]?.focus();}
     }});
     for(const event of ['pointerdown','pointerup','click','keydown','keyup','wheel','touchstart','touchmove'])dialog.addEventListener(event,e=>e.stopPropagation());
     const observer=new ResizeObserver(()=>{if(active===session&&dialog.open)scale();});
-    dialog.addEventListener('close',()=>{observer.disconnect();dialog.remove();canvas.width=canvas.height=0;if(active===session)active=null;if(trigger?.isConnected)trigger.focus();},{once:true});
-    document.body.append(dialog);dialog.showModal();scale();observer.observe(frame);
+    dialog.addEventListener('close',()=>{session.restoreVideo?.();observer.disconnect();dialog.remove();canvas.width=canvas.height=0;if(active===session)active=null;if(trigger?.isConnected)trigger.focus();},{once:true});
+    document.body.append(dialog);refreshVideoControls();dialog.showModal();scale();observer.observe(frame);
   }
   function mount(source,name,target){
     if(!target)return ()=>{};
@@ -56,5 +57,5 @@
     button.addEventListener('click',e=>{e.stopPropagation();open(source,name,button);});target.append(button);
     return ()=>{close();button.remove();};
   }
-  window.RoomScreenPreview={open,close,mount,refresh};
+  window.RoomScreenPreview={open,close,mount,refresh,refreshVideoControls};
 })();

@@ -8,7 +8,10 @@ async function read(client,room){
   return (await client.query('SELECT * FROM room_presentation_state WHERE room_id=$1 FOR UPDATE',[room.id])).rows[0];
 }
 async function snapshot(client,state){
-  const a=state.asset_id?(await client.query("SELECT id,display_name,kind,page_count FROM room_media_assets WHERE id=$1 AND room_id=$2 AND state='ready'",[state.asset_id,state.room_id])).rows[0]:null;
+  const a=state.asset_id?(await client.query("SELECT * FROM room_media_assets WHERE id=$1 AND room_id=$2 AND state='ready'",[state.asset_id,state.room_id])).rows[0]:null;
+  if(a?.kind==='video')return {protocolVersion:2,roomId:state.room_id,epoch:state.epoch,revision:String(state.revision),
+    asset:{id:a.id,name:a.display_name,kind:'video',durationMs:a.video_duration_ms,width:a.video_width,height:a.video_height},pageIndex:0,
+    playback:{status:state.playback_status,positionMs:state.playback_position_ms,anchorServerTimeMs:state.playback_anchor_at?new Date(state.playback_anchor_at).getTime():null}};
   return {roomId:state.room_id,epoch:state.epoch,revision:String(state.revision),asset:a?{id:a.id,name:a.display_name,kind:a.kind,pageCount:a.page_count}:null,pageIndex:a?state.page_index:0};
 }
 async function receipt(client,state,requestId,signature){
@@ -23,7 +26,7 @@ async function remember(client,state,requestId,signature,result){
 }
 async function reset(client,roomId){
   await client.query(`UPDATE room_presentation_state SET epoch=gen_random_uuid(),revision=revision+1,
-    asset_id=NULL,page_index=0,updated_by=NULL,updated_at=now() WHERE room_id=$1`,[roomId]);
+    asset_id=NULL,page_index=0,playback_status='paused',playback_position_ms=0,playback_anchor_at=NULL,updated_by=NULL,updated_at=now() WHERE room_id=$1`,[roomId]);
   await client.query('DELETE FROM room_presentation_requests WHERE room_id=$1',[roomId]);
 }
 async function deleteActive(client,state,id,body,userId){
@@ -38,7 +41,7 @@ async function deleteActive(client,state,id,body,userId){
     await remember(client,state,body.requestId,signature,result);return result;
   }
   if(state.asset_id!==id)return null;
-  const updated=(await client.query(`UPDATE room_presentation_state SET asset_id=NULL,page_index=0,
+  const updated=(await client.query(`UPDATE room_presentation_state SET asset_id=NULL,page_index=0,playback_status='paused',playback_position_ms=0,playback_anchor_at=NULL,
     revision=revision+1,updated_by=$2,updated_at=now() WHERE room_id=$1 RETURNING *`,[state.room_id,userId])).rows[0];
   const result={id,state:await snapshot(client,updated)};
   await remember(client,state,body.requestId,signature,result);return result;

@@ -2,7 +2,7 @@ const {randomBytes}=require('node:crypto');
 const fail=(code,status=403)=>{throw Object.assign(new Error(code),{code,status});};
 function createRoomVideoGrants(authorize,{ttlMs=60000,maxGrants=1000,now=Date.now}={}){
  const grants=new Map();let timer,closed=false;
- const scope=(a,b)=>a.roomId===b.roomId&&a.assetId===b.assetId;
+ const scope=(a,b)=>a.roomId===b.roomId&&a.assetId===b.assetId&&(a.scopeKey??null)===(b.scopeKey??null);
  function revoke(token,g){grants.delete(token);for(const lease of g.leases)lease.abort();g.leases.clear();}
  function sweep(){for(const [token,g] of grants)if(g.expires<=now())revoke(token,g);}
  async function issue(actor){
@@ -26,6 +26,7 @@ function createRoomVideoGrants(authorize,{ttlMs=60000,maxGrants=1000,now=Date.no
   const release=lease.release;lease.release=()=>{g.leases.delete(lease);release();};g.leases.add(lease);return lease;
  }
  return {issue,read,revokeAsset(assetId){for(const [t,g] of grants)if(g.assetId===assetId)revoke(t,g);},
+  revokeConnection(connectionId){for(const [t,g] of grants)if(g.connectionId===connectionId)revoke(t,g);},
   revokeRoom(roomId){for(const [t,g] of grants)if(g.roomId===roomId)revoke(t,g);},
   close(){closed=true;clearInterval(timer);for(const [t,g] of grants)revoke(t,g);}};
 }

@@ -458,7 +458,7 @@ async function start() {
       if (!isDatabaseInitialized()) await initializeDatabase();
       console.log('Database initialized');
       if(process.env.ROOMS_ENABLED==='true')await require('./services/roomMediaRuntime').service.start();
-      if(process.env.ROOMS_ENABLED==='true')require('./services/roomPresentationRuntime').service.start();
+      if(process.env.ROOMS_ENABLED==='true')await require('./services/roomPresentationRuntime').service.start();
       if (!worldIntegrations.isRoomsMode()) {
         await require('./routes/uiControls').ensureDefaultControls();
         await autoFixWorldUrl();

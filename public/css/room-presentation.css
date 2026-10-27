@@ -46,3 +46,14 @@
 @media (max-width: 374px) {
   .room-presentation-dialog .presentation-paging { grid-template-columns: minmax(0,1fr); }
 }
+
+.presentation-video-commands { display: grid; gap: 12px; }
+.presentation-video-commands input, .presentation-video-local input { min-width: 0; width: 100%; min-height: 44px; accent-color: var(--color-primary-action); }
+.presentation-video-local { display: grid; gap: 8px; width: 100%; }
+.presentation-video-local label { display: grid; grid-template-columns: auto minmax(0,1fr); align-items: center; gap: 8px; }
+.presentation-video-local span { font-size: var(--font-size-meta); color: var(--color-text-muted); }
+.presentation-video-local [hidden], .presentation-video-commands[hidden] { display: none !important; }
+
+.presentation-video-commands input:focus-visible, .presentation-video-local input:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+
+.room-screen-preview .presentation-video-local { flex: none; box-sizing: border-box; padding: 8px 16px; }

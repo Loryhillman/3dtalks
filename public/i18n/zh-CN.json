@@ -5724,7 +5724,26 @@
     "pan": "屏幕预览。放大后可使用方向键滚动。",
     "localHint": "缩放和滚动仅影响您的视图。"
   },
+  "roomVideo": {
+    "retry": "重试播放",
+    "enable": "启用视频和声音",
+    "volume": "视频音量",
+    "time": "视频时间",
+    "seek": "视频进度",
+    "play": "播放",
+    "pause": "暂停",
+    "playing": "正在播放",
+    "paused": "已暂停",
+    "buffering": "视频加载中…",
+    "blocked": "请点击按钮允许播放。",
+    "failed": "视频播放失败，请检查连接后重试。",
+    "unavailable": "视频演示暂不可用。"
+  },
   "roomMaterials": {
+    "formatsVideo": "PDF 最大 20 MiB / 100 页；图片最大 8 MiB；MP4 H.264/AAC 最大 40 MiB、10 分钟、1080p/30 fps。",
+    "VIDEO_UNAVAILABLE": "视频演示暂不可用。",
+    "INVALID_VIDEO": "视频播放失败，请检查连接后重试。",
+    "UNSUPPORTED_VIDEO": "PDF 最大 20 MiB / 100 页；图片最大 8 MiB；MP4 H.264/AAC 最大 40 MiB、10 分钟、1080p/30 fps。",
     "title": "会议材料",
     "hint": "PDF 最大 20 MiB / 100 页；PNG、JPEG 或 WebP 最大 8 MiB。仅您可访问此资料库，预览仅供您查看。",
     "upload": "上传文件",
@@ -5775,6 +5794,7 @@
     "privateLibrary": "仅您可以访问已上传的材料。"
   },
   "roomPresentation": {
+    "VIDEO_UNAVAILABLE": "视频演示暂不可用。",
     "manage": "管理演示",
     "connecting": "正在连接屏幕…",
     "idle": "等待演示",

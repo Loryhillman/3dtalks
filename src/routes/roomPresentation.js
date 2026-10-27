@@ -1,6 +1,7 @@
 function createRoomPresentationRouter(presentation,media,authenticate=require('../middleware/auth').authenticateToken){
   const router=require('express').Router({mergeParams:true});
   router.use((_req,res,next)=>{res.set({'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Vary':'Authorization, X-Room-Session'});next();});
+  router.use('/materials/:assetId/video',require('./roomVideo').createPresentationVideoRouter(presentation,media,authenticate));
   router.use(authenticate);
   router.get('/materials/:assetId/content',async(req,res)=>{
     try{

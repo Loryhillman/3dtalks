@@ -40,14 +40,24 @@ async function presentationSync(connectionId,ws){
   if(ws.readyState!==WebSocket.OPEN)return;
   ws.send(JSON.stringify({type:'ROOM_PRESENTATION_SESSION',payload:data.session}));
   ws.send(JSON.stringify({type:'ROOM_PRESENTATION_STATE',payload:data.state}));
+  if(data.upgradeRequired&&ws.videoNoticeEpoch!==data.state.epoch){ws.videoNoticeEpoch=data.state.epoch;ws.send(JSON.stringify({type:'CHAT',payload:{sender:'3DTalks',message:'Обновите вкладку для просмотра видео / Refresh this tab to watch video / 请刷新页面以观看视频。'}}));}
+  if(typeof getPresentation().negotiate==='function')ws.send(JSON.stringify({type:'ROOM_PRESENTATION_AVAILABLE',payload:{protocolVersion:2}}));
 }
 function handlePresentation(connectionId,ws,type,body){
   if(process.env.APP_MODE!=='rooms')return;
-  const result=payload=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'ROOM_PRESENTATION_RESULT',payload}));};
+  const result=payload=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'ROOM_PRESENTATION_RESULT',payload:{...payload,...(payload.state?{state:getPresentation().wireState(connectionId,payload.state)}:{})}}));};
+  const receivedAtMs=Date.now();
   if((ws.presentationPending||0)>=2){result({requestId:body.requestId,success:false,code:'PRESENTATION_BUSY',status:429});return;}
   ws.presentationPending=(ws.presentationPending||0)+1;
   runRoomOperation(async()=>{
-    if(type==='ROOM_PRESENTATION_GET_STATE'){
+    if(type==='ROOM_PRESENTATION_CAPABILITIES'){
+      const capabilities=await getPresentation().negotiate(connectionId,body);
+      if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'ROOM_PRESENTATION_CAPABILITIES_RESULT',payload:capabilities}));
+      await presentationSync(connectionId,ws);
+    }else if(type==='ROOM_PRESENTATION_CLOCK'){
+      const clock=getPresentation().clock(connectionId,body,receivedAtMs);
+      if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'ROOM_PRESENTATION_CLOCK_RESULT',payload:clock}));
+    }else if(type==='ROOM_PRESENTATION_GET_STATE'){
       const protocol=require('../../public/js/roomPresentationProtocol');
       if(!protocol.keys(body,['requestId'])||!protocol.uuid(body.requestId))throw Object.assign(new Error('INVALID_COMMAND'),{code:'INVALID_COMMAND',status:400});
       await presentationSync(connectionId,ws);result({requestId:body.requestId,success:true});
@@ -399,6 +409,8 @@ function handleMessage(connectionId, ws, data) {
   const { type, payload } = data;
 
   switch (type) {
+    case 'ROOM_PRESENTATION_CAPABILITIES':
+    case 'ROOM_PRESENTATION_CLOCK':
     case 'ROOM_PRESENTATION_GET_STATE':
     case 'ROOM_PRESENTATION_COMMAND':
       handlePresentation(connectionId,ws,type,payload||{});
@@ -929,7 +941,14 @@ function broadcastToRoom(roomId, message) {
     if (player.roomId !== roomId) return;
     const client = activeConnections.get(connectionId);
     if (client?.readyState === WebSocket.OPEN) {
-      client.send(data);
+      if(message.type==='ROOM_PRESENTATION_STATE'){
+        const state=getPresentation().wireState(connectionId,message.payload);
+        client.send(JSON.stringify({...message,payload:state}));
+        if(message.payload.asset?.kind==='video'&&state.asset===null&&client.videoNoticeEpoch!==message.payload.epoch){
+          client.videoNoticeEpoch=message.payload.epoch;
+          client.send(JSON.stringify({type:'CHAT',payload:{sender:'3DTalks',message:'Обновите вкладку, чтобы смотреть видео / Refresh this tab to watch the video.'}}));
+        }
+      }else client.send(data);
       count++;
     }
   });

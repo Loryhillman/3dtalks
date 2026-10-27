@@ -5770,7 +5770,26 @@
     "pan": "Screen preview. Use arrow keys to scroll when zoomed in.",
     "localHint": "Zoom and scrolling change only your view."
   },
+  "roomVideo": {
+    "retry": "Retry playback",
+    "enable": "Enable video and sound",
+    "volume": "Video volume",
+    "time": "Video time",
+    "seek": "Video position",
+    "play": "Play",
+    "pause": "Pause",
+    "playing": "Playing",
+    "paused": "Paused",
+    "buffering": "Buffering video…",
+    "blocked": "Press the button to allow playback.",
+    "failed": "Could not play the video. Check your connection and retry.",
+    "unavailable": "Video presentation is unavailable."
+  },
   "roomMaterials": {
+    "formatsVideo": "PDF up to 20 MiB / 100 pages; images up to 8 MiB; MP4 H.264/AAC up to 40 MiB, 10 minutes, 1080p/30 fps.",
+    "VIDEO_UNAVAILABLE": "Video presentation is unavailable.",
+    "INVALID_VIDEO": "Could not play the video. Check your connection and retry.",
+    "UNSUPPORTED_VIDEO": "PDF up to 20 MiB / 100 pages; images up to 8 MiB; MP4 H.264/AAC up to 40 MiB, 10 minutes, 1080p/30 fps.",
     "title": "Room materials",
     "hint": "PDF up to 20 MiB / 100 pages; PNG, JPEG or WebP up to 8 MiB. Only you can access this library. Preview is local.",
     "upload": "Upload a file",
@@ -5821,6 +5840,7 @@
     "privateLibrary": "Only you can access uploaded materials."
   },
   "roomPresentation": {
+    "VIDEO_UNAVAILABLE": "Video presentation is unavailable.",
     "manage": "Manage presentation",
     "connecting": "Connecting screen…",
     "idle": "Waiting for presentation",

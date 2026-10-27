@@ -21,8 +21,8 @@
       reset(){pattern();updated();},
       message(text){ctx.fillStyle='#14253d';ctx.fillRect(0,0,w,h);ctx.fillStyle='#f2f7ff';ctx.textAlign='center';ctx.textBaseline='middle';
         ctx.font=`${Math.max(10,Math.min(w/28,h/10))}px sans-serif`;ctx.fillText(text,w/2,h/2,w*.9);updated();},
-      draw(source){ctx.fillStyle='#101010';ctx.fillRect(0,0,w,h);const scale=Math.min(w/source.width,h/source.height);
-        ctx.drawImage(source,(w-source.width*scale)/2,(h-source.height*scale)/2,source.width*scale,source.height*scale);updated();}
+      draw(source){const sw=source.videoWidth||source.width,sh=source.videoHeight||source.height;if(!sw||!sh)return;ctx.fillStyle='#101010';ctx.fillRect(0,0,w,h);const scale=Math.min(w/sw,h/sh);
+        ctx.drawImage(source,(w-sw*scale)/2,(h-sh*scale)/2,sw*scale,sh*scale);updated();}
     };
     const front=new THREE.Mesh(new THREE.PlaneGeometry(screen.width,screen.height),new THREE.MeshBasicMaterial({map:texture,toneMapped:false}));
     front.position.z=.025;group.add(front);

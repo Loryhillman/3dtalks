@@ -646,3 +646,17 @@ Compose передаёт flags=false, Dockerfile требует ffmpeg и нов
 PDF/image/presentation. Node 22/FFmpeg 4.4.2 WSL; Node20-Alpine/VPS gate ещё нужен.
 Рабочая БД/VPS не менялись; тестовая БД/файлы удалены. Push/deploy не выполнялись.
 Этап 3 (общая временная шкала и UI) требует согласования; подробности — раздел 10.
+
+
+По согласию выполнен этап 3 ROOM_MEDIA_V2_PLAN.md: opt-in V2 handshake через
+server AVAILABLE, owner timeline, connection-bound viewer grants, общий
+native video → прежний canvas и локальный звук/увеличение, MP4 в библиотеке.
+Флаги upload/playback подключены, default=false; PPTX ещё не реализован.
+Пройдены PostgreSQL18/HTTP/JWT/WS/ffprobe и Chromium: upload/private preview,
+2 клиента/late join/reconnect, play/pause/seek, blocked autoplay, volume,
+один общий decoder, canvas pixels, revoke/roles/races/replay/restart pause,
+удаление активного видео/end; V1/GLB/HUD/голосовая регрессия тоже прошла.
+Временные БД/файлы удалены, рабочая БД/VPS не менялись. Node20-Alpine, полная
+GLB-комната с включённым видео/6 viewers/медленная сеть/HTTPS и нагрузка ещё
+не проверены: этап 4 перед выпуском. Push/deploy не выполнялись. Продолжение
+по этапам согласуется; подробности/границы — раздел 11 плана.

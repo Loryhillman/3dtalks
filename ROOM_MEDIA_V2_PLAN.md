@@ -1,6 +1,6 @@
 # Материалы переговорной v2: видео и импорт PPTX
 
-Статус: этапы 1–2 реализованы, 27 октября 2026; общий видеопоказ/PPTX ещё недоступны.
+Статус: этапы 1–3 реализованы, 27 октября 2026; видео выключено флагами до release gate, PPTX ещё не реализован.
 База: eb45deb3 и последующие записи о развёртывании. V1 остаётся действующей.
 Задача: расширить существующие материалы/общий экран, не возвращая зависимости
 глобального мира и не создавая вторую медиатеку. План требует согласования
@@ -405,3 +405,124 @@ https://github.com/FFmpeg/FFmpeg/blob/master/doc/demuxers.texi
 
 Следующий согласуемый этап 3 — owner controls/загрузка в UI, переговорная
 video timeline, grant зрителя и единый playback на 3D-экране/увеличенном просмотре.
+
+
+## 11. Этап 3: общий видеопоказ и интерфейс
+
+Реализован в codex/room-media-v2. Используются прежние roomMedia,
+roomPresentation/Store, screen canvas и native dialogs. Отдельная медиатека,
+старые world/gallery модули и новый голосовой транспорт не добавлялись.
+ROOM_VIDEO_UPLOAD_ENABLED и ROOM_VIDEO_PLAYBACK_ENABLED теперь подключены
+к runtime; оба по умолчанию false. PPTX остаётся отдельным следующим этапом.
+
+### Совместимость и сервер
+
+Уточнение handshake к разделу 9: новый сервер сначала посылает адресный
+ROOM_PRESENTATION_AVAILABLE {protocolVersion:2}. Только получив это объявление,
+новый клиент отправляет CAPABILITIES и получает CAPABILITIES_RESULT.
+Поэтому новый клиент не шлёт неизвестные команды старому серверу и остаётся
+на V1; старый клиент игнорирует новое объявление. После переподключения
+согласование повторяется. Без ответа cap-ожидание ограничено пятью секундами;
+кнопка обновления состояния позволяет повторить согласование.
+
+Server Store возвращает канонический V2 для video и прежний V1 для slides.
+При synchronize, broadcast и RPC result wireState строится индивидуально
+для connectionId. Слайды V2 переиспользуют V1-поля с playback=null;
+V1-зрителю во время видео приходит пустой экран и текстовое уведомление
+об обновлении вкладки. Никому не передаётся чужой token/grant.
+
+Play/pause/seek, show/stop/page проходят прежние owner/claim/room/epoch/revision
+и SQL locks. Новые параметры входят в receipt signature; повтор не перематывает
+ролик заново, конкурирующие команды получают конфликт. Seek проверяется
+также по длительности выбранного файла. Show video ставит на паузу в начале;
+Play в конце запускает ролик заново. Стоп/подтверждённое удаление активного
+материала/end/delete сбрасывают timeline атомарно. При startup приложение
+ожидает SQL-восстановление: playing переводится в paused на ограниченной
+вычисленной позиции, без самопроизвольного звука и без переполнения int даже
+при очень старой дате anchor. Новая SQL-миграция сверх этапа 1 не требуется.
+
+CLOCK адресный, имеет отдельный ограниченный socket bucket (1/с, burst 4),
+общие packet/bytes/connection limits сохраняются. Это важно: первоначальные
+три clock samples не расходуют owner command allowance 2/с, burst 6.
+У clock нет SQL/journal-записи. Timeline не обновляется в БД по кадрам;
+вместо heartbeat revision используются надёжные WS-команды, clock samples
+и явная сверка при восстановлении соединения/возврате вкладки.
+
+### Приватный viewer stream
+
+POST /api/rooms/:slug/presentation/materials/:assetId/video/grant требует JWT,
+X-Room-Session, согласованный V2, включённый playback и текущий показ этого
+asset. Возвращает contentPath с connectionId (не bearer-secret) и expiresInMs;
+секрет выдаётся только в HttpOnly/Secure/SameSite=Strict cookie, Path ровно
+к этому connection/material content. GET/HEAD .../video/:viewId/content
+используют ту же ограниченную Range-выдачу этапа 2.
+
+Расширен прежний roomVideoGrants: scopeKey учитывает connection и slug;
+owner-preview grant остаётся отдельным scope. При каждом запросе проверяются
+живой socket, session, user, claim/expiry, epoch, room и текущий asset в SQL.
+Renewal каждые 20 секунд обновляет grant без обрыва потока. Disconnect/replaced,
+смена материала/stop/end отзывают grant и readers. На reconnect URL/cookie
+другие, прежний URL возвращает 403. Локальные source/таймеры/fetch освобождаются
+при disconnect/detach/stop/смене материала и закрытии private preview.
+
+### Клиент и дизайн
+
+- RoomVideoPlayback владеет одним native video/audio и callback кадров;
+  рисует в прежний screen canvas с сохранением пропорций. RoomScene сохраняет
+  владение canvas texture/geometry; второй VideoTexture не создаётся.
+- Увеличенный viewer получает те же кадры. Те же volume/enable элементы
+  временно перемещаются в dialog и возвращаются, без второго decoder/audio.
+  Tab включает range input, Escape/return focus и текущие zoom/pan сохраняются.
+- RoomVideoClock измеряет минимум RTT, работает через performance.now(),
+  ограничивает pending samples и чистит timers. После начала показа/seek/
+  reconnect player догоняет timeline; >750 мс — seek, 200–750 мс — rate
+  0.95–1.05, меньше — не корректируется. В скрытой вкладке рисование отменяется,
+  звук может продолжаться; при возврате повторяется grant/sync.
+- Владелец в прежнем dialog получает Play/Pause, доступный range и время.
+  Зритель управляет только своей громкостью; предпочтение сохраняется локально.
+  Заблокированный autoplay показывает явную кнопку разрешения; отказ/буферизация
+  имеют отдельный статус. Видео не вызывает voice/mouth events.
+- RoomMaterials определяет возможности через защищённый owner capabilities API,
+  предлагает MP4 при upload-флаге, показывает тип и native private preview.
+  Новые данные берутся через protocolVersion=2, старые списки/рендеры не ломаются.
+- RU/EN/zh-CN, прежние tokens/UI-button, 44 px targets, focus и существующие
+  dialog layouts. Глобальная структура панелей и App Shell не менялись.
+
+Обнаруженный интеграционной проверкой дефект late join исправлен: V1-проекция
+и V2-video могут иметь одинаковую revision. Дедупликация теперь учитывает
+также protocolVersion/assetId, поэтому первое video state не пропускается.
+
+### Проверки и оставшиеся gate
+
+PASS: test-room-video-timeline.js — clamping/pause/skew, best RTT, unsolicited
+clock replies, bounded pending и освобождение timers; test-room-media-v2-contract.js,
+test-room-video-grants.js, test-room-socket-policy.js (включая отдельный bucket).
+
+PASS на изолированной PostgreSQL 18: check-room-video-presentation.js с
+настоящими HTTP/JWT/WS/Multer/ffprobe и Chromium. Владелец загрузил MP4 через UI,
+посмотрел private preview и закрыл его с очисткой source. Два браузера:
+show/play/pause/seek, имитация NotAllowedError и enable-жест, независимая
+громкость, pixels обычного/увеличенного canvas, один активный decoder для
+общего экрана; поздний третий вход, reconnect с новым scope и 403 старого URL,
+stop cleanup. Также проверены V1 projection/уведомление, clock, соседняя комната,
+запрет зрителю командовать, SQL races/replay/seek bounds, restart pause,
+подтверждённое удаление активного видео и завершение комнаты с playing state.
+Временные БД/schema/файлы удалены; рабочая БД не мигрировалась.
+
+PASS: прежние check-room-video.js, check-room-media-v2-postgres.js,
+check-room-media.js, check-room-presentation.js; браузерные presentation/materials/
+screen и полный /play --builtin-v3 --human-avatars (реальные GLB, голос/рот,
+камера/сцена/выход, тестовые API). HUD 3 языка/9 размеров и socket regression
+также прошли. Просмотрены mobile/desktop скриншоты owner dialog.
+
+Новый общий видеосценарий использует настоящие серверные транспорты/БД и
+отгружаемые UI/Three screen canvas, но тестовая оболочка не загружает весь
+GLB-офис. Полная GLB-проверка выполнялась отдельно без включённого видео.
+Это не проверка шести одновременно декодирующих зрителей, медленной сети,
+реальных мобильных устройств/Safari/axe/полного 200% browser zoom.
+Node 22.22.2/FFmpeg 4.4.2 WSL; Node 20 Alpine/production HTTPS/нагрузка и
+совмещение с полной GLB-комнатой — обязательные gate этапа 4 перед выпуском.
+Docker/VPS не запускались и не разворачивались, GitHub push не выполнялся.
+
+Следующий согласуемый этап — 4: общая регрессия, нагрузка и подготовка выпуска
+видео. Сам выпуск требует отдельного поручения; PPTX — этапы 5–6.

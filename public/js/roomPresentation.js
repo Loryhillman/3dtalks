@@ -5,7 +5,10 @@
     const value=window.i18n?.t('roomPresentation.'+key);return value&&value!=='roomPresentation.'+key?value:window.i18n?.t('roomPresentation.commandFailed')||key;
   };
   let session=null,state=null,view=null,renderer=null,loadedKey=null,loading=null,draw=0,joined=false,closed=false,syncing=false;
-  let pending=null,syncTimer,manage,refresh,status,controlsBar,panel,panelController,errorText='';
+  let videoPlayer=null,clock=null,hasV2=false,negotiating=false,features={videoUpload:false,videoPlayback:false},videoKey=null;
+  const videoActive=()=>state?.asset?.kind==='video';
+  const timeMs=()=>videoActive()?RoomVideoTimeline.position(state.playback,state.asset.durationMs,clock?.now()??Date.now()):0;
+  let pending=null,syncTimer,capTimer,manage,refresh,status,controlsBar,panel,panelController,errorText='';
   const room=()=>window.ACTIVE_ROOM;
   const setText=(node,value)=>{if(node.textContent!==value)node.textContent=value;};
   const connected=()=>!closed&&joined&&window.WSClient?.isConnected();
@@ -15,15 +18,20 @@
   function controls(){
     if(manage){manage.style.display=session?.canControl?'':'none';manage.disabled=!connected()||syncing||!!pending;}
     if(refresh)refresh.disabled=!connected()||syncing;
-    if(status)status.textContent=errorText||(!session?t('connecting'):state?.asset?state.asset.name+' · '+(state.pageIndex+1)+' / '+state.asset.pageCount:t('idle'));
+    if(status)setText(status,errorText||(!session?t('connecting'):state?.asset?state.asset.name+(videoActive()?' · '+'MP4':' · '+(state.pageIndex+1)+' / '+state.asset.pageCount):t('idle')));
     if(panel){
       setText(panel.querySelector('[data-current]'),state?.asset?state.asset.name:t('idle'));
-      setText(panel.querySelector('[data-page]'),state?.asset?t('slide')+' '+(state.pageIndex+1)+' / '+state.asset.pageCount:'');
+      setText(panel.querySelector('[data-page]'),state?.asset?(videoActive()?'MP4':t('slide')+' '+(state.pageIndex+1)+' / '+state.asset.pageCount):'');
       const feedback=panel.querySelector('[data-feedback]');setText(feedback,errorText||(pending?t('pending'):syncing?t('syncing'):''));feedback.hidden=!feedback.textContent;feedback.classList.toggle('is-error',!!errorText);
       panel.querySelector('[data-commands]').setAttribute('aria-busy',String(!!pending));
       panel.querySelector('select').disabled=panel.dataset.libraryState!=='ready'||!!pending||syncing;
       for(const button of panel.querySelectorAll('[data-command]'))button.disabled=!connected()||!session?.canControl||syncing||!!pending||!view||!state;
       const previous=panel.querySelector('[data-command="previous"]'),next=panel.querySelector('[data-command="next"]');
+      previous.closest('.presentation-paging').hidden=videoActive();
+      panel.querySelector('.presentation-shortcuts').hidden=videoActive();
+      const videoControls=panel.querySelector('.presentation-video-commands');
+      if(videoControls){videoControls.hidden=!videoActive();const play=videoControls.querySelector('button');play.textContent=window.i18n.t('roomVideo.'+(state?.playback?.status==='playing'&&timeMs()<state.asset.durationMs?'pause':'play'));
+        const seek=videoControls.querySelector('input');seek.disabled=!!pending||syncing||!connected();if(videoActive()){const format=ms=>Math.floor(ms/60000)+':'+String(Math.floor(ms/1000)%60).padStart(2,'0');const position=format(timeMs())+' / '+format(state.asset.durationMs);setText(videoControls.querySelector('output'),position);seek.setAttribute('aria-valuetext',position);seek.max=state.asset.durationMs;if(document.activeElement!==seek)seek.value=Math.round(timeMs());}}
       previous.disabled ||= !state?.asset||state.pageIndex===0;next.disabled ||= !state?.asset||state.pageIndex>=state.asset.pageCount-1;
       panel.querySelector('[data-command="show"]').disabled ||= panel.dataset.libraryState!=='ready'||!panel.querySelector('select').options.length;
       panel.querySelector('[data-command="stop"]').disabled ||= !state?.asset;
@@ -36,23 +44,34 @@
     send('ROOM_PRESENTATION_GET_STATE',{requestId:P.requestId()});
     clearTimeout(syncTimer);syncTimer=setTimeout(()=>{syncing=false;report('syncFailed');},10000);
   }
-  function clearDocument(){++draw;loadedKey=null;loading=null;renderer?.clear();view?.reset();}
+  function clearDocument(){videoPlayer?.dispose();videoPlayer=null;videoKey=null;window.RoomScreenPreview?.refreshVideoControls?.();++draw;loadedKey=null;loading=null;renderer?.clear();view?.reset();}
   function disconnect(){
-    joined=false;session=state=null;syncing=false;clearTimeout(syncTimer);clearDocument();closePanel();
+    joined=false;session=state=null;hasV2=negotiating=false;clearTimeout(capTimer);clock?.close();clock=null;features={videoUpload:false,videoPlayback:false};syncing=false;clearTimeout(syncTimer);clearDocument();closePanel();
     window.RoomScreenPreview?.close();window.RoomMaterials?.close();
     if(pending){clearTimeout(pending.timer);pending.reject(Object.assign(Error(t('disconnected')),{code:'disconnected'}));pending=null;}
     errorText='';controls();
   }
   function acceptState(value){
-    if(!P.state(value)||!session||value.roomId!==room()?.id||value.epoch!==session.epoch)return;
+    if(!(value?.protocolVersion===2?window.RoomPresentationProtocolV2?.state(value):P.state(value))||!session||value.roomId!==room()?.id||value.epoch!==session.epoch)return;
     if(state&&BigInt(value.revision)<BigInt(state.revision))return;
-    const duplicate=state?.revision===value.revision&&!syncing;
+    const duplicate=state?.revision===value.revision&&state?.protocolVersion===value.protocolVersion&&state?.asset?.id===value.asset?.id&&!syncing;
     state=value;syncing=false;clearTimeout(syncTimer);errorText='';controls();
     if(!duplicate)renderLatest();
   }
   function renderLatest(){
     if(!view||!renderer||!session||!state||closed)return;
     const currentView=view,currentRenderer=renderer,currentKey=key(),ticket=++draw;
+    if(state.asset?.kind==='video'){
+      renderer.clear();loading=null;loadedKey=null;
+      if(!features.videoPlayback||!window.RoomVideoPlayback){view.message(window.i18n.t('roomVideo.unavailable'));return;}
+      if(videoKey===currentKey&&videoPlayer){videoPlayer.update(state);return;}
+      videoPlayer?.dispose();videoKey=currentKey;
+      const player=videoPlayer=new RoomVideoPlayback({view,clock:()=>clock?.now()??Date.now(),status:()=>controls()});
+      player.mount(controlsBar);window.RoomScreenPreview?.refreshVideoControls?.();player.update(state);view.message(t('loading'));
+      player.load({grantUrl:'/api/rooms/'+encodeURIComponent(room().slug)+'/presentation/materials/'+state.asset.id+'/video/grant',headers:{Authorization:'Bearer '+localStorage.getItem('token'),'X-Room-Session':session.token}}).catch(e=>{if(videoPlayer===player&&e.name!=='AbortError')report('renderFailed');});
+      return;
+    }
+    if(videoPlayer){videoPlayer.dispose();videoPlayer=null;videoKey=null;window.RoomScreenPreview?.refreshVideoControls?.();}
     if(!state.asset){loadedKey=null;loading=null;renderer.clear();view.reset();return;}
     if(currentKey!==loadedKey){
       if(loading?.key===currentKey)return;
@@ -83,7 +102,7 @@
     return new Promise((resolve,reject)=>{
       const timer=setTimeout(()=>{if(pending?.requestId!==requestId)return;pending=null;report('commandUnconfirmed');requestSnapshot();reject(Object.assign(Error(t('commandUnconfirmed')),{code:'commandUnconfirmed'}));},10000);
       pending={requestId,resolve,reject,timer};controls();
-      send('ROOM_PRESENTATION_COMMAND',{requestId,expectedEpoch:state.epoch,expectedRevision:state.revision,command});
+      send('ROOM_PRESENTATION_COMMAND',{...(hasV2?{protocolVersion:2}:{}),requestId,expectedEpoch:state.epoch,expectedRevision:state.revision,command});
     });
   }
   function openPanel(trigger){
@@ -113,7 +132,10 @@
     const commands=node('div','presentation-commands');commands.dataset.commands='';
     const paging=node('div','presentation-paging');paging.append(previous,next);
     const shortcutHint=node('p','presentation-hint presentation-shortcuts',t('keyboardHint'));shortcutHint.id='presentation-shortcuts';
-    paging.setAttribute('aria-describedby',shortcutHint.id);commands.append(show,paging,shortcutHint,stop);
+    paging.setAttribute('aria-describedby',shortcutHint.id);const videoCommands=node('div','presentation-video-commands');videoCommands.hidden=true;
+    const play=button('show',()=>command({type:state.playback.status==='playing'&&timeMs()<state.asset.durationMs?'pause':'play'}),'video-play');
+    const seek=node('input');seek.type='range';seek.min='0';seek.step='100';seek.setAttribute('aria-label',window.i18n.t('roomVideo.seek'));seek.onchange=()=>command({type:'seek',positionMs:Number(seek.value)}).catch(e=>report(e.code||'commandFailed'));
+    const videoTime=node('output');videoTime.setAttribute('aria-label',window.i18n.t('roomVideo.time'));videoTime.setAttribute('aria-live','off');videoCommands.append(play,seek,videoTime);commands.append(show,paging,shortcutHint,videoCommands,stop);
     body.append(node('p','presentation-hint',t('sharedHint')),now,label,libraryState,retry,commands,feedback,library);
     dialog.append(header,body);
     panelController=new AbortController();const signal=panelController.signal;
@@ -129,7 +151,7 @@
       if(!e.repeat&&!direction.disabled)direction.click();
     });
     dialog.addEventListener('keydown',e=>{if(e.key==='Tab'){
-      const nodes=[...dialog.querySelectorAll('button,select')].filter(n=>!n.disabled&&n.getClientRects().length),first=nodes[0],last=nodes.at(-1);
+      const nodes=[...dialog.querySelectorAll('button,select,input')].filter(n=>!n.disabled&&n.getClientRects().length),first=nodes[0],last=nodes.at(-1);
       if(!nodes.includes(document.activeElement)||!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
       else if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
     }});
@@ -137,7 +159,7 @@
       if(signal.aborted||panel!==dialog||dialog.dataset.libraryState==='loading')return;
       dialog.dataset.libraryState='loading';libraryState.textContent=t('libraryLoading');retry.hidden=true;select.replaceChildren();selectedName.textContent='';controls();
       try{
-        const response=await fetch('/api/my/rooms/'+room().id+'/materials',{headers:{Authorization:'Bearer '+localStorage.getItem('token')},signal,cache:'no-store'});
+        const response=await fetch('/api/my/rooms/'+room().id+'/materials'+(hasV2&&features.videoUpload?'?protocolVersion=2':''),{headers:{Authorization:'Bearer '+localStorage.getItem('token')},signal,cache:'no-store'});
         if(!response.ok){if([401,403].includes(response.status))dialog.close();throw Error('libraryFailed');}
         const data=await response.json();if(panel!==dialog||signal.aborted||!dialog.open)return;
         for(const asset of data.materials.filter(a=>a.state==='ready')){const option=document.createElement('option');option.value=asset.id;option.textContent=asset.name;select.append(option);}
@@ -167,7 +189,13 @@
   function detach(){closePanel();clearDocument();renderer=null;view=null;controlsBar?.remove();controlsBar=manage=refresh=status=null;}
   function message(type,payload){
     if(closed)return;
-    if(type==='ROOM_PRESENTATION_SESSION'){
+    if(type==='ROOM_PRESENTATION_AVAILABLE'){
+      if(window.RoomPresentationProtocolV2?.capabilities(payload)&&window.RoomVideoPlayback&&!hasV2&&!negotiating){negotiating=true;clearTimeout(capTimer);capTimer=setTimeout(()=>{negotiating=false;},5000);send('ROOM_PRESENTATION_CAPABILITIES',{protocolVersion:2});}
+    }else if(type==='ROOM_PRESENTATION_CAPABILITIES_RESULT'){
+      if(!window.RoomPresentationProtocolV2?.capabilitiesResult(payload))return;
+      features=payload.features;hasV2=true;negotiating=false;clearTimeout(capTimer);clock?.close();clock=null;if(features.videoPlayback){clock=new RoomVideoClock(send);clock.start();}controls();
+    }else if(type==='ROOM_PRESENTATION_CLOCK_RESULT'){clock?.message(payload);
+    }else if(type==='ROOM_PRESENTATION_SESSION'){
       if(!P.session(payload)||payload.roomId!==room()?.id)return;
       if(session?.token!==payload.token){state=null;clearDocument();}
       session=payload;if(!session.canControl)closePanel();controls();
@@ -181,6 +209,12 @@
     }
   }
   window.RoomPresentation={attach,detach,message,disconnected:disconnect,
+    borrowVideoControls(source,dialog){
+      if(source!==view?.canvas||!videoPlayer?.box)return;
+      const player=videoPlayer,box=player.box,parent=box.parentElement;
+      dialog.insertBefore(box,dialog.lastElementChild);
+      return ()=>{if(videoPlayer===player&&parent?.isConnected&&!closed)parent.append(box);};
+    },
     joined(){joined=true;if(!session)requestSnapshot();},
     stop(){disconnect();closed=true;detach();}
   };
