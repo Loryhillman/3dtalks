@@ -559,3 +559,12 @@ GET/save/WS; default 1, внешность/настройка обновляют
 Общая AvatarAudioSignal.calibrate в preview/комнате ограничивает итог 0,85;
 не менять громкость звука и не передавать тестовую запись. Lifecycle/лимиты и
 проверки — MEETING_AVATAR_INTEGRATION.md, раздел 4. Рабочие комнаты не менять.
+
+27 октября по прямому запросу пользователя c1032d08 развёрнут на HTTPS VPS.
+Backup /opt/3dtalks-backups/3dtalks-20261027T075025Z, прежний образ сохранён.
+Проверены реальные HTTP/SQL/JWT/WS двух временных аккаунтов: GLB/посадка,
+запись/replay в кабинете, сохранение gain, общий voice playback/рот/reset/выход.
+Аккаунты удалены, выделенная комната архивирована через API, рабочие данные
+не использованы. Это synthetic audio/microphone, не физические устройства.
+Сведения и caveat отката mode:builtin — SERVER_DEPLOYMENT.md. GitHub push
+не выполнялся; история передана на VPS через bundle.
