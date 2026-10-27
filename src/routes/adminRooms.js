@@ -7,6 +7,7 @@ const { MAIN_ROOM_ID } = require('../services/roomScope');
 
 const router = express.Router();
 router.use(authenticateAdminToken);
+router.get('/avatar-catalog',(_req,res)=>{const catalog=require('../services/avatarCatalog');res.json({presets:catalog.listPresets(),defaultConfig:catalog.presetConfig(catalog.DEFAULT_ID)});});
 require('./adminRoomSeats').registerRoomSeatRoutes(router, pool, logAdminAction);
 require('./adminRoomTemplates').registerRoomTemplateRoutes(router, pool, logAdminAction);
 
@@ -300,10 +301,10 @@ router.post('/', async (req, res) => {
     const roomResult = await client.query(`
       INSERT INTO rooms
         (creation_key, slug, name, created_by_admin_id, capacity,
-         template_key, template_version, seating_mode, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft') RETURNING *
+         template_key, template_version, seating_mode, status, avatar_scale)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft', $9) RETURNING *
     `, [creationKey, slug, name, req.adminUser.id, capacity, template.template_key, template.version,
-      seatCount ? 'seated' : 'free']);
+      seatCount ? 'seated' : 'free',template.avatar_scale??1]);
     const room = roomResult.rows[0];
 
     await populateRoom(client, room, template, { adminId: req.adminUser.id });

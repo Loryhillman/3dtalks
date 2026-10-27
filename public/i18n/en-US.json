@@ -5331,7 +5331,19 @@
     "environmentHuman": "Seated avatar as a size reference",
     "environmentHumanHint": "The avatar keeps its game size when the office is resized. X/Z offset it from the room center; Y is the seat point above the chosen floor. This reference does not create a seat.",
     "environmentHumanYaw": "Avatar rotation, degrees",
-    "environmentHumanFocus": "Focus on the avatar"
+    "environmentHumanFocus": "Focus on the avatar",
+    "avatarCalibration": "Character size",
+    "avatarScaleHint": "Choose a seat to see a character in its actual chair. Shared scale is saved for new rooms. Furniture and seat positions stay fixed.",
+    "avatarScale": "Character scale",
+    "avatarScaleReset": "Reset to 1×",
+    "avatarModel": "Preview character",
+    "avatarDefault": "Default character",
+    "avatarSeat": "Preview seat",
+    "avatarChooseSeat": "Choose a seat",
+    "avatarFront": "Front",
+    "avatarSide": "Side",
+    "avatarOverview": "Overview",
+    "avatarCheck": "Check hips against the seat, feet against the floor, shoulders and table edge. Fit is visual; body intersections are not checked automatically. Front/side views temporarily hide other chairs; Overview restores them."
   },
   "roomSeatsEditor": {
     "title": "Seats",

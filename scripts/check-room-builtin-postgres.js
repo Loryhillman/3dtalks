@@ -39,7 +39,7 @@ async function main() {
           scale_x float DEFAULT 1,scale_y float DEFAULT 1,scale_z float DEFAULT 1,
           has_collision boolean,created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now());`);
       for (const file of ['add_rooms.sql', 'add_room_seats.sql', 'add_user_rooms.sql',
-        'add_room_template_editor.sql', 'add_independent_room_seats.sql', 'add_room_environment.sql',
+        'add_room_template_editor.sql', 'add_independent_room_seats.sql', 'add_room_environment.sql', 'add_room_avatar_scale.sql',
         'add_room_builtin_bundles.sql', 'add_room_builtin_bundles.sql',
         'add_room_presentation_screen.sql', 'add_room_presentation_screen.sql']) {
         await pool.query(await fs.readFile(path.resolve(__dirname, '../database/migrations', file), 'utf8'));
@@ -67,7 +67,7 @@ async function main() {
       assert(template.layout.every(i => i.model_id >= 101), 'server IDs must not be reused');
       assert.equal((await pool.query('SELECT * FROM uploaded_models')).rows.length, 3);
       assert.equal((await pool.query('SELECT * FROM room_template_model_refs')).rows.length, 3);
-      await assert.rejects(pool.query('DELETE FROM uploaded_models'), error => error.code === '23503');
+      await assert.rejects(pool.query('DELETE FROM uploaded_models'), error => ['23503','23001'].includes(error.code));
       const file = path.join(options.publicDir, template.layout[1].model_path);
       await fs.unlink(file);
       assert.equal((await ensureBuiltinMeeting(pool, {publicDir:options.publicDir})).status, 'present');

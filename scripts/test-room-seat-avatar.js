@@ -5,6 +5,7 @@ const context = { console, URL }; context.window = context;
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(require.resolve('../public/js/lib/three.min.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(require.resolve('../public/js/avatarRig.js'), 'utf8'), context);
+vm.runInContext(fs.readFileSync(require.resolve('../public/js/roomAvatarScale.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(require.resolve('../public/js/roomSeatAvatar.js'), 'utf8'), context);
 const T = context.THREE;
 // First frames and failed GLB downloads must render the procedural avatar.
@@ -48,6 +49,10 @@ const position = model.position.clone(), rotation = head.quaternion.clone();
 for (let i=0;i<100;i++) pose();
 assert.ok(model.position.distanceTo(position) < 1e-7, 'pose must not drift between frames');
 assert.ok(head.quaternion.angleTo(rotation) < 1e-7, 'head rotation must not accumulate');
+group.userData.roomAvatarScale=1.4;
+for(let i=0;i<100;i++)pose();
+assert.equal(group.scale.x,1.4);
+assert.ok(hips.getWorldPosition(new T.Vector3()).distanceTo(group.getWorldPosition(new T.Vector3()))<1e-7,'scale stays anchored to the seat');
 // A differently oriented bone must turn in the participant frame, not its local axes.
 const fullGroup = new T.Group(), fullModel = new T.Group(); fullGroup.add(fullModel);
 fullGroup.rotation.y = .7;

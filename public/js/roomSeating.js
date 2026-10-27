@@ -90,6 +90,7 @@
     data.group.position.set(assigned.position.x, assigned.position.y, assigned.position.z);
     data.group.quaternion.set(assigned.orientation.x, assigned.orientation.y, assigned.orientation.z, assigned.orientation.w);
     data.group.userData.roomSeat = assigned;
+    data.group.userData.roomAvatarScale = window.RoomAvatarScale?.resolve(room?.avatar_scale)??1;
   }
   function render() {
     if (!map) return;

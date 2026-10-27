@@ -27,7 +27,7 @@ async function main() {
         rotation_x float DEFAULT 0,rotation_y float DEFAULT 0,rotation_z float DEFAULT 0,
         scale_x float DEFAULT 1,scale_y float DEFAULT 1,scale_z float DEFAULT 1,has_collision boolean,
         created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now());`);
-    for (const file of ['add_rooms.sql','add_room_seats.sql','add_user_rooms.sql','add_room_template_editor.sql','add_room_template_editor.sql','add_independent_room_seats.sql','add_independent_room_seats.sql','add_room_environment.sql','add_room_environment.sql']) {
+    for (const file of ['add_rooms.sql','add_room_seats.sql','add_user_rooms.sql','add_room_template_editor.sql','add_room_template_editor.sql','add_independent_room_seats.sql','add_independent_room_seats.sql','add_room_environment.sql','add_room_environment.sql','add_room_avatar_scale.sql','add_room_avatar_scale.sql']) {
       await pool.query(readFileSync(path.join(__dirname, '../database/migrations', file), 'utf8'));
     }
     await pool.query("INSERT INTO admin_users VALUES (1); INSERT INTO uploaded_models VALUES (1,'/models/uploaded/check.glb','glb')");
@@ -38,6 +38,7 @@ async function main() {
     const rooms = createUserRoomService(pool, (id, db) => validateRoom(id, db, stat));
     const createRoom = () => rooms.create(owner, { name: 'Fixture', capacity: 6, request_key: randomUUID() });
     const before = (await createRoom()).room;
+    assert.equal(before.avatar_scale,1);
     const beforeObjects = (await pool.query('SELECT * FROM world_objects WHERE room_id=$1 ORDER BY id', [before.id])).rows;
     const [a,b] = await Promise.all([service.getDraft('meeting-six', 1), service.getDraft('meeting-six', 1)]);
     assert.equal(a.revision, b.revision);
@@ -46,6 +47,9 @@ async function main() {
     unsupported.layout.find(i=>i.kind==='chair').components = [{ type: 'unsupported' }];
     await assert.rejects(service.save('meeting-six', unsupported, 1), { code:'INVALID_TEMPLATE' });
     const chair = a.layout.find(i => i.kind === 'chair');
+    for(const avatar_scale of [0,2.01,'1.2',null,NaN])await assert.rejects(service.save('meeting-six',{...a,avatar_scale},1),{code:'INVALID_TEMPLATE'});
+    await assert.rejects(pool.query('UPDATE rooms SET avatar_scale=0 WHERE id=$1',[before.id]),e=>e.code==='23514');
+    a.avatar_scale=1.35;
     const seat = JSON.parse(JSON.stringify(chair.seats));
     Object.assign(chair, { type:'uploaded_model',model_id:1,model_path:'https://untrusted.invalid/x.glb',
       rotation:{x:.1,y:.2,z:.3},scale:{x:1.1,y:1.2,z:1.3} });
@@ -74,6 +78,12 @@ async function main() {
     const envelopeSnapshot=(await pool.query("SELECT layout FROM room_templates WHERE template_key='meeting-six' AND version=4")).rows[0].layout.find(i=>i.type==='room_shell');
     assert(envelopeSnapshot);assert.equal(envelopeSnapshot.envelope.width,23.8);
     const after = (await createRoom()).room;
+    assert.equal(after.avatar_scale,1.35);
+    assert.equal((await pool.query('SELECT avatar_scale FROM rooms WHERE id=$1',[before.id])).rows[0].avatar_scale,1,'old room snapshot keeps its scale');
+    assert.equal((await pool.query("SELECT avatar_scale FROM room_templates WHERE template_key='meeting-six' AND version=3")).rows[0].avatar_scale,1);
+    const savedDraft=await service.getDraft('meeting-six',1);assert.equal(savedDraft.avatar_scale,1.35);
+    const {avatar_scale:omitted,...oldClient}=savedDraft;
+    assert.equal((await service.save('meeting-six',oldClient,1)).avatar_scale,1.35,'older clients do not erase calibration');
     assert.equal(after.template_version, 4);
     const object = (await pool.query("SELECT * FROM world_objects WHERE room_id=$1 AND type='uploaded_model'", [after.id])).rows[0];
     assert.equal(object.model_path, '/models/uploaded/check.glb');

@@ -23,7 +23,7 @@ app.get('/models/uploaded/:file',async(req,res)=>{
  res.type('model/gltf-binary').send(officeGlb({units:1000}));
 });
 app.all('/api/config/language',(_req,res)=>res.json({language:'en-US'}));
-app.get('/api/my/avatar/catalog',(_req,res)=>{
+app.get('/api/admin/rooms/avatar-catalog',(_req,res)=>{
  if(failAvatarCatalog)return res.sendStatus(503);
  const catalog=require('../src/services/avatarCatalog');res.json({presets:catalog.listPresets(),defaultConfig:catalog.presetConfig(catalog.DEFAULT_ID)});
 });

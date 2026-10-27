@@ -5,8 +5,8 @@
     if (!pending) pending = (async () => {
       const controller = new AbortController(), deadline = setTimeout(() => controller.abort(), 15000);
       try {
-        const response = await fetch('/api/my/avatar/catalog', {signal:controller.signal,
-          headers:{Authorization:'Bearer '+(localStorage.getItem('token')||'')}});
+        const response = await fetch('/api/admin/rooms/avatar-catalog', {signal:controller.signal,
+          headers:{Authorization:'Bearer '+(localStorage.getItem('adminToken')||'')}});
         if (!response.ok) throw Error('AVATAR_CATALOG_UNAVAILABLE');
         const data = await response.json();
         if (data.defaultConfig?.mode !== 'builtin' || !data.defaultConfig.asset?.path) throw Error('INVALID_AVATAR_CATALOG');
@@ -17,10 +17,12 @@
   }
   window.BuiltinAvatarCatalog = {
     load,
-    async applyDefault(group) {
+    async applyDefault(group,id) {
       const data = await load();
       if (!group.parent) return;
-      await window.UserAvatarRenderer.apply(group,data.defaultConfig);
+      const config=id?data.presets.find(p=>p.id===id)?.config:data.defaultConfig;
+      if(!config)throw Error('INVALID_AVATAR_PRESET');
+      await window.UserAvatarRenderer.apply(group,config);
       if (group.userData.accountAvatarError) throw Error(group.userData.accountAvatarError);
     }
   };

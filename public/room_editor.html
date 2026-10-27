@@ -44,6 +44,16 @@
       <button id="show-objects" type="button" data-i18n="roomEditor.objects">Предметы</button>
       <button id="show-seats" type="button" data-i18n="roomSeatsEditor.title">Посадочные места</button>
     </div>
+      <details id="avatar-calibration-panel" hidden>
+        <summary data-i18n="roomEditor.avatarCalibration">Размер персонажей</summary>
+        <p data-i18n="roomEditor.avatarScaleHint">Выберите место: персонаж сидит на настоящем кресле. Настройка общая для новых комнат; мебель и точки мест не меняются.</p>
+        <label><span data-i18n="roomEditor.avatarScale">Масштаб персонажей</span><input id="room-avatar-scale" type="range" min="0.5" max="2" step="0.05" value="1"><output id="room-avatar-scale-value" for="room-avatar-scale">1.00×</output></label>
+        <button id="room-avatar-scale-reset" type="button" data-i18n="roomEditor.avatarScaleReset">Вернуть 1×</button>
+        <label><span data-i18n="roomEditor.avatarModel">Модель для проверки</span><select id="calibration-avatar"><option value="" data-i18n="roomEditor.avatarDefault">Стандартный персонаж</option></select></label>
+        <label><span data-i18n="roomEditor.avatarSeat">Место для проверки</span><select id="calibration-seat"></select></label>
+        <div class="row"><button id="calibration-front" type="button" data-i18n="roomEditor.avatarFront">Спереди</button><button id="calibration-side" type="button" data-i18n="roomEditor.avatarSide">Сбоку</button><button id="calibration-overview" type="button" data-i18n="roomEditor.avatarOverview">Общий вид</button></div>
+        <p id="calibration-hint" role="status" data-i18n="roomEditor.avatarCheck">Проверьте таз у сиденья, стопы у пола, плечи и край стола. Подгонка визуальная; пересечения тела не проверяются автоматически.</p>
+      </details>
     <section id="room-panel" hidden>
       <p id="room-shell-hint" data-i18n="roomEnvelope.hint">Выберите поверхность в списке или нажмите на неё в сцене. Окна и двери добавляются как обычные модели.</p>
       <div id="room-surface-list"></div>
@@ -223,16 +233,16 @@
   <script src="js/avatarBase.js?v=1"></script>
   <script src="js/avatarRig.js?v=2"></script>
   <script src="js/userAvatarRenderer.js?v=4"></script>
-  <script src="js/builtinAvatarCatalog.js?v=1"></script>
-  <script src="js/roomSeatAvatar.js?v=5"></script>
+  <script src="js/builtinAvatarCatalog.js?v=2"></script>
+  <script src="js/roomAvatarScale.js?v=1"></script><script src="js/roomSeatAvatar.js?v=6"></script>
   <script src="js/roomEnvelopeEditor.js?v=2"></script>
   <script src="js/roomSeatLabels.js?v=1"></script>
   <script src="js/roomSeatCoordinates.js?v=1"></script>
   <script src="js/roomObjectScale.js?v=1-screen"></script>
-  <script src="js/roomTemplateSession.js?v=6-screen"></script>
+  <script src="js/roomTemplateSession.js?v=7-avatar-scale"></script>
   <script src="js/roomSeatEditor.js?v=6-screen"></script>
   <script src="js/roomModelUpload.js?v=2"></script>
   <script src="js/roomEnvironmentEditor.js?v=1"></script>
-  <script src="js/roomEditor.js?v=14-human-avatars"></script>
+  <script src="js/roomEditor.js?v=15-avatar-scale"></script>
 </body>
 </html>

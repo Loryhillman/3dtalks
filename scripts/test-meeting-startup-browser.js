@@ -25,6 +25,7 @@ json=Buffer.concat([json,Buffer.alloc((4-json.length%4)%4,32)]);
 const header=Buffer.alloc(20);header.writeUInt32LE(0x46546c67,0);header.writeUInt32LE(2,4);header.writeUInt32LE(28+json.length+binary.length,8);header.writeUInt32LE(json.length,12);header.writeUInt32LE(0x4e4f534a,16);
 const binHeader=Buffer.alloc(8);binHeader.writeUInt32LE(binary.length,0);binHeader.writeUInt32LE(0x004e4942,4);const chairGlb=Buffer.concat([header,json,binHeader,binary]);
 const room={id:'fixture-room',slug:'fixture',name:'Meeting fixture',status:'open',capacity:6,seating_mode:'seated',spawn_position:{x:0,y:1,z:0}};
+if(humanMode)room.avatar_scale=1.4;
 const server=http.createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://fixture').pathname;
  if(bundledFiles.has(url)){res.setHeader('Content-Type','model/gltf-binary');res.end(bundledFiles.get(url));return;}
@@ -201,6 +202,7 @@ let browser;
    WSClient.handleMessage({type:'WORLD_STATE',payload:{players:entries}});
   },{male:humanConfig,female:presetConfig('female-neutral-v1')});
   await page.waitForFunction(()=>gameWorld.players.size===6&&[...gameWorld.players.values()].every(p=>p.group.userData.accountAvatarRoot?.children.length&&p.group.userData.roomSeatRig?.supported));
+  assert(await page.evaluate(()=>[...gameWorld.players.values()].every(({group})=>{group.updateWorldMatrix(true,true);return group.scale.x===1.4&&group.userData.roomSeatRig.found.hips.getWorldPosition(new THREE.Vector3()).distanceTo(group.getWorldPosition(new THREE.Vector3()))<1e-6;})),'room snapshot scales every seated participant around its hips');
   const audio=require('./avatar-lab-audio-fixture').wav().toString('base64');
   await page.evaluate(audio=>WSClient.handleMessage({type:'VOICE_MESSAGE',payload:{characterId:'peer',audio,durationMs:3000}}),audio);
   await page.waitForFunction(()=>{let open=false;gameWorld.players.get('peer').group.traverse(n=>{const i=n.morphTargetDictionary?.viseme_aa;if(i!==undefined&&n.morphTargetInfluences[i]>.1)open=true;});return open;});

@@ -99,6 +99,7 @@ function createRoomTemplateEditor(pool, stat = fs.stat, { readFile = fs.readFile
     for (const id of ids) await client.query('INSERT INTO room_template_draft_model_refs(template_key,model_id) VALUES ($1,$2)', [key,id]);
   }
   function payload(body) {
+    if(body?.avatar_scale!==undefined&&!require('../../public/js/roomAvatarScale').valid(body.avatar_scale))fail('INVALID_TEMPLATE','Масштаб персонажей должен быть от 0,5 до 2',400);
     if (!body || !Number.isInteger(body.revision) || body.revision < 1 || typeof body.name !== 'string' ||
         !body.name.trim() || body.name.trim().length > 120 || !Array.isArray(body.layout) ||
         body.layout.length < 1 || body.layout.length > 100 || JSON.stringify(body.layout).length > 500000) {
@@ -115,8 +116,8 @@ function createRoomTemplateEditor(pool, stat = fs.stat, { readFile = fs.readFile
       if (!template) fail('TEMPLATE_NOT_FOUND', 'Шаблон не найден', 404);
       const layout = template.layout.map((item, i) => ({ ...item, editor_id: i + 1 }));
       const ids = await models(client, layout);
-      draft = (await client.query(`INSERT INTO room_template_drafts(template_key,name,layout,base_version,updated_by)
-        VALUES ($1,$2,$3::jsonb,$4,$5) RETURNING *`, [key,template.name,JSON.stringify(layout),template.version,adminId])).rows[0];
+      draft = (await client.query(`INSERT INTO room_template_drafts(template_key,name,layout,base_version,updated_by,avatar_scale)
+        VALUES ($1,$2,$3::jsonb,$4,$5,$6) RETURNING *`, [key,template.name,JSON.stringify(layout),template.version,adminId,template.avatar_scale??1])).rows[0];
       await refs(client, key, ids);
       return normalizeDraft(draft);
     });
@@ -130,8 +131,8 @@ function createRoomTemplateEditor(pool, stat = fs.stat, { readFile = fs.readFile
       const ids = await models(client, layout);
       if (!validLayout(layout)) fail('INVALID_TEMPLATE', 'Проверьте размеры, координаты и уникальные названия мест', 400);
       const updated = (await client.query(`UPDATE room_template_drafts SET name=$2,layout=$3::jsonb,
-        revision=revision+1,updated_by=$4,updated_at=now() WHERE template_key=$1 RETURNING *`,
-      [key,body.name.trim(),JSON.stringify(layout),adminId])).rows[0];
+        revision=revision+1,updated_by=$4,avatar_scale=$5,updated_at=now() WHERE template_key=$1 RETURNING *`,
+      [key,body.name.trim(),JSON.stringify(layout),adminId,body.avatar_scale??draft.avatar_scale??1])).rows[0];
       await refs(client, key, ids);
       return updated;
     });
@@ -154,8 +155,8 @@ function createRoomTemplateEditor(pool, stat = fs.stat, { readFile = fs.readFile
         item.seats = (item.seats || []).map(({ id, object_id, room_id, ...seat }) => seat);
       }
       const version = latest.version + 1;
-      const template = (await client.query(`INSERT INTO room_templates(template_key,version,name,layout)
-        VALUES ($1,$2,$3,$4::jsonb) RETURNING id`, [key,version,draft.name,JSON.stringify(layout)])).rows[0];
+      const template = (await client.query(`INSERT INTO room_templates(template_key,version,name,layout,avatar_scale)
+        VALUES ($1,$2,$3,$4::jsonb,$5) RETURNING id`, [key,version,draft.name,JSON.stringify(layout),draft.avatar_scale??1])).rows[0];
       for (const id of ids) await client.query('INSERT INTO room_template_model_refs(template_id,model_id) VALUES ($1,$2)', [template.id,id]);
       const updated = (await client.query(`UPDATE room_template_drafts SET base_version=$2,published_revision=revision
         WHERE template_key=$1 RETURNING *`, [key,version])).rows[0];

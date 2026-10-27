@@ -11,9 +11,54 @@
   let environmentHelper, environmentSignature, framedEnvironment, frameId, environmentProposal, seatAvatar;
   let placementIssues=[];
   let editorStopped=false;
+  let calibrationSeatsSignature='',calibrationView=false;
+  const calibrationHidden=new Map();
+  function restoreCalibrationFurniture(){for(const [group,visible] of calibrationHidden)if(group.parent)group.visible=visible;calibrationHidden.clear();}
+  function endCalibrationView(){restoreCalibrationFurniture();calibrationView=false;if(environmentHelper)environmentHelper.visible=!environmentProposal&&!preview&&document.getElementById('environment-bounds').checked;}
+  const calibrationScale=()=>RoomAvatarScale.resolve(template?.draft?.avatar_scale??room?.avatar_scale);
+  function syncCalibration(){
+    document.getElementById('avatar-calibration-panel').hidden=!template;
+    document.getElementById('room-avatar-scale').value=String(calibrationScale());
+    document.getElementById('room-avatar-scale-value').textContent=calibrationScale().toFixed(2)+'×';
+    const signature=JSON.stringify(seatPreview.map(s=>[s.id,s.label]));
+    const select=document.getElementById('calibration-seat');
+    if(signature!==calibrationSeatsSignature){
+      calibrationSeatsSignature=signature;select.replaceChildren(new Option(tr('avatarChooseSeat','Выберите место'),''));
+      seatPreview.forEach((s,i)=>select.add(new Option(s.label,String(i))));
+    }
+    select.value=selectedSeat<0?'':String(selectedSeat);
+    for(const angle of ['front','side','overview'])document.getElementById('calibration-'+angle).disabled=selectedSeat<0;
+  }
+  function changeAvatarScale(value){
+    if(!template||busy||preview||!RoomAvatarScale.valid(value))return;
+    template.draft.avatar_scale=value;template.room.avatar_scale=value;if(room)room.avatar_scale=value;
+    template.changed();renderSeatPreview();
+  }
+  document.getElementById('room-avatar-scale').oninput=event=>changeAvatarScale(Number(event.target.value));
+  document.getElementById('room-avatar-scale-reset').onclick=()=>changeAvatarScale(1);
+  document.getElementById('calibration-seat').onchange=event=>{
+    if(!template||busy||event.target.value==='')return;
+    document.getElementById('seat-avatar-preview').checked=true;
+    window.dispatchEvent(new CustomEvent('room-seat-picked',{detail:Number(event.target.value)}));
+  };
+  document.getElementById('calibration-avatar').onchange=()=>{
+    for(const group of [seatAvatar,environmentHuman])if(group)loadReference(group);
+  };
+  function focusCalibration(angle){
+    const seat=seatPreview[selectedSeat];if(!seat||!template||busy)return;
+    restoreCalibrationFurniture();
+    if(angle!=='overview')for(const entry of objects.values())if(entry.data.template_kind==='chair'&&entry.data.id!==seat.object_id){calibrationHidden.set(entry.group,entry.group.visible);entry.group.visible=false;}
+    const pose=RoomSeatCoordinates.world(seat,window.RoomEditorObjects.get(seat.object_id)),scale=calibrationScale();
+    const target=new THREE.Vector3(pose.position.x,pose.position.y+.35*scale,pose.position.z);
+    const offset=angle==='front'?new THREE.Vector3(0,.8,4):angle==='side'?new THREE.Vector3(4,.8,0):new THREE.Vector3(3,3,3);
+    offset.multiplyScalar(scale).applyEuler(new THREE.Euler(pose.rotation.x,pose.rotation.y,pose.rotation.z));
+    calibrationView=true;renderSeatPreview();transform.detach();orbit.target.copy(target);camera.position.copy(target).add(offset);orbit.update();
+  }
+  for(const angle of ['front','side','overview'])document.getElementById('calibration-'+angle).onclick=()=>focusCalibration(angle);
   function referenceStatus() {
     const data=[seatAvatar,environmentHuman].filter(Boolean).map(group=>group.userData);
     const failed=data.some(entry=>entry.editorAvatarError),loading=data.some(entry=>entry.editorAvatarLoading);
+    document.getElementById('calibration-avatar').disabled=loading;
     document.getElementById('reference-avatar-message').hidden=!failed&&!loading;
     document.getElementById('reference-avatar-status').textContent=window.i18n?.t('avatar.'+(failed?'referenceError':'loading'))||'';
     document.getElementById('reference-avatar-retry').hidden=!failed;
@@ -21,8 +66,11 @@
   function loadReference(group) {
     if(editorStopped||group.userData.editorAvatarLoading)return;
     group.userData.editorAvatarLoading=true;group.userData.editorAvatarError=false;referenceStatus();
-    window.BuiltinAvatarCatalog.applyDefault(group).then(()=>{
+    window.BuiltinAvatarCatalog.applyDefault(group,document.getElementById('calibration-avatar').value).then(async()=>{
       if(editorStopped)return;
+      const catalog=await BuiltinAvatarCatalog.load();if(editorStopped)return;
+      const select=document.getElementById('calibration-avatar');
+      if(select.options.length===1)for(const preset of catalog.presets)select.add(new Option(window.i18n?.t(preset.labelKey)||preset.label,preset.id));
       group.userData.editorAvatarLoading=false;referenceStatus();renderSeatPreview();
     }).catch(()=>{
       if(editorStopped)return;
@@ -42,6 +90,7 @@
     return value;
   }};
   function renderSeatPreview() {
+    syncCalibration();
     for (const [index, marker] of seatMarkers) if (index >= seatPreview.length) {
       if (transform.object === marker) transform.detach();
       scene.remove(marker); marker.traverse(n=>{n.geometry?.dispose();n.material?.dispose();});seatMarkers.delete(index);
@@ -58,7 +107,7 @@
       marker.position.set(pose.position.x,pose.position.y,pose.position.z);
       marker.rotation.set(pose.rotation.x,pose.rotation.y,pose.rotation.z);
       marker.children[0].material.color.set(index===selectedSeat?0x44ff99:seat.enabled?0xffcc33:0x888888);
-      marker.visible=!preview;
+      marker.visible=!preview&&!calibrationView;
     });
     if (selectedSeat < 0 && transform.object?.userData.seatIndex !== undefined) transform.detach();
     const seat=seatPreview[selectedSeat];
@@ -68,6 +117,7 @@
       const pose=RoomSeatCoordinates.world(seat,window.RoomEditorObjects.get(seat.object_id));
       seatAvatar.position.set(pose.position.x,pose.position.y,pose.position.z);
       seatAvatar.rotation.set(pose.rotation.x,pose.rotation.y,pose.rotation.z);
+      seatAvatar.userData.roomAvatarScale=calibrationScale();
       RoomSeatAvatar.apply(seatAvatar); // Reset to the seat before the procedural hip offset.
     }
     if(seatAvatar)seatAvatar.visible=show;
@@ -90,7 +140,7 @@
       // bounds.min.y can include a margin and must not shift this reference.
       environmentHuman.position.set(floor.x+values[0],values[1],floor.z+values[2]);
       environmentHuman.rotation.set(0,t.rotation.y+values[3]*Math.PI/180,0);
-      environmentHuman.scale.set(1,1,1);RoomSeatAvatar.apply(environmentHuman);
+      environmentHuman.userData.roomAvatarScale=calibrationScale();RoomSeatAvatar.apply(environmentHuman);
     }
     if(environmentHuman)environmentHuman.visible=visible;
   }
@@ -257,11 +307,12 @@
   function frame() {
     frameId = requestAnimationFrame(frame);
     orbit.update();
+    if(calibrationView){selectionBox.visible=false;groupSelectionBox.visible=false;if(environmentHelper)environmentHelper.visible=false;}
     if (selectionBox.visible) selectionBox.update();
     renderer.render(scene, camera);
     seatLabels.update(camera,renderer.domElement,seatPreview.map((seat,index)=>({id:index,label:seat.label,
       position:RoomSeatCoordinates.world(seat,window.RoomEditorObjects.get(seat.object_id)).position,
-      selected:index===selectedSeat,color:seat.enabled?'#8a6200':'#555b66'})),!preview,selectionMode==='seats');
+      selected:index===selectedSeat,color:seat.enabled?'#8a6200':'#555b66'})),!preview&&!calibrationView,selectionMode==='seats');
   }
   frame();
 
@@ -371,6 +422,7 @@
     updateSelection();
   }
   async function clearSelection() {
+    endCalibrationView();
     await applyCurrent();
     window.RoomSeatEditor?.deselect();
     selectedSeat = -1; selectObject(null); renderSeatPreview();
@@ -605,6 +657,7 @@
 
   document.getElementById('move-mode').addEventListener('click', () => {transform.setMode('translate');updateSelection();});
   document.getElementById('focus-room').addEventListener('click',()=>{
+    endCalibrationView();renderSeatPreview();
     if(environmentProposal){RoomEnvironmentView.fit(camera,orbit,RoomEnvironmentView.bounds(environmentProposal.data));return;}
     const entry=[...objects.values()].find(e=>e.data.is_room_environment||e.data.is_room_shell);if(!entry)return;
     const box=entry.data.is_room_environment?RoomEnvironmentView.bounds(entry.data):new THREE.Box3().setFromObject(entry.group);
@@ -623,6 +676,7 @@
   document.getElementById('element-search').addEventListener('input',filterElements);
   window.addEventListener('room-seat-preview',filterElements);
   function showPanel(panel) {
+    endCalibrationView();
     selectionMode=panel;
     document.getElementById('room-panel').hidden=panel!=='room';
     document.getElementById('room-properties').hidden=panel!=='room';
@@ -654,6 +708,7 @@
   document.getElementById('rotate-mode').addEventListener('click', () => {transform.setMode('rotate');updateSelection();});
   document.getElementById('scale-mode').addEventListener('click', () => {if(selected?.type!=='presentation_screen'&&transform.object?.userData.seatIndex===undefined){transform.setMode('scale');updateSelection();}});
   document.getElementById('preview-mode').addEventListener('click', () => action(async () => {
+    endCalibrationView();
     await applyCurrent(); window.RoomSeatEditor?.flush();
     preview = !preview; grid.visible = !preview;
     syncEnvironmentView();
@@ -859,6 +914,7 @@
   window.addEventListener('pagehide',event=>{
     if(event.persisted)return;
     editorStopped=true;
+    restoreCalibrationFurniture();
     RoomScreenPreview.close();
     cancelAnimationFrame(frameId);for(const entry of objects.values())removeVisual(entry);objects.clear();
     if(environmentProposal){disposeGroup(environmentProposal.group);disposeGroup(environmentProposal.helper);}

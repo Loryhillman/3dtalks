@@ -59,9 +59,9 @@ function createUserRoomService(pool, validate = validateRoom) {
       if (capacity > seats) fail('INVALID_TEMPLATE', 422);
       const room = (await client.query(`INSERT INTO rooms
         (slug, name, owner_user_id, owner_request_key, creation_payload, capacity,
-         template_key, template_version, seating_mode, status)
-        VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,'seated','draft') RETURNING *`,
-      ['room-' + randomUUID(), name, userId, body.request_key, JSON.stringify(payload), capacity, template.template_key, template.version])).rows[0];
+         template_key, template_version, seating_mode, status, avatar_scale)
+        VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,'seated','draft',$9) RETURNING *`,
+      ['room-' + randomUUID(), name, userId, body.request_key, JSON.stringify(payload), capacity, template.template_key, template.version,template.avatar_scale??1])).rows[0];
       await populateRoom(client, room, template, { userId });
       const validation = await validate(room.id, client);
       if (!validation.ok) fail('INVALID_TEMPLATE', 422);

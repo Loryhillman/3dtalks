@@ -568,3 +568,18 @@ Backup /opt/3dtalks-backups/3dtalks-20261027T075025Z, прежний образ 
 не использованы. Это synthetic audio/microphone, не физические устройства.
 Сведения и caveat отката mode:builtin — SERVER_DEPLOYMENT.md. GitHub push
 не выполнялся; история передана на VPS через bundle.
+
+Следующая задача выполнена локально в codex/room-avatar-calibration:
+общий avatar_scale 0,5–2 для шаблона/снимка комнаты. Обязательная миграция
+add_room_avatar_scale.sql, default 1; immutable прежние версии/комнаты.
+Admin draft API валидирует scale/revision, публикация и оба способа создания
+копируют настройку. RoomSeating/RoomSeatAvatar применяют её вокруг hips,
+без масштабирования мест/мебели. Редактор использует настоящие кресла/стол,
+три модели и front/side/overview, временно скрывая мешающие кресла/метки.
+Не заменять пользовательский масштаб настройкой профиля и не изменять старые
+комнаты автоматически. Ориентиры берут каталог через admin JWT endpoint
+/api/admin/rooms/avatar-catalog, без зависимости от user token.
+Пройдены PostgreSQL 18 (отдельная удалённая после теста БД), реальный локальный
+Compose/HTTP/admin JWT/Chromium и регрессия /play с шестью моделями при 1,4.
+Инструкции/границы/проверки — ROOM_AVATAR_CALIBRATION.md. Значения теста не
+являются эталонной калибровкой. VPS/push для этого этапа не выполнялись.

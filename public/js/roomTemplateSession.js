@@ -27,7 +27,7 @@
         }
       }
       Object.assign(this.room, { id: 'template-' + this.key, name: draft.name, status: 'draft',
-        revision: draft.revision, seating_mode: 'seated', template_key: this.key });
+        revision: draft.revision, seating_mode: 'seated', template_key: this.key,avatar_scale:draft.avatar_scale??1 });
       this.dirty = false;
       window.dispatchEvent(new Event('room-template-changed'));
     }
@@ -170,7 +170,7 @@
     }
     async save() {
       if (!this.dirty) return;
-      this.adopt((await this.request('/draft', { revision: this.draft.revision, name: this.draft.name, layout: this.draft.layout }, 'PUT')).draft);
+      this.adopt((await this.request('/draft', { revision: this.draft.revision, name: this.draft.name, layout: this.draft.layout,avatar_scale:this.draft.avatar_scale??1 }, 'PUT')).draft);
     }
     async publish() {
       await this.save();

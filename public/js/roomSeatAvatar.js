@@ -47,12 +47,14 @@
   }
   window.RoomSeatAvatar = {
     apply(group, look = { yaw: 0, pitch: 0 }) {
+      const scale=window.RoomAvatarScale?.resolve(group.userData.roomAvatarScale)??1;
+      group.scale.setScalar(scale);
       const data = group.userData, state = rig(group);
       if (data.weaponGroup) data.weaponGroup.visible = false;
       if (state.model) state.model.visible = !!state.supported;
       for (const part of data.seatFallbackParts || []) part.visible = !state.supported;
       if (!state.supported) {
-        group.position.y += .3;
+        group.position.y += .3*scale;
         if (data.leftLeg && data.rightLeg) {
           data.leftLeg.rotation.x = data.rightLeg.rotation.x = -Math.PI/2;
           data.leftKnee.rotation.x = data.rightKnee.rotation.x = Math.PI/2;
