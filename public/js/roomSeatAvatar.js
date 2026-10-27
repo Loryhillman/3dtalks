@@ -19,13 +19,13 @@
     const supported = ['left', 'right'].every(side => found.hips && found[side+'Foot'] &&
       descendant(found[side+'UpLeg'], found.hips) && descendant(found[side+'Leg'], found[side+'UpLeg']) &&
       descendant(found[side+'Foot'], found[side+'Leg'])) &&
-      (data.accountAvatarConfig?.mode !== 'full' || descendant(found.head, found.hips));
+      (!['full','builtin'].includes(data.accountAvatarConfig?.mode) || descendant(found.head, found.hips));
     if (supported) {
       data.glbMixer?.stopAllAction(); data.sharedMixer?.stopAllAction();
       // Account GLBs already supply the authored rest transforms. Calling pose()
       // independently on several skins can overwrite shared bones with a different
       // mesh's inverse bind matrices. Legacy animated models still need resetting.
-      if (data.accountAvatarConfig?.mode !== 'full') {
+      if (!['full','builtin'].includes(data.accountAvatarConfig?.mode)) {
         model.traverse(node => { if (node.isSkinnedMesh) node.skeleton.pose(); });
       }
     }
@@ -86,7 +86,7 @@
         const delta = orientation.clone().multiply(lookRotation).multiply(orientation.clone().invert());
         const world = head.getWorldQuaternion(new THREE.Quaternion()).premultiply(delta);
         head.quaternion.copy(head.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(world)).normalize();
-        if (data.accountAvatarConfig?.mode === 'full' && data.nameSprite) {
+        if (['full','builtin'].includes(data.accountAvatarConfig?.mode) && data.nameSprite) {
           data.nameSprite.position.y = group.worldToLocal(head.getWorldPosition(new THREE.Vector3())).y + .65;
         }
       }

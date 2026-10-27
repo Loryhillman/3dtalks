@@ -611,7 +611,7 @@ async function handlePlayerJoin(connectionId, ws, payload) {
       }
     }
     const avatarUser = (await query('SELECT avatar_config FROM users WHERE id=$1', [decoded.userId])).rows[0];
-    avatarConfig = Object.keys(avatarUser?.avatar_config || {}).length ? avatarUser.avatar_config : { ...require('../services/userAvatars').DEFAULT };
+    avatarConfig = require('../services/avatarCatalog').resolveConfig(avatarUser?.avatar_config);
     glbUrl = animUrls = weaponConfig = boneMapConfig = weaponSocketConfig = calibrationConfig = null;
     isSelfContainedBundle = isGuest = false;
     const { rows } = await query(`

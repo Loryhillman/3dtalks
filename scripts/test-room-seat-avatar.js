@@ -79,6 +79,11 @@ for (let i = 0; i < 100; i++) context.RoomSeatAvatar.apply(fullGroup, { yaw: .5,
 assert.ok(fullModel.position.distanceTo(fullPosition) < 1e-7);
 assert.ok(fullHead.quaternion.angleTo(fullRotation) < 1e-6);
 assert.ok(Number.isFinite(label.position.y));
+fullGroup.userData.accountAvatarConfig = {mode:'builtin',builtinId:'valid-business-v1'};
+delete fullGroup.userData.roomSeatRig;
+context.RoomSeatAvatar.apply(fullGroup);
+assert.equal(fullGroup.userData.roomSeatRig.supported,true);
+assert.equal(resets,0,'built-in multiple-skin models also preserve authored transforms');
 group.userData.glbModel = new T.Group(); group.add(group.userData.glbModel);
 assert.equal(pose(), true);
 assert.equal(group.userData.glbModel.visible, false);

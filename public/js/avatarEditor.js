@@ -1,7 +1,7 @@
 (() => {
   const $=id=>document.getElementById(id),form=$('avatar-form');
   const t=(key,params)=>window.i18n.tp('avatar.'+key,params||{});
-  let assets=[],revision=0,ready=false,busy=false,group,scene,camera,renderer,raf,previewSequence=0;
+  let assets=[],catalog=[],defaultConfig,revision=0,ready=false,busy=false,disposed=false,previewLoading=false,group,scene,camera,renderer,raf,previewSequence=0;
   const defaults={mode:'standard',headType:'sphere',bodyColor:'#4a90e2',headColor:'#ffaa99',headScale:1,headOffset:0,headYaw:0,bodyYaw:0};
   function status(message=''){$('avatar-status').textContent=message;}
   async function request(url,options={}){
@@ -14,6 +14,10 @@
   }
   function kind(){return form.elements.mode.value==='full'?'body':form.elements.headType.value==='model'?'head':'image';}
   function config(){
+    if(form.elements.mode.value==='builtin'){
+      const preset=catalog.find(entry=>entry.id===form.elements.builtinId.value);
+      return preset ? {...preset.config} : {mode:'builtin',builtinId:form.elements.builtinId.value};
+    }
     const result=Object.fromEntries(['mode','headType','bodyColor','headColor'].map(key=>[key,form.elements[key].value]));
     for(const key of ['headScale','headOffset','headYaw','bodyYaw'])result[key]=Number(form.elements[key].value);
     const id=form.elements.assetId.value||null;
@@ -28,26 +32,31 @@
     select.value=selected;
   }
   function controls(){
-    const full=form.elements.mode.value==='full';$('avatar-standard').hidden=full;$('avatar-full').hidden=!full;
-    for(const input of $('avatar-standard').querySelectorAll('input,select'))input.disabled=full||busy;
+    const full=form.elements.mode.value==='full',builtin=form.elements.mode.value==='builtin';
+    $('avatar-standard').hidden=full||builtin;$('avatar-full').hidden=!full;$('avatar-builtin').hidden=!builtin;$('avatar-assets').hidden=builtin;
+    for(const input of $('avatar-standard').querySelectorAll('input,select'))input.disabled=full||builtin||busy;
+    form.elements.builtinId.disabled=!builtin||busy;
+    form.elements.assetId.disabled=builtin||busy;$('avatar-file').disabled=builtin||busy;
     form.elements.bodyYaw.disabled=!full||busy;
     $('avatar-file').accept=kind()==='image'?'.png,.jpg,.jpeg,.webp':'.glb';
     $('avatar-file-hint').textContent=t(kind()==='image'?'imageHint':kind()==='head'?'headHint':'bodyHint');
-    $('avatar-delete').disabled=busy||!form.elements.assetId.value;
+    $('avatar-delete').disabled=busy||builtin||!form.elements.assetId.value;
     $('avatar-save').disabled=busy||!ready;
+    $('avatar-preview-retry').disabled=busy||previewLoading;
   }
   async function preview(){
     const sequence=++previewSequence,c=config();
-    ready=false;controls();
-    if(!group)return;
-    const required=c.mode==='full'||['image','model'].includes(c.headType);
-    if(required&&!c.asset){status(t('ASSET_REQUIRED'));return;}
+    ready=false;previewLoading=true;controls();
+    if(!group||disposed){previewLoading=false;return;}
+    const required=['full','builtin'].includes(c.mode)||['image','model'].includes(c.headType);
+    if(required&&!c.asset){previewLoading=false;controls();status(t('ASSET_REQUIRED'));return;}
     status(t('loading'));
     await window.UserAvatarRenderer.apply(group,c);
-    if(sequence!==previewSequence)return;
+    if(disposed||sequence!==previewSequence)return;
+    previewLoading=false;controls();
     if(group.userData.accountAvatarError){status(t('previewFailed'));return;}
     group.position.set(0,0,0);window.RoomSeatAvatar.apply(group,{yaw:0,pitch:0});
-    if(c.mode==='full'&&!group.userData.roomSeatRig?.supported){status(t('UNSUPPORTED_RIG'));return;}
+    if(['full','builtin'].includes(c.mode)&&!group.userData.roomSeatRig?.supported){status(t('UNSUPPORTED_RIG'));return;}
     ready=true;controls();status();
   }
   function populate(c){
@@ -69,7 +78,7 @@
     const resize=()=>{const canvas=$('avatar-canvas');renderer.setSize(canvas.clientWidth,canvas.clientHeight,false);camera.aspect=canvas.clientWidth/canvas.clientHeight;camera.updateProjectionMatrix();};
     const observer=new ResizeObserver(resize);observer.observe($('avatar-canvas'));resize();
     const frame=()=>{group.position.set(0,0,0);window.RoomSeatAvatar.apply(group,{yaw:Number($('avatar-look').value),pitch:0});renderer.render(scene,camera);raf=requestAnimationFrame(frame);};frame();
-    window.addEventListener('pagehide',()=>{cancelAnimationFrame(raf);observer.disconnect();window.UserAvatarRenderer.dispose(scene);renderer.dispose();},{once:true});
+    window.addEventListener('pagehide',()=>{disposed=true;++previewSequence;++group.userData.accountAvatarTicket;cancelAnimationFrame(raf);observer.disconnect();group.removeFromParent();window.UserAvatarRenderer.dispose(group);window.UserAvatarRenderer.dispose(scene);renderer.dispose();},{once:true});
   }
   form.addEventListener('change',event=>{
     if(['mode','headType'].includes(event.target.name))selectAssets();
@@ -77,7 +86,7 @@
     preview().catch(error=>status(error.message));
   });
   form.onsubmit=event=>{event.preventDefault();if(!ready)return;action(async()=>{
-    const result=await request('',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({config:config(),revision})});revision=result.revision;status(t('saved'));
+    const result=await request('',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({config:config(),revision})});revision=result.revision;await populate(result.config);status(t('saved'));
   });};
   $('avatar-file').onchange=()=>action(async()=>{
     const file=$('avatar-file').files[0];if(!file)return;
@@ -90,12 +99,15 @@
     const id=form.elements.assetId.value;if(!id||!confirm(t('confirmDelete')))return;
     await request('/assets/'+encodeURIComponent(id),{method:'DELETE'});assets=assets.filter(a=>a.id!==id);selectAssets();await preview();
   });
-  $('avatar-reset').onclick=()=>action(()=>populate(defaults));
+  $('avatar-reset').onclick=()=>action(()=>populate(defaultConfig||defaults));
+  $('avatar-preview-retry').onclick=()=>preview().catch(error=>status(error.message));
   window.addEventListener('beforeunload',event=>{if(busy){event.preventDefault();event.returnValue='';}});
   (async()=>{
     await window.i18n.init();document.documentElement.lang=window.i18n.currentLocale;
     for(const element of document.querySelectorAll('[data-avatar-t]'))element.textContent=t(element.dataset.avatarT);
     if(!localStorage.getItem('token')){location.assign('/rooms');return;}
-    buildPreview();const data=await request('');assets=data.assets;revision=data.revision;await populate(data.config);
+    buildPreview();const data=await request('');assets=data.assets;revision=data.revision;catalog=data.catalog||[];defaultConfig=data.defaultConfig;
+    for(const preset of catalog)form.elements.builtinId.add(new Option(preset.labelKey?window.i18n.t(preset.labelKey):preset.label,preset.id));
+    await populate(data.config);
   })().catch(error=>{ready=false;controls();status(error.message);});
 })();

@@ -1,6 +1,7 @@
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs/promises'),path=require('node:path');
 const {chromium}=require('playwright');const {glb}=require('./avatar-test-fixtures');
 const {DEFAULT}=require('../src/services/userAvatars');
+const {listPresets,resolveConfig}=require('../src/services/avatarCatalog');
 const {inspectGlb}=require('../src/services/avatarValidation');
 const root=path.resolve(__dirname,'../public');
 let revision=0,saved={...DEFAULT},lastSave,uploads=0;
@@ -18,8 +19,8 @@ const server=http.createServer(async(req,res)=>{
     if(req.url.startsWith('/api/my/avatar')){
       let body='';for await(const chunk of req)body+=chunk;
       res.setHeader('Content-Type','application/json');
-      if(req.method==='GET'){res.end(JSON.stringify({revision,config:saved,assets}));return;}
-      if(req.method==='PUT'){lastSave=JSON.parse(body);saved=lastSave.config;revision++;res.end(JSON.stringify({revision,config:saved}));return;}
+      if(req.method==='GET'){res.end(JSON.stringify({revision,config:saved,assets,catalog:listPresets(),defaultConfig:DEFAULT}));return;}
+      if(req.method==='PUT'){lastSave=JSON.parse(body);saved=resolveConfig(lastSave.config);revision++;res.end(JSON.stringify({revision,config:saved}));return;}
       if(req.method==='POST'){uploads++;const asset={...assets[0],id:'uploaded-head'};assets.unshift(asset);res.statusCode=201;res.end(JSON.stringify({asset}));return;}
       res.end('{}');return;
     }
@@ -42,7 +43,10 @@ let browser;
   const base='http://127.0.0.1:'+server.address().port;
   await page.goto(base+'/avatar.html');await page.locator('#avatar-save').waitFor();await page.waitForFunction(()=>!document.getElementById('avatar-save').disabled);
   assert.equal(await page.locator('.shell-nav a[aria-current=page]').getAttribute('href'),'/avatar.html','avatar navigation is active');
-  assert.equal(await page.locator('[name=mode]').inputValue(),'standard');
+  assert.equal(await page.locator('[name=mode]').inputValue(),'builtin');
+  assert.equal(await page.locator('[name=builtinId]').inputValue(),DEFAULT.builtinId);
+  assert.equal(await page.locator('#avatar-assets').isVisible(),false);
+  await page.selectOption('[name=mode]','standard');
   await page.selectOption('[name=headType]','cube');await page.waitForFunction(()=>!document.getElementById('avatar-save').disabled);
   await page.locator('#avatar-save').click();await page.waitForFunction(()=>document.getElementById('avatar-status').textContent.includes('saved')||document.getElementById('avatar-status').textContent.includes('сохранён'));
   assert.equal(lastSave.config.headType,'cube');assert.equal(lastSave.revision,0);
@@ -138,6 +142,20 @@ let browser;
     await page.screenshot({path:'/tmp/avatar-actual-body.png',fullPage:true});
     console.log('Actual GLB browser:',actual);
   }
+  await page.selectOption('[name=mode]','builtin');
+  await page.selectOption('[name=builtinId]','female-neutral-v1');
+  await page.waitForFunction(()=>!document.getElementById('avatar-save').disabled);
+  await page.click('#avatar-save');await page.waitForFunction(()=>/сохранён|saved/.test(document.getElementById('avatar-status').textContent));
+  assert.equal(lastSave.config.builtinId,'female-neutral-v1');
+  await page.reload();await page.waitForFunction(()=>!document.getElementById('avatar-save').disabled);
+  assert.equal(await page.locator('[name=builtinId]').inputValue(),'female-neutral-v1');
+  // A broken built-in load must disable Save and allow a real retry of the same config.
+  await page.route('**'+DEFAULT.asset.path,route=>route.fulfill({status:503,body:'unavailable'}));
+  await page.click('#avatar-reset');await page.waitForFunction(()=>/Не удалось|Could not/.test(document.getElementById('avatar-status').textContent));
+  assert(await page.locator('#avatar-save').isDisabled());
+  await page.unroute('**'+DEFAULT.asset.path);
+  await page.click('#avatar-preview-retry');await page.waitForFunction(()=>!document.getElementById('avatar-save').disabled);
+  assert.equal(await page.locator('[name=builtinId]').inputValue(),DEFAULT.builtinId);
   await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/avatar-editor-mobile.png',fullPage:true});
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'mobile page does not overflow');
   assert.deepEqual(errors,[]);

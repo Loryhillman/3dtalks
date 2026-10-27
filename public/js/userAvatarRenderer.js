@@ -29,7 +29,7 @@
   async function apply(group,config){
     const data=group.userData;
     const signature=JSON.stringify(config);
-    if(data.accountAvatarSignature===signature)return;
+    if(data.accountAvatarSignature===signature&&!data.accountAvatarError)return;
     data.accountAvatarSignature=signature;
     const ticket=(data.accountAvatarTicket||0)+1;data.accountAvatarTicket=ticket;
     data.accountAvatarConfig=config;
@@ -41,10 +41,10 @@
       data.seatHead=data.defaultSeatHead;data.defaultSeatHead.visible=true;
       if(data.seatFallbackParts)data.seatFallbackParts[1]=data.defaultSeatHead;
     }
-    if(!config||config.mode!=='full'&&config.mode!=='standard')return;
+    if(!config||!['full','standard','builtin'].includes(config.mode))return;
     const root=new THREE.Group();data.accountAvatarRoot=root;group.add(root);
     try{
-      if(config.mode==='full'){
+      if(config.mode==='full'||config.mode==='builtin'){
         const gltf=await new THREE.GLTFLoader().loadAsync(config.asset.path);
         if(data.accountAvatarTicket!==ticket||!root.parent){dispose(gltf.scene);return;}
         normalize(gltf.scene,'body');gltf.scene.rotation.y=(config.bodyYaw||0)*Math.PI/180;

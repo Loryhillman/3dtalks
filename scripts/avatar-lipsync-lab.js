@@ -21,15 +21,17 @@ async function createAvatarLab(modelPath, { demoPath, meetingCandidates = false 
     sha256: crypto.createHash('sha256').update(model).digest('hex') };
   const candidates = new Map();
   if (meetingCandidates) {
-    const directory = path.join(root, 'public/assets/avatars/meeting-human-v1');
-    const catalog = JSON.parse(await fs.readFile(path.join(directory, 'catalog.json'), 'utf8'));
-    for (const entry of catalog.models) {
+    for (const bundle of ['valid-business-v1','meeting-human-v1']) {
+     const directory = path.join(root, 'public/assets/avatars',bundle);
+     const catalog = JSON.parse(await fs.readFile(path.join(directory, 'catalog.json'), 'utf8'));
+     for (const entry of catalog.models) {
       if (!/^[a-z-]+-v1$/.test(entry.id) || !/^[a-z-]+\.glb$/.test(entry.file) || entry.bytes > 8 * 1048576) throw Error('Invalid candidate catalog');
       const bytes = await fs.readFile(path.join(directory, entry.file));
       if (bytes.length !== entry.bytes || crypto.createHash('sha256').update(bytes).digest('hex') !== entry.sha256) throw Error('Candidate checksum mismatch');
       const profile = inspectGlb(bytes, 'body');
       candidates.set(entry.id, { model: bytes, manifest: { ...profile, bytes: bytes.length, sha256: entry.sha256,
         hasDemo: !!demo, candidateId: entry.id, candidateLabel: entry.label } });
+     }
     }
     const choices = [...candidates].map(([id, value]) => ({ id, label: value.manifest.candidateLabel }));
     for (const candidate of candidates.values()) candidate.manifest.candidates = choices;

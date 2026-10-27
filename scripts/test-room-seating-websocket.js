@@ -8,7 +8,7 @@ let moves = 0;
 let claim;
 let rejectAdmission = false;
 let weatherQueries = 0, agentLogImports = 0;
-const savedAvatar = {version:1,mode:'standard',headType:'cube',bodyColor:'#224466',headColor:'#ffaa99'};
+let savedAvatar = {version:1,mode:'standard',headType:'cube',bodyColor:'#224466',headColor:'#ffaa99'};
 const pose = { position: { x: 4, y: 1, z: 2 }, orientation: { x: 0, y: 0, z: 0, w: 1 } };
 const service = {
   async admit(input) { if (rejectAdmission) throw Object.assign(new Error('ROOM_FULL'), { code: 'ROOM_FULL' }); claim = { ...input, seatId: claim?.seatId || 'seat-one', state: 'active' };
@@ -109,12 +109,18 @@ function join(ws) { send(ws, 'PLAYER_JOIN', { roomSlug: 'meeting', characterId: 
     assert.equal([...server.getPlayerPositions().values()].length, 1);
     second.close(1006); await tick(); await tick();
     assert.equal(claim.state, 'held');
+    savedAvatar={mode:'builtin',builtinId:'female-neutral-v1',asset:{path:'https://untrusted.invalid/forged.glb'}};
     const third = connect(); join(third); await tick();
+    assert.deepEqual(third.sent.find(m=>m.type==='WORLD_STATE').payload.players[0].avatarConfig,
+      require('../src/services/avatarCatalog').presetConfig('female-neutral-v1'),'WS resolves built-in paths from its catalog');
     assert.equal(claim.state, 'active');
     send(third, 'ROOM_LEAVE', { requestId: 'leave-1' }); await tick(); await tick();
     assert.equal(claim, null);
     assert.equal(server.getPlayerPositions().size, 0);
     assert.ok(third.sent.some(m => m.type === 'ROOM_LEFT'));
+    savedAvatar={};const fourth=connect();join(fourth);await tick();
+    assert.equal(fourth.sent.find(m=>m.type==='WORLD_STATE').payload.players[0].avatarConfig.builtinId,require('../src/services/avatarCatalog').DEFAULT_ID,'empty accounts join with human default');
+    send(fourth,'ROOM_LEAVE',{requestId:'leave-default'});await tick();await tick();
     console.log('Room seating WebSocket: assignment, movement lock, replay, replacement, hold and leave OK');
   } finally { wss.emit('close'); Module._load = original; }
 })().catch(error => { console.error(error); process.exitCode = 1; });

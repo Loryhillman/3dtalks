@@ -93,7 +93,11 @@ function inspectGlb(buffer,kind) {
   try { return inspectGlbData(buffer,kind); } catch(error) { if(error.status)throw error;fail('INVALID_GLB'); }
 }
 function normalizeConfig(input) {
-  if (!input || !['standard','full'].includes(input.mode)) fail('INVALID_CONFIG');
+  if (!input || !['standard','full','builtin'].includes(input.mode)) fail('INVALID_CONFIG');
+  if(input.mode==='builtin'){
+    if(typeof input.builtinId!=='string'||!require('./avatarCatalog').presetConfig(input.builtinId))fail('INVALID_CONFIG');
+    return {version:1,mode:'builtin',builtinId:input.builtinId};
+  }
   const color = value=> {if(typeof value!=='string'||!/^#[0-9a-f]{6}$/i.test(value))fail('INVALID_CONFIG');return value;};
   const number=(value,min,max,def)=>{if(value===undefined)return def;if(typeof value!=='number'||!Number.isFinite(value)||value<min||value>max)fail('INVALID_CONFIG');return value;};
   const id=value=>{if(value==null)return null;if(typeof value!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value))fail('INVALID_CONFIG');return value;};

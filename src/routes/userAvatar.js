@@ -17,6 +17,7 @@ function errorResponse(res,error){
   res.status(error.status|| (error instanceof multer.MulterError?400:500)).json({errorKey:'avatar.'+code});
 }
 router.get('/',async(req,res)=>{try{res.json(await service.get(req.user.userId));}catch(e){errorResponse(res,e);}});
+router.get('/catalog',(_req,res)=>{const catalog=require('../services/avatarCatalog');res.json({presets:catalog.listPresets(),defaultConfig:catalog.presetConfig(catalog.DEFAULT_ID)});});
 router.put('/',async(req,res)=>{try{res.json(await service.save(req.user.userId,req.body));}catch(e){errorResponse(res,e);}});
 // Disk storage bounds memory use on small servers. At most one upload per account
 // in this process; the database transaction additionally serializes quota checks.

@@ -5,6 +5,7 @@ const path = require('node:path');
 const express = require('express');
 const { chromium } = require('playwright');
 const { officeGlb } = require('./room-environment-fixtures');
+const {DEFAULT_ID}=require('../src/services/avatarCatalog');
 const root = path.resolve(__dirname,'../public');
 const office = {editor_id:1,type:'room_environment',kind:'room',name:'Fixture office',model_id:1,model_path:'/models/uploaded/office.glb',collision:false,
  position:{x:10,y:0,z:-10},rotation:{x:0,y:.6,z:0},scale:{x:.001,y:.001,z:.001},
@@ -12,7 +13,7 @@ const office = {editor_id:1,type:'room_environment',kind:'room',name:'Fixture of
 const seat = {editor_id:2,type:'seat',kind:'seat',name:'Seats',collision:false,position:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1},
  seats:[{label:'1',sort_order:1,enabled:true,coordinate_space:'rigid',local_position:{x:10,y:1,z:-10},local_orientation:{x:0,y:0,z:0},map_x:0,map_y:0}]};
 let draft={name:'Office',revision:1,base_version:1,layout:[office,seat]},fail=false,published=0,loads=0,release,uploadProfile;
-let pauseInspection=false,resumeInspection,inspectionStarted;
+let pauseInspection=false,resumeInspection,inspectionStarted,failAvatarCatalog=true;
 const publishedSnapshots=[];
 const app=express();app.use(express.json());
 app.get('/models/uploaded/:file',async(req,res)=>{
@@ -22,6 +23,10 @@ app.get('/models/uploaded/:file',async(req,res)=>{
  res.type('model/gltf-binary').send(officeGlb({units:1000}));
 });
 app.all('/api/config/language',(_req,res)=>res.json({language:'en-US'}));
+app.get('/api/my/avatar/catalog',(_req,res)=>{
+ if(failAvatarCatalog)return res.sendStatus(503);
+ const catalog=require('../src/services/avatarCatalog');res.json({presets:catalog.listPresets(),defaultConfig:catalog.presetConfig(catalog.DEFAULT_ID)});
+});
 app.get('/api/admin/rooms/models',(_req,res)=>res.json({success:true,models:[{id:1,name:'Office',path:office.model_path,file_type:'glb'}]}));
 app.post('/api/admin/rooms/models/:id/environment-inspection',async(req,res)=>{
  if(pauseInspection){inspectionStarted();await new Promise(resolve=>resumeInspection=resolve);}
@@ -78,11 +83,13 @@ let server,browser;
  assert.equal(state.size,'8 × 3 × 6 m');assert.equal(state.objects,0);assert.equal(state.parents,1);assert.equal(state.helper,true);
  assert.equal(await page.locator('#placement-issues li').count(),0);
  await page.locator('#show-seats').click();await page.locator('#seat-list [data-label="1"]').click();
- await page.waitForFunction(()=>document.body.getAttribute('aria-busy')==='false'&&fixtureScene.children.some(n=>n.userData.editorSeatAvatar&&n.visible));
- const avatar=await page.evaluate(()=>{const a=fixtureScene.children.find(n=>n.userData.editorSeatAvatar);return {position:a.position.toArray(),scale:a.scale.toArray(),leg:a.userData.leftLeg.rotation.x,knee:a.userData.leftKnee.rotation.x};});
- assert.deepEqual(avatar,{position:[10,1.3,-10],scale:[1,1,1],leg:-Math.PI/2,knee:Math.PI/2});
+ await page.locator('#reference-avatar-retry').waitFor({state:'visible'});failAvatarCatalog=false;
+ await page.click('#reference-avatar-retry');
+ await page.waitForFunction(()=>fixtureScene.children.some(n=>n.userData.editorSeatAvatar&&n.visible&&n.userData.roomSeatRig?.supported));
+ const avatar=await page.evaluate(()=>{const a=fixtureScene.children.find(n=>n.userData.editorSeatAvatar);a.updateWorldMatrix(true,true);return {position:a.position.toArray(),scale:a.scale.toArray(),builtin:a.userData.accountAvatarConfig.builtinId,hipsAligned:a.userData.roomSeatRig.found.hips.getWorldPosition(new THREE.Vector3()).distanceTo(a.getWorldPosition(new THREE.Vector3()))<1e-6};});
+ assert.deepEqual(avatar,{position:[10,1,-10],scale:[1,1,1],builtin:DEFAULT_ID,hipsAligned:true});
  await page.evaluate(()=>{RoomSeatEditor.refresh();RoomSeatEditor.refresh();RoomSeatEditor.refresh();});
- assert.equal(await page.evaluate(()=>fixtureScene.children.find(n=>n.userData.editorSeatAvatar).position.y),1.3,'refresh never accumulates the seated hip offset');
+ assert.equal(await page.evaluate(()=>fixtureScene.children.find(n=>n.userData.editorSeatAvatar).position.y),1,'refresh never accumulates the seated hip offset');
  await page.locator('#seat-avatar-preview').uncheck();
  assert.equal(await page.evaluate(()=>fixtureScene.children.find(n=>n.userData.editorSeatAvatar).visible),false);
  await page.locator('#seat-avatar-preview').check();
@@ -105,10 +112,11 @@ let server,browser;
  await page.locator('#show-room').click();
  assert.equal(await page.locator('#room-shell-hint').isVisible(),false);
  assert.equal(await page.evaluate(()=>fixtureScene.children.find(n=>n.userData.editorEnvironmentHuman).visible),true);
- const human=await page.evaluate(()=>{const a=fixtureScene.children.find(n=>n.userData.editorEnvironmentHuman);return {scale:a.scale.toArray(),position:a.position.toArray(),leg:a.userData.leftLeg.rotation.x};});
- assert.deepEqual(human,{scale:[1,1,1],position:[10,1.3,-10],leg:-Math.PI/2});
+ await page.waitForFunction(()=>fixtureScene.children.some(n=>n.userData.editorEnvironmentHuman&&n.userData.roomSeatRig?.supported));
+ const human=await page.evaluate(()=>{const a=fixtureScene.children.find(n=>n.userData.editorEnvironmentHuman);return {scale:a.scale.toArray(),position:a.position.toArray(),builtin:a.userData.accountAvatarConfig.builtinId};});
+ assert.deepEqual(human,{scale:[1,1,1],position:[10,1,-10],builtin:DEFAULT_ID});
  await page.locator('#environment-human-y').fill('0.5');
- assert.equal(await page.evaluate(()=>fixtureScene.children.find(n=>n.userData.editorEnvironmentHuman).position.y),.8);
+ assert.equal(await page.evaluate(()=>fixtureScene.children.find(n=>n.userData.editorEnvironmentHuman).position.y),.5);
  await page.locator('#environment-human-focus').click();
  assert.equal(await page.evaluate(()=>fixtureCamera.position.distanceTo(fixtureScene.children.find(n=>n.userData.editorEnvironmentHuman).position)<5),true);
  await page.locator('#environment-human-y').fill('1');

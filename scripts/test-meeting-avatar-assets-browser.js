@@ -1,12 +1,15 @@
 const assert = require('node:assert/strict'), fs = require('node:fs/promises'), path = require('node:path'), os = require('node:os');
 const crypto = require('node:crypto'), { chromium } = require('playwright');
 const { createAvatarLab } = require('./avatar-lipsync-lab'), { inspectGlb } = require('../src/services/avatarValidation');
-const directory = path.join(__dirname, '../public/assets/avatars/meeting-human-v1');
 let server, browser;
 (async () => {
-  const catalog = JSON.parse(await fs.readFile(path.join(directory, 'catalog.json'), 'utf8'));
+  const catalog = {models:[]};
+  for(const bundle of ['valid-business-v1','meeting-human-v1']){
+    const dir=path.join(__dirname,'../public/assets/avatars',bundle);
+    catalog.models.push(...JSON.parse(await fs.readFile(path.join(dir,'catalog.json'),'utf8')).models.map(entry=>({...entry,directory:dir})));
+  }
   for (const entry of catalog.models) {
-    const bytes = await fs.readFile(path.join(directory, entry.file));
+    const bytes = await fs.readFile(path.join(entry.directory, entry.file));
     assert.equal(bytes.length, entry.bytes); assert(bytes.length <= 8 * 1048576);
     assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'), entry.sha256);
     assert.deepEqual(inspectGlb(bytes, 'body'), { triangles: entry.triangles, boneMap: entry.boneMap });
@@ -15,7 +18,7 @@ let server, browser;
     assert(gltf.materials.every(m => m.alphaMode !== 'BLEND'), 'opaque body and masked hair must not sort through the face');
     assert(gltf.images.every(image => image.bufferView !== undefined && !image.uri));
   }
-  ({ server } = await createAvatarLab(path.join(directory, catalog.models[0].file), { meetingCandidates: true }));
+  ({ server } = await createAvatarLab(path.join(catalog.models[0].directory, catalog.models[0].file), { meetingCandidates: true }));
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = 'http://127.0.0.1:' + server.address().port;
   assert.equal((await fetch(base + '/model.glb?avatar=../../package.json')).status, 404);
@@ -63,7 +66,7 @@ let server, browser;
     renderer.render(scene,camera);scene.remove(warmup);UserAvatarRenderer.dispose(warmup);renderer.render(scene,camera);
     const baseline={...renderer.info.memory};
     const groups = await Promise.all(Array.from({length:6}, async (_, i) => {
-      const model = models[i % 2], group = new THREE.Group();
+      const model = models[i % models.length], group = new THREE.Group();
       await UserAvatarRenderer.apply(group, {mode:'full',asset:{path:'/model.glb?avatar='+model.id,boneMap:model.boneMap}});
       if(group.userData.accountAvatarError)throw Error(group.userData.accountAvatarError);
       group.position.set((i%3-1)*2.5,0,Math.floor(i/3)*3-1.5);scene.add(group);

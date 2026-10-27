@@ -8,6 +8,9 @@ const environmentMode=process.argv.includes('--environment');
 const builtinV2Mode=process.argv.includes('--builtin-v2');
 const builtinMode=process.argv.includes('--builtin')||builtinV2Mode;
 const screenMode=process.argv.includes('--screen')||builtinV2Mode;
+const humanMode=process.argv.includes('--human-avatars');
+const {presetConfig,DEFAULT_ID}=require('../src/services/avatarCatalog');
+const humanConfig=humanMode?presetConfig(DEFAULT_ID):null;
 const bundledFiles=new Map();let builtinSeats=[];
 const apiCalls=[];
 const {getPrefab}=require('../src/services/worldPrefabs');
@@ -33,7 +36,7 @@ const server=http.createServer(async(req,res)=>{try{
     url==='/api/users/character/me'?{character:{id:'me',name:'Fixture',health:100,max_health:100},appearance:{},equipment:[],skills:[]}:
     url==='/api/rooms/fixture'?{success:true,room}:
     url==='/api/rooms/fixture/objects'?{success:true,objects}:
-    url==='/api/my/avatar'?{config:{mode:'standard',headType:'sphere',headColor:'#ffaa99',bodyColor:'#4a90e2',headScale:1,headOffset:0,headYaw:0}}:
+    url==='/api/my/avatar'?{config:humanConfig||{mode:'standard',headType:'sphere',headColor:'#ffaa99',bodyColor:'#4a90e2',headScale:1,headOffset:0,headYaw:0}}:
     {success:false,error:'Legacy API is deliberately unavailable'};
   res.end(JSON.stringify(data));return;
  }
@@ -64,6 +67,7 @@ let browser;
  try{await fs.access(executable);}catch(_){for(const dir of await fs.readdir(cache))if(dir.startsWith('chromium-')){const file=path.join(cache,dir,'chrome-linux64/chrome');try{await fs.access(file);executable=file;break;}catch(_){}}}
  browser=await chromium.launch({executablePath:executable,headless:true,args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
  const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[],dialogs=[],scripts=[];page.on('request',req=>{if(req.url().includes('/js/'))scripts.push(req.url());});page.on('pageerror',e=>{errors.push(e.message);console.error(e.stack);});page.on('dialog',async d=>{dialogs.push(d.message());await d.dismiss();});
+ await page.addInitScript(config=>{window.fixtureHumanPeer=config;},humanMode?presetConfig('female-neutral-v1'):null);
  await page.addInitScript(seats=>{
   window.fixtureSeats=seats;
   localStorage.setItem('token','fixture-token');localStorage.setItem('userId','user');localStorage.setItem('characterId','me');
@@ -75,7 +79,7 @@ let browser;
    constructor(){setTimeout(()=>{this.readyState=1;this.onopen?.({});},0);}
    send(text){const message=JSON.parse(text);sent.push(message);if(message.type==='PLAYER_JOIN')setTimeout(()=>{
     this.onmessage?.({data:JSON.stringify({type:'ROOM_SEAT_ASSIGNED',payload:{roomId:'fixture-room',seat:{id:'one',position:{x:0,y:1,z:0},orientation:{x:0,y:0,z:0,w:1},...window.fixtureSeats?.[0]}}})});
-    this.onmessage?.({data:JSON.stringify({type:'WORLD_STATE',payload:{players:[{characterId:message.payload.characterId,characterName:'Fixture',position:message.payload.position},{characterId:'peer',characterName:'Peer',position:{x:3,y:1,z:0},avatarConfig:{mode:'standard',headType:'cube',headColor:'#ffaa99',bodyColor:'#4a90e2',headScale:1,headOffset:0,headYaw:0},seat:{id:'two',position:{x:3,y:1,z:0},orientation:{x:0,y:0,z:0,w:1}},glbUrl:'/legacy-missing.glb',weaponConfig:{type:'sword'},animUrls:{idle:'/legacy-idle.glb'}}],weather:{type:'storm',intensity:100}}})});
+    this.onmessage?.({data:JSON.stringify({type:'WORLD_STATE',payload:{players:[{characterId:message.payload.characterId,characterName:'Fixture',position:message.payload.position},{characterId:'peer',characterName:'Peer',position:{x:3,y:1,z:0},avatarConfig:window.fixtureHumanPeer||{mode:'standard',headType:'cube',headColor:'#ffaa99',bodyColor:'#4a90e2',headScale:1,headOffset:0,headYaw:0},seat:{id:'two',position:{x:3,y:1,z:0},orientation:{x:0,y:0,z:0,w:1}},glbUrl:'/legacy-missing.glb',weaponConfig:{type:'sword'},animUrls:{idle:'/legacy-idle.glb'}}],weather:{type:'storm',intensity:100}}})});
    },0);}
    close(){this.readyState=3;}
    addEventListener(){}
@@ -97,7 +101,7 @@ let browser;
  await page.waitForFunction(()=>window.gameWorld&&window.RoomSeating?.active&&window.sent?.some(m=>m.type==='PLAYER_JOIN'),{timeout:15000});
  await page.waitForFunction(()=>window.gameWorld?.loadedObjects.has(3));
  await page.waitForFunction(count=>window.gameWorld?.loadedObjects.size===count,objects.length);
- await page.waitForFunction(() => gameWorld.players.get('peer')?.group.userData.accountAvatarConfig?.headType === 'cube');
+ await page.waitForFunction(human => {const data=gameWorld.players.get('peer')?.group.userData;return human?data?.accountAvatarConfig?.builtinId==='female-neutral-v1'&&data?.roomSeatRig?.supported:data?.accountAvatarConfig?.headType==='cube';},humanMode);
  assert.equal(await page.evaluate(()=>MeetingRoster.getState().connection),'connected');
  assert.deepEqual(await page.evaluate(()=>MeetingRoster.getState().members.map(p=>p.id).sort()),['me','peer']);
  await page.locator('#meeting-participants').click();assert.equal(await page.locator('.meeting-member').count(),2);await page.keyboard.press('Escape');
@@ -164,8 +168,8 @@ let browser;
  assert(scripts.every(url=>!/(main\.js|websocket\.js|player\.js|modelCacheDB|model-detector|entitySleepManager|lightPool|preloadSweeper|loadFacing|geometryBatcher|gltfWorkerClient|worldObjectBounds|placeholderField|worldTextureOptimizer|worldLoadingOptimizer|capsuleCollision|OBJLoader|MTLLoader|legacyAvatarSession|federationUI|worldLod|worldGroundSync|skillManager|skillHUD|portalManager|bone-physics|gaussianSplat|buildingManager|skyManager|agentPositionSmoother)/.test(url)),'legacy scripts must not be requested');
  const join=await page.evaluate(()=>sent.find(message=>message.type==='PLAYER_JOIN').payload);assert.deepEqual(Object.keys(join).sort(),['characterId','position','roomSlug','token']);
  assert.deepEqual(dialogs,[],'room startup must not display browser dialogs');assert.deepEqual(errors,[]);
- const state=await page.evaluate(()=>({weather:gameWorld._weather,recognition:!!window.voiceManagerInstance,avatar:player.worldObject.userData.accountAvatarConfig?.headType,movementControls:!!document.getElementById('mobile-joystick'),hudSettings:!!window.uiControlManager?.initialized,chat:!!document.getElementById('nearby-chat-input'),mic:!!document.getElementById('skill-voice-btn')}));
- assert.deepEqual(state,{weather:'clear',recognition:false,avatar:'sphere',movementControls:false,hudSettings:false,chat:true,mic:true});
+ const state=await page.evaluate(()=>({weather:gameWorld._weather,recognition:!!window.voiceManagerInstance,avatar:player.worldObject.userData.accountAvatarConfig?.builtinId||player.worldObject.userData.accountAvatarConfig?.headType,movementControls:!!document.getElementById('mobile-joystick'),hudSettings:!!window.uiControlManager?.initialized,chat:!!document.getElementById('nearby-chat-input'),mic:!!document.getElementById('skill-voice-btn')}));
+ assert.deepEqual(state,{weather:'clear',recognition:false,avatar:humanMode?humanConfig.builtinId:'sphere',movementControls:false,hudSettings:false,chat:true,mic:true});
  // Camera drag works independently of the legacy input handlers.
  const before = await page.evaluate(() => MOUSE.targetRotationY);
  const drag=await page.evaluate(()=>{const top=document.getElementById('meeting-toolbar').getBoundingClientRect().bottom,bottom=document.getElementById('meeting-footer').getBoundingClientRect().top;return {x:90,y:Math.floor((top+bottom)/2),space:bottom-top};});
@@ -190,13 +194,37 @@ let browser;
  await page.keyboard.down('w');
  assert.equal(await page.evaluate(() => KEYS.w), false, 'meetings do not activate free movement');
  await page.keyboard.up('w');
+ if(humanMode){
+  await page.evaluate(({male,female})=>{
+   const entries=fixtureSeats.map((pose,i)=>({characterId:i===0?'me':i===1?'peer':'human-'+i,characterName:'Human '+i,
+     position:pose.position,seat:{id:i===0?'one':i===1?'two':'seat-'+i,...pose},avatarConfig:i%2?female:male}));
+   WSClient.handleMessage({type:'WORLD_STATE',payload:{players:entries}});
+  },{male:humanConfig,female:presetConfig('female-neutral-v1')});
+  await page.waitForFunction(()=>gameWorld.players.size===6&&[...gameWorld.players.values()].every(p=>p.group.userData.accountAvatarRoot?.children.length&&p.group.userData.roomSeatRig?.supported));
+  const audio=require('./avatar-lab-audio-fixture').wav().toString('base64');
+  await page.evaluate(audio=>WSClient.handleMessage({type:'VOICE_MESSAGE',payload:{characterId:'peer',audio,durationMs:3000}}),audio);
+  await page.waitForFunction(()=>{let open=false;gameWorld.players.get('peer').group.traverse(n=>{const i=n.morphTargetDictionary?.viseme_aa;if(i!==undefined&&n.morphTargetInfluences[i]>.1)open=true;});return open;});
+  assert(await page.evaluate(()=>[...gameWorld.players].filter(([id])=>id!=='peer').every(([,p])=>{let open=false;p.group.traverse(n=>{const i=n.morphTargetDictionary?.viseme_aa;if(i!==undefined&&n.morphTargetInfluences[i]!==0)open=true;});return !open;})));
+  await page.waitForFunction(()=>voiceChat.playbackSources.size===0);
+  await page.setViewportSize({width:1280,height:800});
+  await page.evaluate(()=>{
+   window.fixtureCameraUpdate=player.updateCamera;
+   player.updateCamera=camera=>{
+    const center=new THREE.Vector3();for(const seat of fixtureSeats)center.add(new THREE.Vector3(seat.position.x,seat.position.y,seat.position.z));center.divideScalar(fixtureSeats.length);
+    camera.position.copy(center).add(new THREE.Vector3(3,2.5,3));camera.lookAt(center.clone().add(new THREE.Vector3(0,.4,0)));
+   };
+  });
+  await page.screenshot({path:'/tmp/meeting-human-avatars.png'});
+  await page.evaluate(()=>{player.updateCamera=fixtureCameraUpdate;delete window.fixtureCameraUpdate;});
+  console.log('Human meeting: six real built-in models seated in the shipped office, independent mouths and native voice playback OK');
+ }
  if(screenMode)await page.locator('#meeting-screen-preview').click();
  const stoppedFrame = await page.evaluate(() => { MeetingMain.stop(); return gameWorld.frameCount; });
  await page.waitForTimeout(200);
  assert.equal(await page.evaluate(() => gameWorld.frameCount), stoppedFrame, 'stopped startup releases its rendering loop');
  assert.equal(await page.evaluate(() => gameWorld.generatedBuildings.size), 0);
  if(screenMode){
-  assert.equal(await page.locator('#meeting-screen-preview,dialog').count(),0);
+  await page.waitForFunction(()=>!document.querySelector('#meeting-screen-preview,dialog'));
   assert.deepEqual(await page.evaluate(()=>screenDisposals),{geometry:2,material:2,texture:1});
   console.log('Screen meeting: mobile modal/focus, preserved seat/camera, no collisions and single GPU disposal on exit OK');
  }

@@ -10,6 +10,28 @@
   let environmentHuman;
   let environmentHelper, environmentSignature, framedEnvironment, frameId, environmentProposal, seatAvatar;
   let placementIssues=[];
+  let editorStopped=false;
+  function referenceStatus() {
+    const data=[seatAvatar,environmentHuman].filter(Boolean).map(group=>group.userData);
+    const failed=data.some(entry=>entry.editorAvatarError),loading=data.some(entry=>entry.editorAvatarLoading);
+    document.getElementById('reference-avatar-message').hidden=!failed&&!loading;
+    document.getElementById('reference-avatar-status').textContent=window.i18n?.t('avatar.'+(failed?'referenceError':'loading'))||'';
+    document.getElementById('reference-avatar-retry').hidden=!failed;
+  }
+  function loadReference(group) {
+    if(editorStopped||group.userData.editorAvatarLoading)return;
+    group.userData.editorAvatarLoading=true;group.userData.editorAvatarError=false;referenceStatus();
+    window.BuiltinAvatarCatalog.applyDefault(group).then(()=>{
+      if(editorStopped)return;
+      group.userData.editorAvatarLoading=false;referenceStatus();renderSeatPreview();
+    }).catch(()=>{
+      if(editorStopped)return;
+      group.userData.editorAvatarLoading=false;group.userData.editorAvatarError=true;referenceStatus();
+    });
+  }
+  document.getElementById('reference-avatar-retry').onclick=()=>{
+    for(const group of [seatAvatar,environmentHuman])if(group?.userData.editorAvatarError)loadReference(group);
+  };
   let seatPreview = [], selectedSeat = -1, selectionMode = 'objects';
   const seatLabels = new RoomSeatLabels(index => {if(selectionMode==='seats')window.dispatchEvent(new CustomEvent('room-seat-picked',{detail:Number(index)}));}, 5);
   const seatMarkers = new Map();
@@ -42,7 +64,7 @@
     const seat=seatPreview[selectedSeat];
     const show=!!seat&&selectionMode==='seats'&&document.getElementById('seat-avatar-preview').checked;
     if(show){
-      if(!seatAvatar){seatAvatar=AvatarBase.create().characterGroup;seatAvatar.userData.editorSeatAvatar=true;scene.add(seatAvatar);}
+      if(!seatAvatar){seatAvatar=AvatarBase.create().characterGroup;seatAvatar.userData.editorSeatAvatar=true;scene.add(seatAvatar);loadReference(seatAvatar);}
       const pose=RoomSeatCoordinates.world(seat,window.RoomEditorObjects.get(seat.object_id));
       seatAvatar.position.set(pose.position.x,pose.position.y,pose.position.z);
       seatAvatar.rotation.set(pose.rotation.x,pose.rotation.y,pose.rotation.z);
@@ -60,7 +82,7 @@
     const values=['x','y','z','yaw'].map(axis=>Number(document.getElementById('environment-human-'+axis).value));
     const visible=!!object&&selectionMode==='room'&&document.getElementById('environment-human-visible').checked&&values.every(value=>Number.isFinite(value)&&Math.abs(value)<=10000);
     if(visible){
-      if(!environmentHuman){environmentHuman=AvatarBase.create().characterGroup;environmentHuman.userData.editorEnvironmentHuman=true;scene.add(environmentHuman);}
+      if(!environmentHuman){environmentHuman=AvatarBase.create().characterGroup;environmentHuman.userData.editorEnvironmentHuman=true;scene.add(environmentHuman);loadReference(environmentHuman);}
       const bounds=object.room_environment.bounds;
       const t=Object.fromEntries(['position','rotation','scale'].map(p=>[p,Object.fromEntries(['x','y','z'].map(a=>[a,object[p+'_'+a]]))]));
       const floor=RoomEnvironment.toWorld({x:(bounds.min.x+bounds.max.x)/2,y:bounds.min.y,z:(bounds.min.z+bounds.max.z)/2},t);
@@ -836,11 +858,12 @@
   });
   window.addEventListener('pagehide',event=>{
     if(event.persisted)return;
+    editorStopped=true;
     RoomScreenPreview.close();
     cancelAnimationFrame(frameId);for(const entry of objects.values())removeVisual(entry);objects.clear();
     if(environmentProposal){disposeGroup(environmentProposal.group);disposeGroup(environmentProposal.helper);}
-    disposeGroup(seatAvatar);
-    disposeGroup(environmentHuman);disposeGroup(groupSelectionBox);
+    for(const group of [seatAvatar,environmentHuman])if(group){group.userData.accountAvatarTicket=(group.userData.accountAvatarTicket||0)+1;group.removeFromParent();window.UserAvatarRenderer.dispose(group);}
+    disposeGroup(groupSelectionBox);
     if(environmentHelper)disposeGroup(environmentHelper);orbit.dispose();transform.dispose();renderer.dispose();
   });
   init();

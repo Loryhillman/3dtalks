@@ -28,6 +28,7 @@
   <header id="editor-header">    <h1 id="room-title" data-i18n="roomEditor.room">Комната</h1>
     <p id="room-status"></p>
     <p id="message" role="status"></p>
+    <div id="reference-avatar-message" role="status" hidden><span id="reference-avatar-status"></span><button id="reference-avatar-retry" type="button" hidden data-i18n="avatar.retryPreview">Повторить загрузку персонажа</button></div>
     <section id="template-panel" hidden>
       <label><span data-i18n="roomEditor.templateName">Название шаблона</span><input id="template-name" maxlength="120" required></label>
       <p id="template-status" role="status"></p>
@@ -220,7 +221,10 @@
   <script src="js/roomEnvironmentView.js?v=1"></script>
   <script src="js/roomPlacementCheck.js?v=1-screen"></script>
   <script src="js/avatarBase.js?v=1"></script>
-  <script src="js/roomSeatAvatar.js?v=4"></script>
+  <script src="js/avatarRig.js?v=2"></script>
+  <script src="js/userAvatarRenderer.js?v=4"></script>
+  <script src="js/builtinAvatarCatalog.js?v=1"></script>
+  <script src="js/roomSeatAvatar.js?v=5"></script>
   <script src="js/roomEnvelopeEditor.js?v=2"></script>
   <script src="js/roomSeatLabels.js?v=1"></script>
   <script src="js/roomSeatCoordinates.js?v=1"></script>
@@ -229,6 +233,6 @@
   <script src="js/roomSeatEditor.js?v=6-screen"></script>
   <script src="js/roomModelUpload.js?v=2"></script>
   <script src="js/roomEnvironmentEditor.js?v=1"></script>
-  <script src="js/roomEditor.js?v=13-screen"></script>
+  <script src="js/roomEditor.js?v=14-human-avatars"></script>
 </body>
 </html>

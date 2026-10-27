@@ -530,3 +530,22 @@ offline build-meeting-avatar-assets.py. Catalog/recipe/лицензии/SHA-256 
 Локальный стенд --meeting-candidates показывает оба варианта; default аккаунта,
 WS и редактора ещё не заменён. Следующий этап — раздел 3 плана интеграции.
 Отчёт: docs/research/avatar-lipsync/MEETING_HUMAN_V1.md. Push/VPS не выполнялись.
+
+27 октября 2026: каталог человеческих аватаров интегрирован в аккаунты,
+WS/переговорную и ориентиры административного редактора. Единый серверный
+avatarCatalog.js; mode:builtin сохраняет только version/mode/builtinId,
+path/boneMap определяет сервер. Пустой профиль и точный прежний default
+преобразуются только при чтении; собственное оформление не заменять.
+Default valid-business-v1 — присланный пользователем VALID в костюме:
+MIT/Tiffany Do, pinned upstream и исходный SHA совпали. Подготовленная копия
+6 745 816 байт/58 724 tris, dense/dequantized/PNG, лицо и нижние зубы viseme_aa.
+Конвертер scripts/prepare-valid-avatar.cjs, отдельные pinned offline-зависимости
+tools/valid-avatar-conversion. Валидатор не ослаблен. Отдельная голова не включена.
+MPFB male-asian-v1/female-neutral-v1 остаются в каталоге. Не переписывать
+выпущенные комплекты. У builtin, как у full, не вызывать skeleton.pose() для
+каждого skin: сохранять авторские rest transforms. Ошибки/повтор preview и
+editor references, поздние загрузки и очистка проверены. Проверки/ограничения
+и порядок отката старого приложения с mode:builtin — MEETING_AVATAR_INTEGRATION.md,
+раздел 3. Шесть реальных тел в офисе и native voice playback проверены в Chromium
+с тестовыми HTTP/WS; это не приёмка двух физических микрофонов/телефона по HTTPS.
+Push, Docker, VPS и изменение рабочей БД в этом этапе не выполнялись.
