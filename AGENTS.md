@@ -623,3 +623,14 @@ codex/meeting-camera-release-eb45deb3. Проверены backup/SHA-256, ready/
 mobile bounds и отсутствие ошибок JS. Прежние 13 строк комнат/объекты/места,
 публикация meeting-six v5 (1.25) и черновик сохранены. QA очищены.
 Подробности/откат — SERVER_DEPLOYMENT.md; GitHub push не выполнялся.
+
+
+По отдельному согласию начат ROOM_MEDIA_V2_PLAN.md в codex/room-media-v2.
+Этап 1: отдельные shared media/wire V2 contracts и обязательная аддитивная
+миграция add_room_media_v2.sql, без изменения wire V1. Флаги по умолчанию
+выключены и ещё не подключены к runtime; установка флага не включает видео.
+Пройдены негативные CJS/browser contract-тесты, отдельная PostgreSQL 18:
+миграция/сохранность/SQL bounds, прежние media/presentation HTTP/WS и startup
+дважды; Chromium регрессия общего экрана. Рабочая БД/VPS не менялись,
+временная тестовая БД удалена; push/deployment не выполнялись. Видео/PPTX
+пока недоступны. Следующий этап 2 согласуется отдельно; подробности в разделе 9.

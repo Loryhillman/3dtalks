@@ -75,6 +75,7 @@ async function initializeDatabase() {
     'migrations/add_room_presentation_screen.sql',
     'migrations/add_room_media.sql',
     'migrations/add_room_presentation.sql',
+    'migrations/add_room_media_v2.sql',
     'migrations/add_room_avatar_scale.sql'
   ];
   for (const migFile of migrations) {
@@ -100,6 +101,7 @@ async function initializeDatabase() {
           migFile === 'migrations/add_room_presentation_screen.sql' ||
           migFile === 'migrations/add_room_media.sql' ||
           migFile === 'migrations/add_room_presentation.sql' ||
+          migFile === 'migrations/add_room_media_v2.sql' ||
           migFile === 'migrations/add_room_avatar_scale.sql') throw migErr;
       console.log('Migration skipped (already applied, missing file or schema mismatch):', migFile, migErr.message);
     }

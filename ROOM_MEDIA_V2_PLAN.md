@@ -1,6 +1,6 @@
 # Материалы переговорной v2: видео и импорт PPTX
 
-Статус: архитектурный план, 27 октября 2026. Рабочий код не изменён.
+Статус: этап 1 реализован, 27 октября 2026; видео/PPTX ещё недоступны.
 База: eb45deb3 и последующие записи о развёртывании. V1 остаётся действующей.
 Задача: расширить существующие материалы/общий экран, не возвращая зависимости
 глобального мира и не создавая вторую медиатеку. План требует согласования
@@ -196,3 +196,88 @@ preview уже используют общий источник; отдельн�
 Документация подтверждает механизмы конвертации/Range/autoplay, но не
 производительность нашего VPS, точность PPTX-вёрстки или выбранные пороги
 синхронизации. Их проверяют этапы реализации.
+
+
+## 9. Этап 1: зафиксированный контракт и результат
+
+Ветка codex/room-media-v2. Дополнения изолированы от работающего V1:
+
+- roomMediaContract.js: общие bounds и проверка метаданных H.264/yuv420p/
+  AAC-or-silent; отдельные флаги ROOM_VIDEO_UPLOAD_ENABLED,
+  ROOM_VIDEO_PLAYBACK_ENABLED, ROOM_PPTX_IMPORT_ENABLED. Значения по умолчанию
+  false, включение только строкой true; playback требует upload.
+  Пока это контракт конфигурации: runtime/маршруты его не подключают,
+  установка флагов сама по себе не включает незавершённую функцию.
+- roomPresentationProtocolV2.js: отдельный opt-in, повторно использует V1
+  slides/UUID/revision и roomMediaContract, без дублирования V1-протокола.
+  Новый модуль пока не загружается страницей и не принимает серверные команды.
+- add_room_media_v2.sql: обязательная повторяемая startup-миграция.
+  Форматы/размеры/MIME расширены именованными CHECK, добавлены nullable
+  source_format и video_* поля. source_format=pptx допускается только для
+  подготовленного PDF. У video нет page_count; ready требует полных
+  ограниченных метаданных, MIME/размер/checksum и согласованного charge.
+  Старые состояния сохранены. В presentation_state добавлены paused/playing,
+  playback_position_ms, playback_anchor_at; пустой показ всегда paused/0/null.
+  SQL проверяет форму/общие границы. Совпадение вида/длительности выбранного
+  asset и состояния проверяет сервис под блокировками на этапе 3; SQL CHECK
+  не обращается к другой таблице и не заменяет авторизацию.
+
+### Wire V2 (реализация транспорта — этап 3)
+
+После существующего допуска/сессии клиент отправляет адресное
+ROOM_PRESENTATION_CAPABILITIES {protocolVersion:2}. Сервер отвечает
+ROOM_PRESENTATION_CAPABILITIES_RESULT {protocolVersion:2,features:{videoUpload,
+videoPlayback,pptxImport}}. До ответа клиент остаётся V1; новое соединение
+обязано пройти согласование заново. Флаги сообщают доступность функции,
+а не право пользователя управлять комнатой.
+
+В согласованном V2 ROOM_PRESENTATION_COMMAND имеет прежние requestId,
+expectedEpoch/expectedRevision и дополнительный protocolVersion:2. Сохраняются
+show/page/stop, добавляются play/pause без позиции и seek с целым positionMs.
+Позиция ограничена 0..600000 и затем длительностью asset в сервисе.
+Receipt signature включает protocolVersion, epoch/revision, type и все
+параметры команды (assetId/pageIndex/positionMs); повтор requestId с другой
+позицией является REQUEST_ID_REUSED, а не повторным выполнением.
+
+ROOM_PRESENTATION_STATE V2: protocolVersion:2 плюс прежние roomId/epoch/
+revision, asset, pageIndex и playback. Для slides playback=null. Для video
+asset={id,name,kind:video,durationMs,width,height}, pageIndex=0;
+playback={status,positionMs,anchorServerTimeMs}. В paused anchor=null, в playing
+anchor — конечное целое Unix-время в миллисекундах, position<duration.
+Законченный ролик представлен paused на duration. Revision — десятичная
+строка bigint, пользовательских URL/токенов в state нет.
+
+Адресный ROOM_PRESENTATION_CLOCK {protocolVersion:2,nonce:uuid} получает
+ROOM_PRESENTATION_CLOCK_RESULT {protocolVersion:2,nonce,receivedAtMs,sentAtMs}.
+Сервер ставит оба timestamp, bounded nonce обеспечивает сопоставление ответа;
+частоту/число ожидающих запросов ограничивает последующий транспортный этап.
+
+V1 не получает V2 envelope. Для видео legacyState возвращает валидный V1
+пустой asset, очищая прежний слайд; отсутствие видео объясняется через
+существующее текстовое уведомление комнаты о необходимости обновить вкладку.
+Это понадобится потому, что старый meetingSocket игнорирует новые типы событий.
+Для slides проекция сохраняет прежние поля без изменений. Старый клиент не
+получает video grant; его play/seek/попытка показать video отклоняется.
+Эти правила маршрутизации/уведомления зафиксированы, но ещё не реализованы.
+
+### Проверки этапа
+
+PASS: test-room-media-v2-contract.js — CJS и browser exports, версии,
+legacy projection, неизвестные/секретные поля, UUID/bigint, отрицательные/
+дробные/NaN/Infinity позиции и время, duration/codec/dimensions/fps, caps/clock
+и конфигурация по умолчанию. V1-контракт также прошёл прежнюю проверку.
+
+PASS на отдельной временной PostgreSQL 18: check-room-media-v2-postgres.js
+(миграция повторно, сохранность старых assets/rooms/state/receipts, ошибочные
+ready/metadata/timeline, закрытая загрузка новых форматов), check-room-media.js
+(реальные JWT/HTTP/Multer/worker/квоты/очистка), check-room-presentation.js
+(реальные SQL/HTTP/WS, шесть зрителей/две комнаты/роли/replay/revoke),
+check-room-startup-postgres.js (канонический startup со всеми миграциями дважды).
+Временная тестовая БД удалена; рабочая локальная БД не мигрировалась.
+
+PASS: test-room-presentation-browser.js — прежние слайды/изображения,
+preview/действия владельца, языки/размеры/фокус и lifecycle с тестовыми HTTP/WS.
+Проверены JS syntax и diff. Новые видеофайлы, Range/grants, worker/PPTX,
+синхронизация таймлайна и нагрузка VPS ещё не реализованы и не проверены.
+Новые Docker-сервисы не запускались, VPS/deployment/GitHub push не выполнялись.
+Следующий согласуемый этап — 2: защищённая загрузка/проверка MP4 и Range/grant.
