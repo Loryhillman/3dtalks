@@ -36,13 +36,14 @@ async function main(){
   app.get('/api/config/language',(_q,res)=>res.json({language:'ru-RU'}));
   app.use('/api/my/rooms/:id/materials',require('../src/routes/roomMedia').createRoomMediaRouter(media));
   app.use('/api/rooms/:slug/presentation',require('../src/routes/roomPresentation').createRoomPresentationRouter(presentation,media));
-  server=require('node:http').createServer(app);wsServer.setupWebSocketServer(server);
+  const tls=process.env.ROOM_VIDEO_TLS_KEY&&process.env.ROOM_VIDEO_TLS_CERT;
+  server=tls?require('node:https').createServer({key:await fs.readFile(process.env.ROOM_VIDEO_TLS_KEY),cert:await fs.readFile(process.env.ROOM_VIDEO_TLS_CERT)},app):require('node:http').createServer(app);wsServer.setupWebSocketServer(server);
   server.on('upgrade',(req,socket,head)=>wsServer.getWss().handleUpgrade(req,socket,head,ws=>wsServer.getWss().emit('connection',ws,req)));
-  await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
+  await new Promise(r=>server.listen(0,'127.0.0.1',r));const base=(tls?'https':'http')+'://127.0.0.1:'+server.address().port;
   const tokens=users.map(u=>jwt.sign({userId:u.id},process.env.JWT_SECRET));
   const wait=async(fn)=>{for(let i=0;i<500;i++){const value=fn();if(value)return value;await new Promise(r=>setTimeout(r,10));}throw Error('Timed out waiting for fixture');};
   async function join(index,room=rooms[0]){
-   const ws=new WebSocket(base.replace('http:','ws:'));ws.messages=[];sockets.push(ws);ws.on('message',m=>ws.messages.push(JSON.parse(m)));
+   const ws=new WebSocket(base.replace(/^http/,'ws'));ws.messages=[];sockets.push(ws);ws.on('message',m=>ws.messages.push(JSON.parse(m)));
    await new Promise((r,j)=>{ws.once('open',r);ws.once('error',j);});
    ws.send(JSON.stringify({type:'PLAYER_JOIN',payload:{roomSlug:room,characterId:users[index].character,token:tokens[index]}}));
    await wait(()=>ws.messages.find(m=>m.type==='ROOM_PRESENTATION_SESSION')||ws.messages.find(m=>m.type==='ROOM_JOIN_DENIED'));
@@ -66,7 +67,7 @@ async function main(){
   const negotiate=async ws=>{ws.send(JSON.stringify({type:'ROOM_PRESENTATION_CAPABILITIES',payload:{protocolVersion:2}}));await wait(()=>ws.messages.some(m=>m.type==='ROOM_PRESENTATION_CAPABILITIES_RESULT'));await wait(()=>ws.messages.some(m=>m.type==='ROOM_PRESENTATION_STATE'&&m.payload.protocolVersion===2));ws.state=ws.messages.filter(m=>m.type==='ROOM_PRESENTATION_STATE').at(-1).payload;};
   const peer=participants[0],legacy=participants[1];await negotiate(owner);await negotiate(peer);await negotiate(outsider);
   const nonce=randomUUID();owner.send(JSON.stringify({type:'ROOM_PRESENTATION_CLOCK',payload:{protocolVersion:2,nonce}}));assert(V2.clockResponse((await wait(()=>owner.messages.find(m=>m.type==='ROOM_PRESENTATION_CLOCK_RESULT'&&m.payload.nonce===nonce))).payload));
-  const clip=await fs.readFile(video(directory,{duration:12}));
+  const clip=await fs.readFile(video(directory,process.env.ROOM_VIDEO_RELEASE_CHECK==='1'?{duration:90,width:1920,height:1080,preset:'ultrafast',faststart:true}:{duration:12}));
   const reserved=await media.reserve(users[0].id,rooms[0],{requestId:randomUUID(),kind:'video',name:'Shared clip.mp4',bytes:clip.length});
   const transfer=await media.begin(users[0].id,rooms[0],reserved.upload.id);await fs.writeFile(transfer.paths.input,clip);const ready=await media.complete(users[0].id,rooms[0],transfer);
   const connection=[...wsServer.getPlayerPositions()].find(([,p])=>p.characterId===users[0].character)[0];
@@ -95,7 +96,12 @@ async function main(){
   assert.equal((await pool.query('SELECT playback_status,playback_position_ms,playback_anchor_at FROM room_presentation_state WHERE room_id=$1',[rooms[0]])).rows[0].playback_anchor_at,null);
   for(const ws of [owner,peer,legacy])ws.close();
   await wait(()=>!wsServer.presentationIdentity(connection));
-  await require('./room-video-presentation-browser').check({app,base,roomId:rooms[0],actors:users.map((u,i)=>({...u,token:tokens[i]})),clip});
+  if(process.env.ROOM_VIDEO_BROWSER_CHECK==='0'){
+   // Alpine gate runs backend transports; native Chromium runs separately on
+   // the glibc host. Retain a second ready asset for the lifecycle assertion.
+   const spare=await media.reserve(users[0].id,rooms[0],{requestId:randomUUID(),kind:'video',name:'Spare clip.mp4',bytes:clip.length});
+   const upload=await media.begin(users[0].id,rooms[0],spare.upload.id);await fs.writeFile(upload.paths.input,clip);await media.complete(users[0].id,rooms[0],upload);
+  }else await require('./room-video-presentation-browser').check({app,base,roomId:rooms[0],actors:users.map((u,i)=>({...u,token:tokens[i]})),clip});
   // A restart pauses at a bounded durable checkpoint, even for a very old anchor.
   await pool.query("UPDATE room_presentation_state SET asset_id=$2,page_index=0,playback_status='playing',playback_position_ms=1,playback_anchor_at='1970-01-01' WHERE room_id=$1",[rooms[0],ready.id]);
   const restarted=require('../src/services/roomPresentation').createRoomPresentationService(pool,{identity:wsServer.presentationIdentity});

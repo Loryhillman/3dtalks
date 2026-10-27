@@ -9,6 +9,8 @@ const builtinV3Mode=process.argv.includes('--builtin-v3');
 const builtinV2Mode=process.argv.includes('--builtin-v2')||builtinV3Mode;
 const builtinMode=process.argv.includes('--builtin')||builtinV2Mode;
 const screenMode=process.argv.includes('--screen')||builtinV2Mode;
+const videoMode=process.argv.includes('--video');
+if(videoMode&&!builtinV3Mode)throw Error('--video requires --builtin-v3');
 const humanMode=process.argv.includes('--human-avatars');
 const {presetConfig,DEFAULT_ID}=require('../src/services/avatarCatalog');
 const humanConfig=humanMode?presetConfig(DEFAULT_ID):null;
@@ -25,7 +27,7 @@ let json=Buffer.from(JSON.stringify({asset:{version:'2.0'},scene:0,scenes:[{node
 json=Buffer.concat([json,Buffer.alloc((4-json.length%4)%4,32)]);
 const header=Buffer.alloc(20);header.writeUInt32LE(0x46546c67,0);header.writeUInt32LE(2,4);header.writeUInt32LE(28+json.length+binary.length,8);header.writeUInt32LE(json.length,12);header.writeUInt32LE(0x4e4f534a,16);
 const binHeader=Buffer.alloc(8);binHeader.writeUInt32LE(binary.length,0);binHeader.writeUInt32LE(0x004e4942,4);const chairGlb=Buffer.concat([header,json,binHeader,binary]);
-const room={id:'fixture-room',slug:'fixture',name:'Meeting fixture',status:'open',capacity:6,seating_mode:'seated',spawn_position:{x:0,y:1,z:0}};
+const room={id:'a1000000-0000-4000-8000-000000000001',slug:'fixture',name:'Meeting fixture',status:'open',capacity:6,seating_mode:'seated',spawn_position:{x:0,y:1,z:0}};
 if(humanMode)room.avatar_scale=1.4;
 const server=http.createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://fixture').pathname;
@@ -68,7 +70,7 @@ let browser;
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const cache='/root/.cache/ms-playwright';let executable=process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE||chromium.executablePath();
  try{await fs.access(executable);}catch(_){for(const dir of await fs.readdir(cache))if(dir.startsWith('chromium-')){const file=path.join(cache,dir,'chrome-linux64/chrome');try{await fs.access(file);executable=file;break;}catch(_){}}}
- browser=await chromium.launch({executablePath:executable,headless:true,args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+ browser=await chromium.launch({executablePath:executable,headless:true,args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--autoplay-policy=no-user-gesture-required']});
  const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[],dialogs=[],scripts=[];page.on('request',req=>{if(req.url().includes('/js/'))scripts.push(req.url());});page.on('pageerror',e=>{errors.push(e.message);console.error(e.stack);});page.on('dialog',async d=>{dialogs.push(d.message());await d.dismiss();});
  await page.addInitScript(config=>{window.fixtureHumanPeer=config;},humanMode?presetConfig('female-neutral-v1'):null);
  await page.addInitScript(seats=>{
@@ -81,7 +83,7 @@ let browser;
    static OPEN=1;static CLOSED=3;readyState=0;
    constructor(){setTimeout(()=>{this.readyState=1;this.onopen?.({});},0);}
    send(text){const message=JSON.parse(text);sent.push(message);if(message.type==='PLAYER_JOIN')setTimeout(()=>{
-    this.onmessage?.({data:JSON.stringify({type:'ROOM_SEAT_ASSIGNED',payload:{roomId:'fixture-room',seat:{id:'one',position:{x:0,y:1,z:0},orientation:{x:0,y:0,z:0,w:1},...window.fixtureSeats?.[0]}}})});
+    this.onmessage?.({data:JSON.stringify({type:'ROOM_SEAT_ASSIGNED',payload:{roomId:'a1000000-0000-4000-8000-000000000001',seat:{id:'one',position:{x:0,y:1,z:0},orientation:{x:0,y:0,z:0,w:1},...window.fixtureSeats?.[0]}}})});
     this.onmessage?.({data:JSON.stringify({type:'WORLD_STATE',payload:{players:[{characterId:message.payload.characterId,characterName:'Fixture',position:message.payload.position},{characterId:'peer',characterName:'Peer',position:{x:3,y:1,z:0},avatarConfig:window.fixtureHumanPeer||{mode:'standard',headType:'cube',headColor:'#ffaa99',bodyColor:'#4a90e2',headScale:1,headOffset:0,headYaw:0},seat:{id:'two',position:{x:3,y:1,z:0},orientation:{x:0,y:0,z:0,w:1}},glbUrl:'/legacy-missing.glb',weaponConfig:{type:'sword'},animUrls:{idle:'/legacy-idle.glb'}}],weather:{type:'storm',intensity:100}}})});
    },0);}
    close(){this.readyState=3;}
@@ -120,7 +122,7 @@ let browser;
   return {distance:gameWorld.camera.position.distanceTo(expected),peer:gameWorld.players.get('peer').group.visible,seat:player.position.toArray()};
  });
  assert(cameraCheck.distance<.02,JSON.stringify(cameraCheck));assert.equal(cameraCheck.peer,true);assert.deepEqual(cameraCheck.seat,seatBeforeCamera);
- await page.evaluate(()=>RoomSeating.message('ROOM_SEATS_STATE',{roomId:'fixture-room',version:1,seats:[{id:'one',label:'1',occupancy:'active',character_id:'me',position:{x:0,y:1,z:0},...window.fixtureSeats?.[0]}]}));
+ await page.evaluate(()=>RoomSeating.message('ROOM_SEATS_STATE',{roomId:'a1000000-0000-4000-8000-000000000001',version:1,seats:[{id:'one',label:'1',occupancy:'active',character_id:'me',position:{x:0,y:1,z:0},...window.fixtureSeats?.[0]}]}));
  await page.locator('#room-places-toggle').click();await page.waitForFunction(()=>!document.getElementById('room-seat-picker').hidden&&player.worldObject.visible);
  await page.keyboard.press('Escape');await page.waitForFunction(()=>!player.worldObject.visible);
  await page.locator('#meeting-camera-toggle').click();await page.waitForFunction(()=>GAME_STATE.cameraMode==='third-person'&&player.worldObject.visible);
@@ -239,11 +241,13 @@ let browser;
   await page.evaluate(()=>{player.updateCamera=fixtureCameraUpdate;delete window.fixtureCameraUpdate;});
   console.log('Human meeting: six real built-in models seated in the shipped office, independent mouths and native voice playback OK');
  }
+ if(videoMode)await require('./room-video-full-scene-browser').check(page);
  if(screenMode)await page.locator('#meeting-screen-preview').click();
  const stoppedFrame = await page.evaluate(() => { MeetingMain.stop(); return gameWorld.frameCount; });
  await page.waitForTimeout(200);
  assert.equal(await page.evaluate(() => gameWorld.frameCount), stoppedFrame, 'stopped startup releases its rendering loop');
  assert.equal(await page.evaluate(() => gameWorld.generatedBuildings.size), 0);
+ if(videoMode)assert(await page.evaluate(()=>fixtureVideos.every(v=>!v.getAttribute('src')&&v.paused)),'room exit disposed every video source');
  if(screenMode){
   await page.waitForFunction(()=>!document.querySelector('#meeting-screen-preview,dialog'));
   assert.deepEqual(await page.evaluate(()=>screenDisposals),{geometry:2,material:2,texture:1});

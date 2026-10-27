@@ -48,3 +48,15 @@
 ```
 
 Если браузер, окружение или тестовые данные недоступны, писать **NOT RUN**, объясняя причину и конкретный ручной план. Нельзя писать «всё проверено» на основании статического осмотра кода.
+
+
+### Видео 1.6.0 Experimental: дополнительная QA, 27 октября 2026
+
+PASS: шесть native 1080p viewers в отдельных Chromium contexts, медленная сеть
+и visibility recovery; общий и увеличенный canvas используют один decoder.
+PASS: полная /play с настоящим GLB-офисом/аватарами и видео, pause/seek,
+очистка source и owned GPU на выходе. HTTP/session в этом GLB-тесте — fixtures;
+SQL/JWT/WS и HTTPS/Secure-cookie проверены отдельным интеграционным сценарием.
+PASS: прежние presentation/materials 3 языка/7 viewport/focus/zoom.
+Статус Experimental сохраняется: реальные мобильные/Safari/полный WCAG-аудит
+не выполнены. Точные условия и ограничения — ROOM_MEDIA_V2_PLAN.md, раздел 12.

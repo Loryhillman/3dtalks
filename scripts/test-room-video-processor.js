@@ -14,6 +14,16 @@ const {video}=require('./room-video-fixtures'),{createRoomMediaProcessor}=requir
   const native=createRoomMediaProcessor({worker,rssBytes:120*1024**2});
   try{await assert.rejects(native.run('video',bad,'unused'),e=>e.code==='PROCESSOR_MEMORY_LIMIT');}finally{native.close();}
   const pid=Number(await fs.readFile(pidFile,'utf8'));let alive=true;for(let i=0;i<50;i++){try{const s=await fs.readFile('/proc/'+pid+'/status','utf8');alive=!/^State:\s+Z/m.test(s);}catch(e){if(e.code==='ENOENT')alive=false;else throw e;}if(!alive)break;await new Promise(r=>setTimeout(r,20));}assert.equal(alive,false,'native descendant was killed');
-  console.log('Video processor: real MP4 H264/AAC and silent, checksums, tail-moov, codec/fps/truncation rejection; descendant RSS limit and group cleanup passed.');
+  // Linux /proc may report ESRCH as well as ENOENT during child exit.
+  // Ignore only vanished processes; actual permission/read failures stay closed.
+  const monitorWorker=path.join(dir,'monitor.cjs');
+  await fs.writeFile(monitorWorker,`setTimeout(()=>process.send({result:{ok:true}},()=>process.exit(0)),250);`);
+  for(const code of ['ESRCH','EACCES']){
+   const original=fs.readFile;let injected=false;
+   fs.readFile=async function(file,...args){if(!injected&&/^\/proc\/\d+\/(status|task\/\d+\/children)$/.test(String(file))){injected=true;throw Object.assign(Error('Fixture proc read'),{code});}return original.call(this,file,...args);};
+   const monitored=createRoomMediaProcessor({worker:monitorWorker});
+   try{const pending=monitored.run('video',bad,'unused');if(code==='ESRCH')assert.deepEqual(await pending,{ok:true});else await assert.rejects(pending,e=>e.code==='PROCESSOR_UNAVAILABLE');assert(injected);}finally{monitored.close();fs.readFile=original;}
+  }
+  console.log('Video processor: real MP4 H264/AAC and silent, checksums, tail-moov, codec/fps/truncation rejection; descendant RSS/group cleanup and ESRCH/EACCES monitoring passed.');
  }finally{processor.close();await fs.rm(dir,{recursive:true,force:true});}
 })().catch(e=>{console.error(e.stack);process.exitCode=1;});

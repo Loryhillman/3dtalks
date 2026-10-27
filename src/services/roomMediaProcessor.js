@@ -22,15 +22,16 @@ function createRoomMediaProcessor({executable=process.execPath,worker=path.join(
         while(pending.length){
           const pid=pending.pop();if(seen.has(pid))continue;seen.add(pid);
           if(seen.size>32){stop('PROCESSOR_MEMORY_LIMIT');break;}
+          // A native child can exit between the status and children reads.
           try{
             const data=await fs.readFile('/proc/'+pid+'/status','utf8'),match=/^VmRSS:\s+(\d+) kB/m.exec(data);
             bytes+=match?Number(match[1])*1024:0;
             const children=await fs.readFile('/proc/'+pid+'/task/'+pid+'/children','utf8');
             pending.push(...children.trim().split(/\s+/).filter(Boolean).map(Number));
-          }catch(e){if(e.code!=='ENOENT')throw e;}
+          }catch(e){if(!['ENOENT','ESRCH'].includes(e.code))throw e;}
         }
         if(bytes>rssBytes)stop('PROCESSOR_MEMORY_LIMIT');
-      }catch(e){if(e.code!=='ENOENT')stop('PROCESSOR_UNAVAILABLE');}finally{reading=false;}
+      }catch(e){if(!['ENOENT','ESRCH'].includes(e.code))stop('PROCESSOR_UNAVAILABLE');}finally{reading=false;}
     },40);
     child.on('message',message=>{if(message?.error)failure=error(message.error);else if(message?.result)result=message.result;});
     child.once('error',()=>{failure=error('PROCESSOR_UNAVAILABLE');});
