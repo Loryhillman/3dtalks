@@ -615,3 +615,11 @@ I18n.init. Камера в MeetingPlayer учитывает сидящую го�
 панелей сохранено. Проверены Chromium HUD (3 языка/9 размеров), startup
 обычный и --builtin-v3 --human-avatars, границы startup/клиент посадки.
 Подробности — docs/design-system/meeting-hud-redesign.md. VPS/push не выполнялись.
+
+
+По следующему прямому поручению eb45deb3 развёрнут на VPS, ветка сервера
+codex/meeting-camera-release-eb45deb3. Проверены backup/SHA-256, ready/health,
+реальная HTTPS-проверка двух GLB/двух аккаунтов: камера/перевод/посадка/выход,
+mobile bounds и отсутствие ошибок JS. Прежние 13 строк комнат/объекты/места,
+публикация meeting-six v5 (1.25) и черновик сохранены. QA очищены.
+Подробности/откат — SERVER_DEPLOYMENT.md; GitHub push не выполнялся.
