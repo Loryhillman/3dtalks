@@ -48,7 +48,7 @@
         if (!groups.has(group)) { reset(binding); bindings.delete(group); }
       }
       for (const { group } of world.players.values()) {
-        const binding = bind(group), amount = amounts.get(group) || 0;
+        const binding = bind(group), amount = window.AvatarAudioSignal.calibrate(amounts.get(group) || 0, group.userData.accountAvatarConfig?.mouthGain);
         for (const target of binding.targets) target.mesh.morphTargetInfluences[target.index] = amount;
       }
     },

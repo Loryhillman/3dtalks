@@ -23,6 +23,13 @@ const world = ctx.gameWorld = { isMeeting: true, players: new Map([['a', a], ['b
 const clock = { state: 'running', currentTime: .5 }, one = {}, two = {};
 mouth.start('a', one, clock, 0, envelope); mouth.update(world);
 assert(a.mesh.morphTargetInfluences[0] > .1); assert.equal(b.mesh.morphTargetInfluences[0], 0);
+const normal=a.mesh.morphTargetInfluences[0];
+a.group.userData.accountAvatarConfig={mouthGain:.5};mouth.update(world);
+assert(Math.abs(a.mesh.morphTargetInfluences[0]-normal*.5)<1e-6);
+a.group.userData.accountAvatarConfig={mouthGain:2};mouth.update(world);
+assert(Math.abs(a.mesh.morphTargetInfluences[0]-Math.min(.85,normal*2))<1e-6);
+assert.equal(signal.calibrate(0,2),0);assert.equal(signal.calibrate(1,100),.85);assert.equal(signal.calibrate(.2,NaN),.2);
+delete a.group.userData.accountAvatarConfig;
 clock.currentTime = 1.6; mouth.update(world); assert.equal(a.mesh.morphTargetInfluences[0], 0);
 mouth.start('b', two, clock, 1.1, envelope); mouth.update(world);
 assert(b.mesh.morphTargetInfluences[0] > .1); assert.equal(a.mesh.morphTargetInfluences[0], 0);

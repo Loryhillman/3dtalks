@@ -94,15 +94,18 @@ function inspectGlb(buffer,kind) {
 }
 function normalizeConfig(input) {
   if (!input || !['standard','full','builtin'].includes(input.mode)) fail('INVALID_CONFIG');
+  const gain=input.mouthGain===undefined?1:input.mouthGain;
+  if(typeof gain!=='number'||!Number.isFinite(gain)||gain<.5||gain>2)fail('INVALID_CONFIG');
+  const mouth=gain===1?{}:{mouthGain:gain};
   if(input.mode==='builtin'){
     if(typeof input.builtinId!=='string'||!require('./avatarCatalog').presetConfig(input.builtinId))fail('INVALID_CONFIG');
-    return {version:1,mode:'builtin',builtinId:input.builtinId};
+    return {version:1,mode:'builtin',builtinId:input.builtinId,...mouth};
   }
   const color = value=> {if(typeof value!=='string'||!/^#[0-9a-f]{6}$/i.test(value))fail('INVALID_CONFIG');return value;};
   const number=(value,min,max,def)=>{if(value===undefined)return def;if(typeof value!=='number'||!Number.isFinite(value)||value<min||value>max)fail('INVALID_CONFIG');return value;};
   const id=value=>{if(value==null)return null;if(typeof value!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value))fail('INVALID_CONFIG');return value;};
-  if(input.mode==='full')return {version:1,mode:'full',bodyAssetId:id(input.bodyAssetId),bodyYaw:number(input.bodyYaw,-180,180,0)};
+  if(input.mode==='full')return {version:1,mode:'full',bodyAssetId:id(input.bodyAssetId),bodyYaw:number(input.bodyYaw,-180,180,0),...mouth};
   if(!['image','sphere','cube','model'].includes(input.headType))fail('INVALID_CONFIG');
-  return {version:1,mode:'standard',headType:input.headType,headAssetId:id(input.headAssetId),bodyColor:color(input.bodyColor||'#4a90e2'),headColor:color(input.headColor||'#ffaa99'),headScale:number(input.headScale,.5,1.5,1),headOffset:number(input.headOffset,-.3,.3,0),headYaw:number(input.headYaw,-180,180,0)};
+  return {version:1,mode:'standard',headType:input.headType,headAssetId:id(input.headAssetId),bodyColor:color(input.bodyColor||'#4a90e2'),headColor:color(input.headColor||'#ffaa99'),headScale:number(input.headScale,.5,1.5,1),headOffset:number(input.headOffset,-.3,.3,0),headYaw:number(input.headYaw,-180,180,0),...mouth};
 }
 module.exports={LIMITS,fail,inspectGlb,normalizeConfig};

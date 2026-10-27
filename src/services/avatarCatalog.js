@@ -15,7 +15,11 @@ function listPresets() {
 }
 function resolveConfig(stored) {
   if (!stored || typeof stored !== 'object' || Array.isArray(stored) || !Object.keys(stored).length) return presetConfig(DEFAULT_ID);
-  if (stored.mode === 'builtin') return presetConfig(stored.builtinId) || presetConfig(DEFAULT_ID);
+  if (stored.mode === 'builtin') {
+    const resolved=presetConfig(stored.builtinId)||presetConfig(DEFAULT_ID);
+    if(Number.isFinite(stored.mouthGain)&&stored.mouthGain>=.5&&stored.mouthGain<=2&&stored.mouthGain!==1)resolved.mouthGain=stored.mouthGain;
+    return resolved;
+  }
   // Upgrade only the exact old default. Any custom head, image, color or calibration survives.
   if (Object.keys(stored).every(key => Object.hasOwn(LEGACY_DEFAULT,key)) &&
       Object.entries(LEGACY_DEFAULT).every(([key,value]) => stored[key] === value)) return presetConfig(DEFAULT_ID);

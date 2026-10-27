@@ -25,7 +25,7 @@ const server=http.createServer(async(req,res)=>{
       res.end('{}');return;
     }
     const file=path.resolve(root,'.'+decodeURIComponent(req.url.split('?')[0]));if(!file.startsWith(root+path.sep))throw Error('path');
-    res.setHeader('Content-Type',({'.html':'text/html','.js':'application/javascript','.json':'application/json','.css':'text/css'})[path.extname(file)]||'application/octet-stream');res.end(await fs.readFile(file));
+    res.setHeader('Content-Type',({'.html':'text/html','.js':'application/javascript','.json':'application/json','.css':'text/css','.svg':'image/svg+xml','.woff2':'font/woff2'})[path.extname(file)]||'application/octet-stream');res.end(await fs.readFile(file));
   }catch(error){res.statusCode=404;res.end('not found');}
 });
 async function executable(){
@@ -37,7 +37,8 @@ async function executable(){
 let browser;
 (async()=>{
   await new Promise(r=>server.listen(0,'127.0.0.1',r));
-  browser=await chromium.launch({executablePath:await executable(),headless:true,args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+  await fs.writeFile('/tmp/3dtalks-avatar-preview-fixture.wav',require('./avatar-lab-audio-fixture').wav());
+  browser=await chromium.launch({executablePath:await executable(),headless:true,args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--use-file-for-fake-audio-capture=/tmp/3dtalks-avatar-preview-fixture.wav']});
   const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.addInitScript(()=>{localStorage.setItem('token','fixture-token');localStorage.setItem('locale','ru-RU');});
   const base='http://127.0.0.1:'+server.address().port;
@@ -46,10 +47,30 @@ let browser;
   assert.equal(await page.locator('[name=mode]').inputValue(),'builtin');
   assert.equal(await page.locator('[name=builtinId]').inputValue(),DEFAULT.builtinId);
   assert.equal(await page.locator('#avatar-assets').isVisible(),false);
+  await page.evaluate(()=>{const original=UserAvatarRenderer.apply;UserAvatarRenderer.apply=(group,c)=>{window.previewAvatarGroup=group;return original(group,c);};});
+  await page.click('#avatar-preview-retry');await page.waitForFunction(()=>!document.getElementById('avatar-save').disabled);
+  await page.click('#avatar-view-face');assert.equal(await page.locator('#avatar-view-face').getAttribute('aria-pressed'),'true');
+  const front=await page.locator('#avatar-canvas').screenshot();
+  const bounds=await page.locator('#avatar-canvas').boundingBox();
+  await page.mouse.move(bounds.x+bounds.width/2,bounds.y+bounds.height/2);await page.mouse.down();await page.mouse.move(bounds.x+bounds.width/2+70,bounds.y+bounds.height/2+10,{steps:8});await page.mouse.up();
+  assert(!front.equals(await page.locator('#avatar-canvas').screenshot()),'drag rotates real model view');
+  await page.click('#avatar-view-reset');
+  await page.click('#avatar-voice-record');await page.waitForFunction(()=>/Recording|Идёт запись/.test(document.getElementById('avatar-voice-status').textContent));
+  await page.waitForTimeout(1300);await page.click('#avatar-voice-record');
+  await page.waitForFunction(()=>!document.getElementById('avatar-voice-play').disabled);
+  await page.locator('#avatar-mouth-gain').fill('1.5');await page.locator('#avatar-mouth-gain').dispatchEvent('input');
+  await page.click('#avatar-voice-play');
+  await page.waitForFunction(()=>{let open=false;previewAvatarGroup.traverse(n=>{const i=n.morphTargetDictionary?.viseme_aa;if(i!==undefined&&n.morphTargetInfluences[i]>.05)open=true;});return open;});
+  await page.click('#avatar-voice-stop');
+  assert(await page.evaluate(()=>{let closed=true;previewAvatarGroup.traverse(n=>{const i=n.morphTargetDictionary?.viseme_aa;if(i!==undefined&&n.morphTargetInfluences[i]!==0)closed=false;});return closed;}));
+  await page.click('#avatar-save');await page.waitForFunction(()=>/сохранён|saved/.test(document.getElementById('avatar-status').textContent));
+  assert.equal(lastSave.config.mouthGain,1.5);
+  await page.reload();await page.waitForFunction(()=>!document.getElementById('avatar-save').disabled);
+  assert.equal(await page.locator('#avatar-mouth-gain').inputValue(),'1.5');
   await page.selectOption('[name=mode]','standard');
   await page.selectOption('[name=headType]','cube');await page.waitForFunction(()=>!document.getElementById('avatar-save').disabled);
   await page.locator('#avatar-save').click();await page.waitForFunction(()=>document.getElementById('avatar-status').textContent.includes('saved')||document.getElementById('avatar-status').textContent.includes('сохранён'));
-  assert.equal(lastSave.config.headType,'cube');assert.equal(lastSave.revision,0);
+  assert.equal(lastSave.config.headType,'cube');assert.equal(lastSave.revision,1);
   await page.selectOption('[name=headType]','model');assert.equal(await page.locator('#avatar-save').isDisabled(),true);
   await page.selectOption('[name=assetId]','head-asset');await page.waitForFunction(()=>!document.getElementById('avatar-save').disabled);
   await page.fill('[name=headScale]','0.75');await page.locator('[name=headScale]').blur();await page.waitForFunction(()=>!document.getElementById('avatar-save').disabled);
@@ -58,7 +79,7 @@ let browser;
   assert.equal(lastSave.config.headAssetId,'head-asset');assert.equal(lastSave.config.headScale,.75);
   await page.selectOption('[name=mode]','full');assert.equal(await page.locator('#avatar-standard').isVisible(),false);
   await page.selectOption('[name=assetId]','body-asset');await page.waitForFunction(()=>!document.getElementById('avatar-save').disabled);
-  await page.locator('#avatar-look').fill('0.6');await page.locator('#avatar-save').click();
+  await page.locator('#avatar-canvas').focus();await page.keyboard.press('ArrowLeft');await page.keyboard.press('Home');await page.locator('#avatar-save').click();
   await page.waitForFunction(()=>document.getElementById('avatar-status').textContent.includes('saved')||document.getElementById('avatar-status').textContent.includes('сохранён'));
   assert.equal(lastSave.config.mode,'full');assert.equal(lastSave.config.bodyAssetId,'body-asset');
   // A second load uses the persisted config instead of a local template choice.
@@ -156,7 +177,8 @@ let browser;
   await page.unroute('**'+DEFAULT.asset.path);
   await page.click('#avatar-preview-retry');await page.waitForFunction(()=>!document.getElementById('avatar-save').disabled);
   assert.equal(await page.locator('[name=builtinId]').inputValue(),DEFAULT.builtinId);
-  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/avatar-editor-mobile.png',fullPage:true});
+  await page.setViewportSize({width:1280,height:900});await page.click('#avatar-view-face');await page.evaluate(()=>{document.activeElement.blur();scrollTo(0,0);return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));});await page.locator('#avatar-canvas').screenshot({path:'/tmp/avatar-editor-face.png'});await page.screenshot({path:'/tmp/avatar-editor-calibration-desktop.png',fullPage:true});
+  await page.setViewportSize({width:390,height:844});await page.click('#avatar-view-seat');await page.evaluate(()=>{document.activeElement.blur();scrollTo(0,0);return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));});await page.screenshot({path:'/tmp/avatar-editor-mobile.png',fullPage:true});
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'mobile page does not overflow');
   assert.deepEqual(errors,[]);
   console.log('Avatar browser: seated GLB rendering, modes, head controls, upload, save/reload and mobile layout OK');

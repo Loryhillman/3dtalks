@@ -109,10 +109,10 @@ function join(ws) { send(ws, 'PLAYER_JOIN', { roomSlug: 'meeting', characterId: 
     assert.equal([...server.getPlayerPositions().values()].length, 1);
     second.close(1006); await tick(); await tick();
     assert.equal(claim.state, 'held');
-    savedAvatar={mode:'builtin',builtinId:'female-neutral-v1',asset:{path:'https://untrusted.invalid/forged.glb'}};
+    savedAvatar={mode:'builtin',builtinId:'female-neutral-v1',mouthGain:1.4,asset:{path:'https://untrusted.invalid/forged.glb'}};
     const third = connect(); join(third); await tick();
     assert.deepEqual(third.sent.find(m=>m.type==='WORLD_STATE').payload.players[0].avatarConfig,
-      require('../src/services/avatarCatalog').presetConfig('female-neutral-v1'),'WS resolves built-in paths from its catalog');
+      {...require('../src/services/avatarCatalog').presetConfig('female-neutral-v1'),mouthGain:1.4},'WS resolves built-in paths from its catalog and preserves calibrated strength');
     assert.equal(claim.state, 'active');
     send(third, 'ROOM_LEAVE', { requestId: 'leave-1' }); await tick(); await tick();
     assert.equal(claim, null);

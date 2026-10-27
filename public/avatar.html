@@ -1,14 +1,17 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>3DTalks — Avatar</title>
-<link rel="stylesheet" href="/css/rooms.css"><link rel="stylesheet" href="/css/avatar.css"><link rel="stylesheet" href="/css/app-ui.css?v=2"><link rel="stylesheet" href="/css/app-shell.css">
+<link rel="stylesheet" href="/css/rooms.css"><link rel="stylesheet" href="/css/avatar.css?v=2"><link rel="stylesheet" href="/css/app-ui.css?v=2"><link rel="stylesheet" href="/css/app-shell.css">
 <script src="/i18n/i18n.js?v=english-default-1" defer></script>
 <script src="/js/appShell.js?v=1" defer></script>
 <script src="/js/lib/three.min.js?v=185" defer></script><script src="/js/lib/GLTFLoader.js?v=185" defer></script>
-<script src="/js/avatarBase.js?v=1" defer></script><script src="/js/avatarRig.js?v=2" defer></script><script src="/js/userAvatarRenderer.js?v=4" defer></script><script src="/js/roomSeatAvatar.js?v=5" defer></script><script src="/js/avatarEditor.js?v=2" defer></script></head>
+<script src="/js/avatarBase.js?v=1" defer></script><script src="/js/avatarRig.js?v=2" defer></script><script src="/js/userAvatarRenderer.js?v=4" defer></script><script src="/js/roomSeatAvatar.js?v=5" defer></script><script src="/js/avatarAudioSignal.js?v=2" defer></script><script src="/js/avatarVoicePreview.js?v=1" defer></script><script src="/js/avatarEditor.js?v=3" defer></script></head>
 <body class="app-ui app-shell" data-app-page="avatar"><main><header><h1 data-avatar-t="title"></h1><a href="/rooms" data-avatar-t="back"></a></header>
 <p id="avatar-status" role="status" aria-live="polite"></p>
-<div class="avatar-layout"><section class="avatar-preview"><canvas id="avatar-canvas" aria-label="Avatar preview"></canvas>
-<p data-avatar-t="previewHint"></p><label><span data-avatar-t="look"></span><input id="avatar-look" type="range" min="-1" max="1" step=".02" value="0"></label><button type="button" id="avatar-preview-retry" class="ui-button" data-avatar-t="retryPreview"></button></section>
+<div class="avatar-layout"><section class="avatar-preview">
+<div class="avatar-view-controls" role="group" aria-label="Preview camera"><button id="avatar-view-seat" type="button" class="ui-button" aria-pressed="true" data-avatar-t="viewSeat"></button><button id="avatar-view-face" type="button" class="ui-button" aria-pressed="false" data-avatar-t="viewFace"></button><button id="avatar-view-reset" type="button" class="ui-button ui-button--ghost" data-avatar-t="viewReset"></button></div>
+<canvas id="avatar-canvas" tabindex="0" aria-label="Avatar preview" aria-describedby="avatar-orbit-hint"></canvas>
+<p id="avatar-orbit-hint" data-avatar-t="orbitHint"></p><button type="button" id="avatar-preview-retry" class="ui-button" data-avatar-t="retryPreview"></button>
+</section>
 <form id="avatar-form"><label><span data-avatar-t="mode"></span><select name="mode"><option value="builtin" data-avatar-t="builtin"></option><option value="standard" data-avatar-t="customHead"></option><option value="full" data-avatar-t="full"></option></select></label>
 <div id="avatar-builtin"><label><span data-avatar-t="builtinChoice"></span><select name="builtinId"></select></label><p data-avatar-t="builtinHint"></p></div>
 <div id="avatar-standard"><label><span data-avatar-t="headType"></span><select name="headType"><option value="image" data-avatar-t="image"></option><option value="sphere" data-avatar-t="sphere"></option><option value="cube" data-avatar-t="cube"></option><option value="model" data-avatar-t="model"></option></select></label>
@@ -19,5 +22,8 @@
 <div id="avatar-full" hidden><p data-avatar-t="rigHint"></p><label><span data-avatar-t="headYaw"></span><input name="bodyYaw" type="number" min="-180" max="180" step="1" value="0"></label></div>
 <div id="avatar-assets"><label><span data-avatar-t="asset"></span><select name="assetId"><option value="" data-avatar-t="noAsset"></option></select></label>
 <label><span data-avatar-t="upload"></span><input id="avatar-file" type="file" accept=".png,.jpg,.jpeg,.webp"></label>
-<p id="avatar-file-hint"></p></div><div class="actions"><button class="ui-button ui-button--destructive" type="button" id="avatar-delete" data-avatar-t="deleteAsset"></button><button class="ui-button" type="button" id="avatar-reset" data-avatar-t="reset"></button><button class="ui-button ui-button--primary" type="submit" id="avatar-save" data-avatar-t="save"></button></div>
+<p id="avatar-file-hint"></p></div><div class="avatar-voice-panel"><h2 data-avatar-t="voiceTitle"></h2><p data-avatar-t="voiceHint"></p>
+<label for="avatar-mouth-gain"><span data-avatar-t="mouthStrength"></span><output id="avatar-mouth-value" for="avatar-mouth-gain">1.00×</output></label><input id="avatar-mouth-gain" type="range" min=".5" max="2" step=".05" value="1">
+<div class="avatar-voice-actions"><button id="avatar-voice-record" type="button" class="ui-button" data-avatar-t="voiceRecord"></button><button id="avatar-voice-play" type="button" class="ui-button" data-avatar-t="voicePlay" disabled></button><button id="avatar-voice-stop" type="button" class="ui-button ui-button--ghost" data-avatar-t="voiceStop" disabled></button></div>
+<p id="avatar-voice-status" role="status" aria-live="polite"></p><p data-avatar-t="voicePrivacy"></p></div><div class="actions"><button class="ui-button ui-button--destructive" type="button" id="avatar-delete" data-avatar-t="deleteAsset"></button><button class="ui-button" type="button" id="avatar-reset" data-avatar-t="reset"></button><button class="ui-button ui-button--primary" type="submit" id="avatar-save" data-avatar-t="save"></button></div>
 <p data-avatar-t="saveHint"></p></form></div></main></body></html>

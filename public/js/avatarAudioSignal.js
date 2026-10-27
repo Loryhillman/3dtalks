@@ -30,6 +30,11 @@
     const position = seconds / signal.step, index = Math.floor(position), fraction = position - index;
     return signal.weights[index] * (1 - fraction) + signal.weights[Math.min(index + 1, signal.weights.length - 1)] * fraction;
   }
-  const api = { envelope, at };
+  // Visual strength only: never changes playback volume or the noise gate.
+  function calibrate(amount, gain = 1) {
+    const strength = Number.isFinite(gain) ? Math.min(2, Math.max(.5, gain)) : 1;
+    return Number.isFinite(amount) ? Math.min(.85, Math.max(0, amount) * strength) : 0;
+  }
+  const api = { envelope, at, calibrate };
   if (typeof module !== 'undefined') module.exports = api; else root.AvatarAudioSignal = api;
 })(typeof window === 'undefined' ? globalThis : window);
