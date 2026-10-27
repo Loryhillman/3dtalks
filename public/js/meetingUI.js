@@ -2,7 +2,7 @@
 (() => {
   const requested = new URLSearchParams(location.search).get('room');
   let active = location.pathname === '/play' || !!requested && requested !== 'main';
-  let footer, toolbar, room, observer, resizeObserver, history, empty, logObserver, connectionObserver, stopped=false;
+  let footer, toolbar, room, observer, resizeObserver, history, empty, logObserver, connectionObserver, cameraToggle, stopped=false;
   const tr = (key, fallback) => {
     const value = window.i18n?.t('meetingUi.' + key);
     return value && value !== 'meetingUi.' + key ? value : fallback;
@@ -41,6 +41,11 @@
       history.querySelector('summary').textContent=tr('messages','Room messages');empty.textContent=tr('emptyChat','Messages will appear here.');
       const input=document.getElementById('nearby-chat-input');if(input){input.placeholder=tr('messagePlaceholder','Message the room…');input.setAttribute('aria-label',tr('messageLabel','Message to the room'));}
     }
+    if (cameraToggle) {
+      const first=window.GAME_STATE?.cameraMode==='first-person';
+      cameraToggle.textContent=tr(first?'cameraOverview':'cameraFirstPerson',first?'Overview':'First-person view');
+      cameraToggle.setAttribute('aria-pressed',String(first));
+    }
     if (toolbar) {
       toolbar.setAttribute('aria-label', tr('controls', 'Room controls'));
       toolbar.querySelectorAll('[data-i18n]').forEach(element => {
@@ -62,6 +67,8 @@
       window.addEventListener('resize', measure);
       window.visualViewport?.addEventListener('resize', measure);window.visualViewport?.addEventListener('scroll',measure);
       window.i18n?.onLocaleChange(refresh);
+      // Initial catalog loading does not emit a locale-change event.
+      window.i18n?.init().then(refresh).catch(error=>console.warn('[MeetingUI] Translation initialization failed:',error.message));
     }
     adoptControls(); refresh();
   }
@@ -102,6 +109,13 @@
       const actions = document.createElement('div'); actions.className = 'meeting-actions';
       for (const child of [...toolbar.children]) actions.append(child);
       toolbar.replaceChildren(identity, actions);
+      cameraToggle=document.createElement('button');cameraToggle.type='button';cameraToggle.id='meeting-camera-toggle';cameraToggle.className='ui-button';
+      cameraToggle.addEventListener('click',()=>{
+        if(stopped||!window.GAME_STATE)return;
+        GAME_STATE.cameraMode=GAME_STATE.cameraMode==='first-person'?'third-person':'first-person';
+        refresh();
+      });
+      toolbar.append(cameraToggle);
       mount(); window.MeetingRoomPanel?.mount(toolbar);resizeObserver.observe(toolbar); measure();
     }
   };

@@ -216,6 +216,7 @@
       player.position.set(seat.position.x, seat.position.y, seat.position.z);
       apply(player.characterId, seat);
       if(pickerOpen && previewCamera && previewTarget){
+        if(player.worldObject)player.worldObject.visible=true;
         camera.position.copy(previewCamera);camera.lookAt(previewTarget);camera.updateMatrixWorld();return;
       }
       player.updateCamera(camera);

@@ -109,6 +109,23 @@ let browser;
  assert.deepEqual(await page.evaluate(()=>MeetingRoster.getState().members.map(p=>p.id).sort()),['me','peer']);
  await page.locator('#meeting-participants').click();assert.equal(await page.locator('.meeting-member').count(),2);await page.keyboard.press('Escape');
 
+ // The seated first-person camera must follow the scaled head, hide only self,
+ // retain the assigned seat and restore the avatar in overview/picker modes.
+ const seatBeforeCamera=await page.evaluate(()=>player.position.toArray());
+ await page.locator('#meeting-camera-toggle').click();
+ await page.waitForFunction(()=>GAME_STATE.cameraMode==='first-person'&&!player.worldObject.visible);
+ const cameraCheck=await page.evaluate(()=>{
+  const head=player.worldObject.userData.roomSeatRig?.found?.head;
+  const expected=head?head.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0,.1*player.worldObject.scale.y,0)):player.position.clone().add(new THREE.Vector3(0,.85*player.worldObject.scale.y,0));
+  return {distance:gameWorld.camera.position.distanceTo(expected),peer:gameWorld.players.get('peer').group.visible,seat:player.position.toArray()};
+ });
+ assert(cameraCheck.distance<.02,JSON.stringify(cameraCheck));assert.equal(cameraCheck.peer,true);assert.deepEqual(cameraCheck.seat,seatBeforeCamera);
+ await page.evaluate(()=>RoomSeating.message('ROOM_SEATS_STATE',{roomId:'fixture-room',version:1,seats:[{id:'one',label:'1',occupancy:'active',character_id:'me',position:{x:0,y:1,z:0},...window.fixtureSeats?.[0]}]}));
+ await page.locator('#room-places-toggle').click();await page.waitForFunction(()=>!document.getElementById('room-seat-picker').hidden&&player.worldObject.visible);
+ await page.keyboard.press('Escape');await page.waitForFunction(()=>!player.worldObject.visible);
+ await page.locator('#meeting-camera-toggle').click();await page.waitForFunction(()=>GAME_STATE.cameraMode==='third-person'&&player.worldObject.visible);
+ assert.deepEqual(await page.evaluate(()=>player.position.toArray()),seatBeforeCamera);
+ console.log('First-person: scaled seated head, hidden self/visible peer, picker restoration, unchanged seat and overview passed');
  assert.equal(await page.evaluate(() => gameWorld.players.get('peer').group.userData.roomSeat?.id), 'two');
  assert.equal(await page.evaluate(()=>gameWorld.generatedBuildings.size),objects.length,'room geometry and uploaded GLB render with the lean script set');
  if(builtinMode){

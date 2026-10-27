@@ -108,3 +108,5 @@
     max-height: max(0px,calc(var(--meeting-visible-height) - var(--meeting-footer-height,140px) - 36px)) !important;
   }
 }
+
+.meeting-session #meeting-camera-toggle { flex: none; min-height: 44px; padding: 8px 12px; }

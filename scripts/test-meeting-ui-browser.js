@@ -24,8 +24,15 @@ let browser;
 (async()=>{try{
  await new Promise(r=>server.listen(0,'127.0.0.1',r));browser=await chromium.launch({executablePath:await executable(),headless:true,args:['--no-sandbox','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});
  const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));const base='http://127.0.0.1:'+server.address().port;
+ await page.addInitScript(()=>localStorage.setItem('preferredLocale','ru-RU'));
  await page.goto(base+'/play?room=fixture');
  await page.waitForFunction(()=>document.getElementById('meeting-toolbar')&&document.getElementById('skill-voice-btn')?.parentElement.id==='meeting-footer'&&document.getElementById('nearby-chat-wrap')?.parentElement.id==='meeting-footer');
+ await page.waitForFunction(()=>document.querySelector('.meeting-history summary')?.textContent==='Сообщения комнаты');
+ assert.equal(await page.locator('#meeting-camera-toggle').textContent(),'От первого лица');
+ await page.locator('#meeting-camera-toggle').click();assert.equal(await page.evaluate(()=>GAME_STATE.cameraMode),'first-person');
+ assert.equal(await page.locator('#meeting-camera-toggle').getAttribute('aria-pressed'),'true');
+ assert.equal(await page.locator('#meeting-camera-toggle').textContent(),'Обзор');
+ await page.locator('#meeting-camera-toggle').press('Space');assert.equal(await page.evaluate(()=>GAME_STATE.cameraMode),'third-person');
  assert.equal(await page.locator('#skill-hud').count(),0,'meeting does not create RPG skill slots');
  const hidden=['health-bar','monster-head-hud','minimap','btn-profile','btn-inventory','controls-hint','debug-panel','world-portal-btn','inventory-page','profile-page'];
  for(const id of hidden)assert.equal(await page.locator('#'+id).isVisible(),false,id+' should be hidden');

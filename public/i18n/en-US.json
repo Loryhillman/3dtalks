@@ -5376,6 +5376,8 @@
     "avatarHint": "The standard character uses the game scale. Check seat height, facing direction and feet placement."
   },
   "meetingUi": {
+    "cameraFirstPerson": "First-person view",
+    "cameraOverview": "Overview",
     "communication": "Chat and microphone",
     "controls": "Room controls",
     "language": "Change language",
