@@ -109,7 +109,7 @@ let browser;
  await page.waitForFunction(human => {const data=gameWorld.players.get('peer')?.group.userData;return human?data?.accountAvatarConfig?.builtinId==='female-neutral-v1'&&data?.roomSeatRig?.supported:data?.accountAvatarConfig?.headType==='cube';},humanMode);
  assert.equal(await page.evaluate(()=>MeetingRoster.getState().connection),'connected');
  assert.deepEqual(await page.evaluate(()=>MeetingRoster.getState().members.map(p=>p.id).sort()),['me','peer']);
- await page.locator('#meeting-participants').click();assert.equal(await page.locator('.meeting-member').count(),2);await page.keyboard.press('Escape');
+ await page.evaluate(()=>MeetingUI.setMenu(true));await page.locator('#meeting-participants').click();assert.equal(await page.locator('.meeting-member').count(),2);await page.keyboard.press('Escape');
 
  // The seated first-person camera must follow the scaled head, hide only self,
  // retain the assigned seat and restore the avatar in overview/picker modes.
@@ -154,8 +154,8 @@ let browser;
  if(builtinMode&&process.env.MEETING_UI_SCREENSHOTS){
   const locale=await page.evaluate(()=>i18n.currentLocale);await page.evaluate(()=>i18n.setLocaleLocal('ru-RU'));
   await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:'/tmp/meeting-redesign-live-mobile.png'});
-  await page.locator('#meeting-participants').click();await page.screenshot({path:'/tmp/meeting-controls-room-mobile.png'});await page.keyboard.press('Escape');
-  await page.locator('#meeting-sound-settings').click();await page.screenshot({path:'/tmp/meeting-sound-room-mobile.png'});await page.keyboard.press('Escape');
+  await page.evaluate(()=>MeetingUI.setMenu(true));await page.locator('#meeting-participants').click();await page.screenshot({path:'/tmp/meeting-controls-room-mobile.png'});await page.keyboard.press('Escape');
+  await page.evaluate(()=>MeetingUI.setMenu(true));await page.locator('#meeting-sound-settings').click();await page.screenshot({path:'/tmp/meeting-sound-room-mobile.png'});await page.keyboard.press('Escape');
   await page.setViewportSize({width:1280,height:800});await page.screenshot({path:'/tmp/meeting-redesign-live-desktop.png'});
   await page.setViewportSize({width:390,height:844});await page.evaluate(l=>i18n.setLocaleLocal(l),locale);
  }
@@ -164,7 +164,7 @@ let browser;
   assert.equal(await page.locator('#meeting-screen-preview').count(),1);
   const before=await page.evaluate(()=>({yaw:MOUSE.targetRotationY,position:player.position.toArray(),collisions:gameWorld.collisionObjects.some(o=>o.id===100)}));
   assert.equal(before.collisions,false);
-  await page.locator('#meeting-screen-preview').click();assert(await page.locator('dialog').isVisible());
+  await page.evaluate(()=>MeetingUI.setMenu(true));await page.locator('#meeting-screen-preview').click();assert(await page.locator('dialog').isVisible());
   await page.keyboard.press('Tab');assert(await page.evaluate(()=>!!document.activeElement.closest('dialog')));
   await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.querySelector('dialog'));
   assert.equal(await page.evaluate(()=>document.activeElement.id),'meeting-screen-preview');
@@ -242,7 +242,7 @@ let browser;
   console.log('Human meeting: six real built-in models seated in the shipped office, independent mouths and native voice playback OK');
  }
  if(videoMode)await require('./room-video-full-scene-browser').check(page);
- if(screenMode)await page.locator('#meeting-screen-preview').click();
+ if(screenMode){await page.evaluate(()=>MeetingUI.setMenu(true));await page.locator('#meeting-screen-preview').click();}
  const stoppedFrame = await page.evaluate(() => { MeetingMain.stop(); return gameWorld.frameCount; });
  await page.waitForTimeout(200);
  assert.equal(await page.evaluate(() => gameWorld.frameCount), stoppedFrame, 'stopped startup releases its rendering loop');

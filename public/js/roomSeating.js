@@ -60,9 +60,11 @@
   }
   function openPicker() {
     if(!sceneLoaded || !seat || !WSClient.connected)return;
+    window.MeetingUI?.setMenu?.(false);window.MeetingUI?.setChat?.(false);
     pickerOpen=true;panel.hidden=false;placesButton.setAttribute('aria-expanded','true');
     if(window.MOUSE){savedMouse={};for(const k of ['rotationX','rotationY','targetRotationX','targetRotationY'])savedMouse[k]=window.MOUSE[k];window.MOUSE.isDragging=false;}
     selectedId=seat.id;setView();render();
+    panel.querySelector('.room-seat-row.selected .room-seat-inspect')?.focus({preventScroll:true});
   }
   const mine = () => typeof GAME_STATE !== 'undefined' ? GAME_STATE.characterId : null;
   const button = (text, action, parent) => {
@@ -115,11 +117,11 @@
       }
       const {row,inspect,take}=entry;
       row.classList.toggle('selected',item.id===selectedId);
-      const caption=t('place','Место')+' '+item.label+': '+status;
+      const caption=t('place','Место')+' '+item.label+' · '+status;
       if(inspect.textContent!==caption)inspect.textContent=caption;
       inspect.setAttribute('aria-pressed',String(item.id===selectedId));
       inspect.disabled=!availablePosition(item);inspect.title=t('inspect','Показать место в комнате');
-      take.hidden=item.id!==selectedId&&!own;
+      take.hidden=item.id!==selectedId||own;
       const action=own?t('yours','Ваше место'):t('take','Занять');
       if(take.textContent!==action)take.textContent=action;
       take.disabled=!!pending||!WSClient.connected||item.occupancy!=='free'||own;
@@ -159,7 +161,7 @@
     button(t('overview','Обзор комнаты'),()=>{selectedId=null;setView();render();},views).dataset.i18n='roomSeating.overview';
     const left=button('↶',()=>{previewAngle-=Math.PI/4;setView(seats.find(s=>s.id===selectedId));},views);left.setAttribute('aria-label',t('viewLeft','Осмотреть слева'));left.dataset.seatAria='roomSeating.viewLeft';
     const right=button('↷',()=>{previewAngle+=Math.PI/4;setView(seats.find(s=>s.id===selectedId));},views);right.setAttribute('aria-label',t('viewRight','Осмотреть справа'));right.dataset.seatAria='roomSeating.viewRight';
-    button(t('close','Закрыть'),()=>{closePicker();placesButton.focus();},views).dataset.i18n='roomSeating.close';
+    const close=button(t('close','Закрыть'),()=>{closePicker();placesButton.focus();},views);close.dataset.i18n='roomSeating.close';close.setAttribute('aria-label',t('close','Закрыть'));close.dataset.seatAria='roomSeating.close';
     notice=document.createElement('p');notice.setAttribute('role','status');panel.append(notice);
     map=document.createElement('div');map.id='room-seat-list';panel.append(map);document.body.append(panel);
     if(window.RoomSeatLabels)labels=new RoomSeatLabels(selectForPreview);
@@ -175,6 +177,7 @@
   }
   window.RoomSeating = {
     active: false,
+    dismissPicker(){if(pickerOpen)closePicker();},
     enter(value) { if (value.seating_mode !== 'seated') return; room = value; this.active = true; sceneLoaded = false; build(); this.blocked('waiting'); },
     sceneReady() { sceneLoaded = true; if (this.active && seat) overlay.style.display = 'none'; },
     sceneFailed() { if (!this.active) return; this.blocked('sceneError'); },
@@ -202,7 +205,7 @@
         if (payload.characterId === mine()) seat = payload.seat;
         apply(payload.characterId, payload.seat);
       } else if (type === 'ROOM_SEAT_RESULT' && payload.requestId === pending) {
-        stopPending(); if(payload.success && pickerOpen)closePicker(); notice.textContent = payload.success ? t('moved','Место изменено') : t('failed','Не удалось сменить место. Текущее место сохранено.'); render();
+        stopPending(); if(payload.success && pickerOpen){closePicker();placesButton.focus();} notice.textContent = payload.success ? t('moved','Место изменено') : t('failed','Не удалось сменить место. Текущее место сохранено.'); render();
       } else if (type === 'ROOM_LOOK' && payload.roomId === room.id) {
         looks.set(payload.characterId, payload.look);
       } else if (type === 'WORLD_STATE') {

@@ -4,7 +4,7 @@ const {chromium}=require('playwright');
 const {renderMeetingPage}=require('../src/services/meetingPage');
 const root=path.resolve(__dirname,'../public');
 const setup=`window.GAME_STATE={characterId:'me',characterName:'Fixture'};window.sent=[];window.WSClient={connected:true,ws:{readyState:1,send:m=>sent.push(JSON.parse(m))},isConnected:()=>true,send:m=>sent.push(m)};window.voiceChat={startTalk:()=>window.talkStarted=(window.talkStarted||0)+1,stopTalk:()=>window.talkStopped=(window.talkStopped||0)+1};`;
-const boot=`window.addEventListener('DOMContentLoaded',async()=>{await i18n.init();if(location.pathname!='/play')return;const room={id:'11111111-1111-4111-8111-111111111111',name:'Long meeting name / Очень длинное название переговорной комнаты для проверки интерфейса',capacity:6,slug:'fixture',seating_mode:'seated'};window.gameWorld={players:new Map([['me',{group:new THREE.Group()}]])};window.MeetingRoster?.start(room.id);RoomSeating.enter(room);RoomSeating.message('ROOM_SEAT_ASSIGNED',{roomId:room.id,seat:{id:'one',position:{x:0,y:1,z:0},orientation:{x:0,y:0,z:0,w:1}}});RoomSeating.sceneReady();RoomSeating.message('ROOM_SEATS_STATE',{roomId:room.id,version:1,seats:Array.from({length:20},(_,i)=>({id:i?'seat-'+i:'one',label:String(i+1),occupancy:i?'free':'active',character_id:i?null:'me',position:{x:i%4,y:1,z:Math.floor(i/4)}}))});window.ACTIVE_ROOM=room;RoomPresentation.joined();RoomPresentation.message('ROOM_PRESENTATION_SESSION',{roomId:room.id,epoch:'22222222-2222-4222-8222-222222222222',token:'a'.repeat(43),canControl:true});RoomPresentation.message('ROOM_PRESENTATION_STATE',{roomId:room.id,epoch:'22222222-2222-4222-8222-222222222222',revision:'1',asset:null,pageIndex:0});window.screenModel=RoomScreenRenderer.create(RoomScreen.create().screen);RoomScreenPreview.mount(screenModel.userData.screenCanvas,'Screen',document.querySelector('#meeting-toolbar .meeting-actions'));RoomPresentation.attach(screenModel.userData.presentation);window.MeetingRoster?.snapshot([{characterId:'me',characterName:'Fixture'},{characterId:'peer',characterName:'Alice <b>literal</b>'}]);});`;
+const boot=`window.addEventListener('DOMContentLoaded',async()=>{await i18n.init();if(location.pathname!='/play')return;const room={id:'11111111-1111-4111-8111-111111111111',name:'Long meeting name / Очень длинное название переговорной комнаты для проверки интерфейса',capacity:6,slug:'fixture',seating_mode:'seated'};window.gameWorld={players:new Map([['me',{group:new THREE.Group()}]])};window.MeetingRoster?.start(room.id);RoomSeating.enter(room);RoomSeating.message('ROOM_SEAT_ASSIGNED',{roomId:room.id,seat:{id:'one',position:{x:0,y:1,z:0},orientation:{x:0,y:0,z:0,w:1}}});RoomSeating.sceneReady();RoomSeating.message('ROOM_SEATS_STATE',{roomId:room.id,version:1,seats:window.uiTestSeats=Array.from({length:20},(_,i)=>({id:i?'seat-'+i:'one',label:String(i+1),occupancy:i?'free':'active',character_id:i?null:'me',position:{x:i%4,y:1,z:Math.floor(i/4)}}))});window.ACTIVE_ROOM=room;RoomPresentation.joined();RoomPresentation.message('ROOM_PRESENTATION_SESSION',{roomId:room.id,epoch:'22222222-2222-4222-8222-222222222222',token:'a'.repeat(43),canControl:true});RoomPresentation.message('ROOM_PRESENTATION_STATE',{roomId:room.id,epoch:'22222222-2222-4222-8222-222222222222',revision:'1',asset:null,pageIndex:0});window.screenModel=RoomScreenRenderer.create(RoomScreen.create().screen);RoomScreenPreview.mount(screenModel.userData.screenCanvas,'Screen',document.querySelector('#meeting-toolbar .meeting-actions'));RoomPresentation.attach(screenModel.userData.presentation);window.MeetingRoster?.snapshot([{characterId:'me',characterName:'Fixture'},{characterId:'peer',characterName:'Alice <b>literal</b>'}]);});`;
 const server=http.createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://local').pathname;
  if(url==='/api/config/language'){res.setHeader('Content-Type','application/json');return res.end('{"language":"en-US"}');}
@@ -12,7 +12,7 @@ const server=http.createServer(async(req,res)=>{try{
   let html=await fs.readFile(path.join(root,'index.html'),'utf8');if(url==='/play')html=renderMeetingPage(html);
   html=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'');
   html=html.replace('</head>','<script src="/js/meetingUI.js"></script></head>');
-  const scripts=['i18n/i18n.js','js/lib/three.min.js','js/ui.js','js/roomSeatLabels.js',...(url==='/play'?['js/meetingRoster.js','js/meetingAudioSettings.js','js/meetingRoomPanel.js']:[]),'js/roomSeating.js',...(url==='/play'?['js/roomScreen.js','js/roomScreenRenderer.js','js/roomScreenPreview.js','js/roomPresentationProtocol.js','js/roomMediaRenderer.js','js/roomPresentation.js']:[]),...(url==='/play'?['js/meetingVoiceControl.js']:['js/skillHUD.js']),'js/nearbyChat.js'].map(s=>'<script src="/'+s+'"></script>').join('');
+  const scripts=['i18n/i18n.js','js/lib/three.min.js','js/ui.js','js/roomSeatLabels.js',...(url==='/play'?['js/meetingRoster.js','js/meetingAudioSettings.js','js/meetingRoomPanel.js']:[]),'js/roomSeating.js',...(url==='/play'?['js/roomScreen.js','js/roomScreenRenderer.js','js/roomScreenPreview.js','js/roomPresentationProtocol.js','js/roomMediaRenderer.js','js/roomPresentation.js','js/roomVideoPlayback.js']:[]),...(url==='/play'?['js/meetingVoiceControl.js']:['js/skillHUD.js']),'js/nearbyChat.js'].map(s=>'<script src="/'+s+'"></script>').join('');
   html=html.replace('</body>','<script>'+setup+'</script>'+scripts+'<script>'+boot+'</script></body>');
   res.setHeader('Content-Type','text/html');return res.end(html);
  }
@@ -28,11 +28,39 @@ let browser;
  await page.goto(base+'/play?room=fixture');
  await page.waitForFunction(()=>document.getElementById('meeting-toolbar')&&document.getElementById('skill-voice-btn')?.parentElement.id==='meeting-footer'&&document.getElementById('nearby-chat-wrap')?.parentElement.id==='meeting-footer');
  await page.waitForFunction(()=>document.querySelector('.meeting-history summary')?.textContent==='Сообщения комнаты');
+ assert(await page.locator('#meeting-menu').isHidden());assert(await page.locator('#nearby-chat-input').isHidden());
+ assert(await page.locator('#skill-voice-btn').isVisible());
+ await page.locator('#meeting-menu-toggle').click();assert(await page.locator('#meeting-screen-preview').isVisible());
+ await page.keyboard.press('Escape');assert(await page.locator('#meeting-menu').isHidden());assert.equal(await page.locator('#meeting-menu-toggle').getAttribute('aria-expanded'),'false');
+ await page.evaluate(()=>UI.addChatMessage('Alice','Unread compact chat message'));
+ await page.waitForFunction(()=>document.getElementById('meeting-chat-toggle').textContent.includes('1'));
+ await page.locator('#meeting-chat-toggle').click();await page.locator('#nearby-chat-input').fill('Saved compact draft');
+ await page.locator('#nearby-chat-input').evaluate(n=>n.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',isComposing:true,bubbles:true,cancelable:true})));assert(await page.locator('#nearby-chat-input').isVisible(),'IME Escape does not hide chat');
+ await page.keyboard.press('Escape');assert(await page.locator('#nearby-chat-input').isHidden());
+ await page.locator('#meeting-chat-toggle').click();assert.equal(await page.locator('#nearby-chat-input').inputValue(),'Saved compact draft');
+ assert(!await page.locator('#meeting-chat-toggle').getAttribute('aria-label').then(t=>t.includes('1')));
+ await page.keyboard.press('Escape');
  assert.equal(await page.locator('#meeting-camera-toggle').textContent(),'От первого лица');
  await page.locator('#meeting-camera-toggle').click();assert.equal(await page.evaluate(()=>GAME_STATE.cameraMode),'first-person');
  assert.equal(await page.locator('#meeting-camera-toggle').getAttribute('aria-pressed'),'true');
  assert.equal(await page.locator('#meeting-camera-toggle').textContent(),'Обзор');
  await page.locator('#meeting-camera-toggle').press('Space');assert.equal(await page.evaluate(()=>GAME_STATE.cameraMode),'third-person');
+ await page.locator('#room-places-toggle').click();await page.locator('#meeting-chat-toggle').click();
+ assert(await page.locator('#room-seat-picker').isHidden(),'opening chat dismisses seat inspection');await page.keyboard.press('Escape');
+ await page.locator('#room-places-toggle').click();await page.locator('#meeting-menu-toggle').click();
+ assert(await page.locator('#room-seat-picker').isHidden(),'opening the menu dismisses seat inspection');await page.keyboard.press('Escape');
+ await page.evaluate(()=>document.activeElement.blur());await page.keyboard.press('Enter');
+ assert(await page.locator('#nearby-chat-input').evaluate(n=>n===document.activeElement),'Enter reveals and focuses collapsed chat');await page.keyboard.press('Escape');
+ // The standard six seats fit in a centred grid without scrolling.
+ await page.evaluate(()=>RoomSeating.message('ROOM_SEATS_STATE',{roomId:ACTIVE_ROOM.id,version:2,seats:uiTestSeats.slice(0,6)}));
+ for(const [width,height]of [[1366,768],[375,812],[320,568]]){
+  await page.setViewportSize({width,height});await page.locator('#room-places-toggle').click();
+  assert(await page.locator('#room-seat-list').evaluate(n=>n.scrollHeight<=n.clientHeight+1),'six seats need no scrolling at '+width);
+  if(width===1366)await page.screenshot({path:'/tmp/meeting-six-refinement-desktop.png'});
+  if(width===375)await page.screenshot({path:'/tmp/meeting-six-refinement-mobile.png'});
+  await page.keyboard.press('Escape');
+ }
+ await page.evaluate(()=>RoomSeating.message('ROOM_SEATS_STATE',{roomId:ACTIVE_ROOM.id,version:3,seats:uiTestSeats}));
  assert.equal(await page.locator('#skill-hud').count(),0,'meeting does not create RPG skill slots');
  const hidden=['health-bar','monster-head-hud','minimap','btn-profile','btn-inventory','controls-hint','debug-panel','world-portal-btn','inventory-page','profile-page'];
  for(const id of hidden)assert.equal(await page.locator('#'+id).isVisible(),false,id+' should be hidden');
@@ -54,7 +82,8 @@ let browser;
   const bar=boxes['meeting-toolbar'],picker=boxes['room-seat-picker'];assert(bar.bottom<=picker.y||picker.bottom<=bar.y||bar.right<=picker.x||picker.right<=bar.x,`${width}x${height} header/picker overlap`);
   assert(boxes['room-seat-picker'].bottom<=boxes['meeting-footer'].y,`${width}x${height} picker/footer overlap`);
   const a=boxes['nearby-chat-wrap'],b=boxes['skill-voice-btn'];assert(a.right<=b.x||b.right<=a.x,'chat and microphone do not overlap');
-  assert.equal(await page.locator('#nearby-chat-input').isVisible(),true);
+  assert.equal(await page.locator('#nearby-chat-input').isVisible(),false,'seat selection collapses communication without removing the microphone');
+  assert(boxes['meeting-footer'].height<=90,'collapsed communication is a compact dock');
   assert.equal(await page.locator('#room-seat-picker h2').textContent(),JSON.parse(await fs.readFile(path.join(root,'i18n/'+locale+'.json'),'utf8')).roomSeating.places);
   assert.equal(await page.locator('#meeting-toolbar').evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(255, 255, 255)');
   assert.equal(await page.locator('#nearby-chat-input').getAttribute('maxLength'),'200');
@@ -68,9 +97,10 @@ let browser;
   });for(const c of contrasts)assert(c.ratio>=4.5,JSON.stringify(c));
   if(locale==='ru-RU'&&width===1366)await page.screenshot({path:'/tmp/meeting-compact-desktop.png'});
   if(locale==='ru-RU'&&width===320)await page.screenshot({path:'/tmp/meeting-compact-mobile.png'});
-  await page.keyboard.press('Escape');await page.waitForFunction(()=>document.getElementById('room-seat-picker').hidden);assert(await page.locator('#meeting-screen-preview').isVisible(),'screen actions return after choosing places');
+  await page.keyboard.press('Escape');await page.waitForFunction(()=>document.getElementById('room-seat-picker').hidden);await page.evaluate(()=>MeetingUI.setMenu(true));assert(await page.locator('#meeting-screen-preview').isVisible(),'screen actions return after choosing places');
  }
  }
+ await page.evaluate(()=>{MeetingUI.setMenu(true);MeetingUI.setChat(true);});
  // Text-only enlargement exercises existing fixed-width controls without claiming browser zoom coverage.
  await page.evaluate(()=>i18n.setLocaleLocal('ru-RU'));
  for(const [width,height] of [[1280,800],[375,812]]){
@@ -82,7 +112,7 @@ let browser;
    nodes.forEach((n,i)=>{originalTextStyles.push([n,n.getAttribute('style')]);n.style.setProperty('font-size',sizes[i]+'px','important');});
   });
   await page.waitForTimeout(100);
-  for(const selector of ['#meeting-toolbar','#meeting-footer','#room-places-toggle','.meeting-actions > button:nth-child(2)','.meeting-history summary','#nearby-chat-send','#skill-voice-btn']){
+  for(const selector of ['#meeting-toolbar','#meeting-footer','#room-places-toggle','[data-i18n="roomSeating.leave"]','.meeting-history summary','#nearby-chat-send','#skill-voice-btn']){
    const bounds=await page.locator(selector).evaluate(n=>({scroll:n.scrollWidth,client:n.clientWidth}));
    assert(bounds.scroll<=bounds.client+1,width+' 200% text fits '+selector+': '+JSON.stringify(bounds));
   }
@@ -99,6 +129,7 @@ let browser;
   window.dispatchEvent(new Event('resize'));
  });
  for(const top of [0,100]){
+  await page.evaluate(()=>{MeetingUI.setMenu(false);MeetingUI.setChat(true);history=document.querySelector('.meeting-history');history.open=false;});
   await page.evaluate(top=>{visualViewport.offsetTop=top;realVisualViewport.dispatchEvent(new Event('scroll'));},top);
   await page.waitForTimeout(100);
   const bounds=await page.evaluate(()=>['meeting-toolbar','meeting-footer'].map(id=>{const n=document.getElementById(id),r=n.getBoundingClientRect();return{id,top:r.top,bottom:r.bottom,scroll:n.scrollWidth,client:n.clientWidth};}));
@@ -124,6 +155,7 @@ let browser;
  }
  await page.evaluate(()=>{Object.defineProperty(window,'visualViewport',{configurable:true,value:realVisualViewport});window.dispatchEvent(new Event('resize'));});
  await page.setViewportSize({width:1280,height:800});
+ await page.evaluate(()=>{MeetingUI.setChat(true);document.querySelector('.meeting-history').open=false;});
  await page.locator('.meeting-history summary').focus();await page.keyboard.press('Enter');assert(await page.locator('.meeting-history').evaluate(n=>n.open),'Enter opens messages without activating chat input');
  await page.evaluate(()=>{UI.addChatMessage('Alice','Message with <b>literal markup</b>');UI.addChatMessage('System','Microphone status message');});
  assert(await page.locator('#chatBox').isVisible());assert.equal(await page.locator('#chatBox b').count(),0);assert(await page.locator('#chatBox').textContent().then(t=>t.includes('<b>literal markup</b>')));
@@ -138,7 +170,7 @@ let browser;
  await page.locator('#skill-voice-btn').evaluate(n=>{n.classList.remove('voice-disabled');n.classList.add('listening');});await page.waitForFunction(()=>document.querySelector('#skill-voice-btn .sv-label').textContent==='Recording…');
  await page.locator('#skill-voice-btn').evaluate(n=>n.classList.remove('listening'));
  const beforeOffline=await page.evaluate(()=>sent.length);await page.evaluate(()=>{window.wasConnected=WSClient.isConnected;WSClient.isConnected=()=>false;});
- await page.locator('#nearby-chat-input').fill('Retained draft');await page.locator('#nearby-chat-send').click();assert.equal(await page.locator('#nearby-chat-input').inputValue(),'Retained draft');assert.equal(await page.evaluate(()=>sent.length),beforeOffline);
+ await page.evaluate(()=>MeetingUI.setChat(true));await page.locator('#nearby-chat-input').fill('Retained draft');await page.locator('#nearby-chat-send').click();assert.equal(await page.locator('#nearby-chat-input').inputValue(),'Retained draft');assert.equal(await page.evaluate(()=>sent.length),beforeOffline);
  await page.evaluate(()=>WSClient.isConnected=window.wasConnected);
  await page.locator('#nearby-chat-input').fill('Meeting message');await page.locator('#nearby-chat-send').click();
  assert.equal(await page.evaluate(()=>sent.at(-1).type),'CHAT');
@@ -192,7 +224,7 @@ let browser;
  await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:()=>new Promise(resolve=>window.finishInviteCopy=resolve)}}));
  await page.locator('#meeting-invite').click();await page.locator('.meeting-room-body > .ui-button').click();
  assert(await page.locator('.meeting-room-body > .ui-button').isDisabled());
- await page.keyboard.press('Escape');await page.locator('#meeting-sound-settings').click();
+ await page.keyboard.press('Escape');await page.evaluate(()=>MeetingUI.setMenu(true));await page.locator('#meeting-sound-settings').click();
  await page.evaluate(()=>finishInviteCopy());assert(await page.evaluate(()=>document.activeElement.closest('dialog')?.dataset.kind==='sound'));
  await page.keyboard.press('Escape');
  await page.evaluate(()=>{window.originalRoomSlug=ACTIVE_ROOM.slug;ACTIVE_ROOM.slug='name /?#雪';});
@@ -208,7 +240,7 @@ let browser;
  await page.setViewportSize({width:1280,height:800});
  for(const locale of ['ru-RU','en-US','zh-CN']){
   await page.evaluate(locale=>i18n.setLocaleLocal(locale),locale);
-  await page.locator('#meeting-participants').click();
+  await page.evaluate(()=>MeetingUI.setMenu(true));await page.locator('#meeting-participants').click();
   assert.equal(await page.locator('.meeting-member').count(),2);
   assert(await page.locator('.meeting-room-count').textContent().then(t=>t.includes('2')&&!t.includes('{')));
   assert(await page.locator('#meeting-participants').textContent().then(t=>t.includes('2')&&!t.includes('{')));
@@ -226,7 +258,7 @@ let browser;
  }
  await page.setViewportSize({width:1280,height:800});await page.evaluate(()=>i18n.setLocaleLocal('en-US'));
  const messagesBeforeTest=await page.evaluate(()=>sent.length);
- await page.locator('#meeting-sound-settings').click();
+ await page.evaluate(()=>MeetingUI.setMenu(true));await page.locator('#meeting-sound-settings').click();
  assert.equal(await page.evaluate(()=>MeetingAudioSettings.getState().phase),'idle');
  await page.locator('.meeting-room-body > .ui-button').click();
  await page.waitForFunction(()=>MeetingAudioSettings.getState().phase==='testing');
@@ -240,9 +272,9 @@ let browser;
   window.nativeGetUserMedia=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);window.pendingMicrophones=[];window.testStreams=[];
   navigator.mediaDevices.getUserMedia=()=>new Promise(resolve=>pendingMicrophones.push(async()=>{const stream=await nativeGetUserMedia({audio:true});testStreams.push(stream);resolve(stream);}));
  });
- await page.locator('#meeting-sound-settings').click();await page.locator('.meeting-room-body > .ui-button').click();
+ await page.evaluate(()=>MeetingUI.setMenu(true));await page.locator('#meeting-sound-settings').click();await page.locator('.meeting-room-body > .ui-button').click();
  await page.waitForFunction(()=>pendingMicrophones.length===1);await page.keyboard.press('Escape');
- await page.locator('#meeting-sound-settings').click();await page.locator('.meeting-room-body > .ui-button').click();
+ await page.evaluate(()=>MeetingUI.setMenu(true));await page.locator('#meeting-sound-settings').click();await page.locator('.meeting-room-body > .ui-button').click();
  await page.waitForFunction(()=>pendingMicrophones.length===2);
  await page.evaluate(()=>pendingMicrophones[0]());await page.waitForFunction(()=>testStreams[0].getTracks().every(t=>t.readyState==='ended'));
  assert.equal(await page.evaluate(()=>MeetingAudioSettings.getState().phase),'requesting','old grant cannot start the new test');
@@ -251,7 +283,7 @@ let browser;
  await page.keyboard.press('Escape');await page.waitForFunction(()=>testStreams.every(s=>s.getTracks().every(t=>t.readyState==='ended')));
  await page.evaluate(()=>{navigator.mediaDevices.getUserMedia=nativeGetUserMedia;});
  // The real MediaRecorder uses the chosen microphone; actual decode drives playback status.
- await page.locator('#meeting-sound-settings').click();
+ await page.evaluate(()=>MeetingUI.setMenu(true));await page.locator('#meeting-sound-settings').click();
  await page.waitForFunction(()=>document.getElementById('meeting-microphone-select').options.length>1);
  const device=await page.locator('#meeting-microphone-select').evaluate(n=>[...n.options].find(o=>o.value)?.value);
  await page.locator('#meeting-microphone-select').selectOption(device);
@@ -269,12 +301,30 @@ let browser;
  assert(!await page.evaluate(()=>MeetingRoster.getState().members.find(p=>p.self).recording));
  await page.evaluate(()=>voiceChat.playVoiceMessage({...sent.findLast(m=>m.type==='VOICE_MESSAGE').payload,characterId:'peer'}));
  assert(await page.evaluate(()=>MeetingRoster.getState().members.find(p=>p.id==='peer').playing),'actual audio decoder marks the sender during playback');
- await page.locator('#meeting-sound-settings').click();
+ await page.evaluate(()=>MeetingUI.setMenu(true));await page.locator('#meeting-sound-settings').click();
  await page.locator('.meeting-playback-control input').uncheck();
  assert.equal(await page.evaluate(()=>voiceChat.playbackSources.size),0,'incoming sound switch immediately stops real playback');
  assert(!await page.evaluate(()=>MeetingRoster.getState().members.find(p=>p.id==='peer').playing));
  await page.keyboard.press('Escape');
- await page.locator('#meeting-participants').click();await page.screenshot({path:'/tmp/meeting-participants.png'});await page.keyboard.press('Escape');
+ await page.evaluate(()=>MeetingUI.setMenu(true));await page.locator('#meeting-participants').click();await page.screenshot({path:'/tmp/meeting-participants.png'});await page.keyboard.press('Escape');
+ // A collapsed menu must still signal blocked playback and clear on recovery.
+ await page.evaluate(()=>{MeetingUI.setMenu(false);window.attentionPlayer=new RoomVideoPlayback();attentionPlayer.mount(document.querySelector('.meeting-actions'));attentionPlayer.report('blocked');});
+ await page.waitForFunction(()=>document.getElementById('meeting-menu-toggle').dataset.attention==='true');
+ assert((await page.locator('#meeting-menu-toggle').textContent()).includes('!'));
+ await page.locator('#meeting-menu-toggle').click();assert(await page.locator('.presentation-video-local button').isVisible());
+ await page.evaluate(()=>{attentionPlayer.report('playing');attentionPlayer.dispose();MeetingUI.setMenu(false);});
+ await page.waitForFunction(()=>document.getElementById('meeting-menu-toggle').dataset.attention==='false');
+ // Local video volume keeps a normal compact track in the enlarged viewer.
+ const beforeVolume=await page.evaluate(()=>sent.length);
+ await page.evaluate(()=>{window.testVideoPlayer=new RoomVideoPlayback();const dialog=document.createElement('dialog');dialog.className='meeting-ui room-screen-preview';dialog.id='test-volume-dialog';document.body.append(dialog);testVideoPlayer.mount(dialog);dialog.showModal();});
+ for(const [width,height]of [[1280,800],[375,812]]){
+  await page.setViewportSize({width,height});
+  assert(await page.locator('.presentation-video-local input').evaluate(n=>{const r=n.getBoundingClientRect();return r.width<=121&&r.width>=72&&r.height>=44;}),'volume has a bounded track and a touch-sized hit area');
+  assert(await page.locator('#test-volume-dialog').evaluate(n=>n.scrollWidth<=n.clientWidth),'video controls do not overflow the viewer');
+ }
+ await page.locator('.presentation-video-local input').evaluate(n=>{n.value='.35';n.dispatchEvent(new Event('input',{bubbles:true}));});
+ assert.equal(await page.evaluate(()=>testVideoPlayer.video.volume),.35);assert.equal(await page.evaluate(()=>sent.length),beforeVolume,'local volume never changes shared playback');
+ await page.evaluate(()=>{testVideoPlayer.dispose();document.getElementById('test-volume-dialog').remove();});
  await page.evaluate(()=>voiceChat.dispose());
  await page.evaluate(()=>MeetingUI.stop());assert(await page.locator('#meeting-footer').isHidden());assert.equal(await page.locator('#chatBox .chat-message').count(),0);assert(await page.locator('#skill-voice-btn').isDisabled());
  await page.goto(base+'/__legacy');await page.waitForSelector('#skill-hud');

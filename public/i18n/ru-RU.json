@@ -5376,6 +5376,11 @@
     "avatarHint": "Стандартный персонаж показан в масштабе игры. Проверьте высоту сиденья, направление и положение ног."
   },
   "meetingUi": {
+    "openMenu": "Меню",
+    "closeMenu": "Свернуть",
+    "openChat": "Чат",
+    "closeChat": "Скрыть чат",
+
     "cameraFirstPerson": "От первого лица",
     "cameraOverview": "Обзор",
     "communication": "Чат и микрофон",

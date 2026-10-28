@@ -5364,6 +5364,11 @@
     "avatarHint": "标准角色使用游戏比例。请检查座位高度、朝向和脚的位置。"
   },
   "meetingUi": {
+    "openMenu": "菜单",
+    "closeMenu": "收起",
+    "openChat": "聊天",
+    "closeChat": "收起聊天",
+
     "cameraFirstPerson": "第一人称视角",
     "cameraOverview": "全景视角",
     "communication": "聊天和麦克风",

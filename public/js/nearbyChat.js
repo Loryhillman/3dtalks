@@ -162,7 +162,7 @@
       // 未进世界（登录/加载中）→ 不接管
       if (typeof window.GAME_STATE === 'undefined' || !GAME_STATE.characterId) return;
       e.preventDefault();
-      input.focus();
+      focusChat();
     });
 
     function send() {
@@ -186,7 +186,8 @@
       input.blur();
     }
 
-    window.nearbyChat = { send, focus: () => input.focus(), input };
+    function focusChat(){if(window.MeetingUI?.active){if(document.getElementById('meeting-footer')?.inert)return;window.MeetingUI.setChat(true);}input.focus();}
+    window.nearbyChat = { send, focus: focusChat, input };
   }
 
   if (document.readyState === 'loading') {
