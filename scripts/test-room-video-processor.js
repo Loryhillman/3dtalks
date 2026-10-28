@@ -43,10 +43,17 @@ const {video}=require('./room-video-fixtures'),{createRoomMediaProcessor}=requir
   // Linux /proc may report ESRCH as well as ENOENT during child exit.
   // Ignore only vanished processes; actual permission/read failures stay closed.
   const monitorWorker=path.join(dir,'monitor.cjs');
-  await fs.writeFile(monitorWorker,`setTimeout(()=>process.send({result:{ok:true}},()=>process.exit(0)),250);`);
   for(const code of ['ESRCH','EACCES']){
+   const currentPidFile=path.join(dir,'monitor-pid-'+code);
+   await fs.writeFile(monitorWorker,`require('fs').writeFileSync(${JSON.stringify(currentPidFile)},String(process.pid));setTimeout(()=>process.send({result:{ok:true}},()=>process.exit(0)),250);`);
    const original=fs.readFile;let injected=false;
-   fs.readFile=async function(file,...args){if(!injected&&/^\/proc\/\d+\/(status|task\/\d+\/children)$/.test(String(file))){injected=true;throw Object.assign(Error('Fixture proc read'),{code});}return original.call(this,file,...args);};
+   fs.readFile=async function(file,...args){
+    // A previous supervisor may still finish an async /proc read. Inject only
+    // into this worker, so parallel browser load cannot consume the fixture.
+    let pid;try{pid=require('node:fs').readFileSync(currentPidFile,'utf8');}catch(e){if(e.code!=='ENOENT')throw e;}
+    if(!injected&&pid&&String(file)==='/proc/'+pid+'/status'){injected=true;throw Object.assign(Error('Fixture proc read'),{code});}
+    return original.call(this,file,...args);
+   };
    const monitored=createRoomMediaProcessor({worker:monitorWorker});
    try{const pending=monitored.run('video',bad,'unused');if(code==='ESRCH')assert.deepEqual(await pending,{ok:true});else await assert.rejects(pending,e=>e.code==='PROCESSOR_UNAVAILABLE');assert(injected);}finally{monitored.close();fs.readFile=original;}
   }

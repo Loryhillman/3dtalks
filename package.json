@@ -1,7 +1,7 @@
 {
   "name": "virtual-world-server",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "济宁米多信息科技有限公司 <888@miduo100.com>",
   "description": "Copyright © 2026 济宁米多信息科技有限公司 版权所有 如需获取软件授权请联系：888@miduo100.com / 15660440944",
   "scripts": {

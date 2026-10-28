@@ -12,7 +12,7 @@
    this.video.addEventListener('waiting',()=>this.report('buffering'),{signal});
    this.video.addEventListener('playing',()=>{this.blocked=false;this.report('playing');},{signal});
    this.video.addEventListener('ended',()=>{this.draw();this.report('paused');},{signal});
-   this.video.addEventListener('error',()=>{if(!this.closed)this.report('failed');},{signal});
+   this.video.addEventListener('error',()=>{if(!this.closed){this.blocked=true;this.video.pause();this.report('failed');}},{signal});
    this.visibility=()=>{if(document.hidden)this.cancelFrame();else{this.renew().then(()=>{this.sync(true);this.frame();}).catch(()=>{});}};
    document.addEventListener('visibilitychange',this.visibility,{signal});
    this.tick=setInterval(()=>{this.localize();this.sync();if(this.state&&!document.hidden){this.progress();this.status(this.lastStatus);}},500);
@@ -48,8 +48,9 @@
    }
   }
   async unlock(){
+   if(this.closed)return;
    // Called directly from a user gesture; do not await network before play().
-   if(this.lastStatus==='failed'){try{await this.renew();if(this.video.error){this.video.src=this.source;this.video.load();}this.blocked=false;this.lastStatus=null;this.sync(true);}catch(_){}return;}
+   if(this.lastStatus==='failed'){try{await this.renew();if(this.closed)return;if(this.video.error){this.video.src=this.source;this.video.load();}this.blocked=false;this.lastStatus=null;this.sync(true);}catch(_){}return;}
    if(this.state&&(this.state.playback.status!=='playing'||RoomVideoTimeline.position(this.state.playback,this.state.asset.durationMs,this.clock())>=this.state.asset.durationMs)){this.blocked=false;this.sync(true);return;}
    const playing=this.video.play();this.blocked=false;
    try{await playing;await this.renew();this.sync(true);}catch(_){this.blocked=true;this.report('blocked');}
