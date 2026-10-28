@@ -145,7 +145,7 @@
     }
     input.onchange=()=>act(async()=>{
       const file=input.files[0];if(!file)return;input.value='';
-      const imported=/\.pptx$/i.test(file.name),kind=imported||/\.pdf$/i.test(file.name)?'pdf':/\.mp4$/i.test(file.name)?'video':'image',limit=(kind==='video'?40:kind==='pdf'?20:8)*1024**2;
+      const imported=/\.pptx$/i.test(file.name),kind=imported||/\.pdf$/i.test(file.name)?'pdf':/\.mp4$/i.test(file.name)?'video':'image',limit=imported?RoomMediaContract.importLimits.pptx.bytes:kind==='video'?RoomMediaContract.importLimits.video.bytes:(kind==='pdf'?20:8)*1024**2;
       if(imported&&!pptxImport)throw Object.assign(Error('PPTX_UNAVAILABLE'),{code:'PPTX_UNAVAILABLE'});
       if(kind==='video'&&!videoUpload)throw Object.assign(Error('VIDEO_UNAVAILABLE'),{code:'VIDEO_UNAVAILABLE'});
       if(!file.size||file.size>limit)throw Object.assign(new Error('FILE_TOO_LARGE'),{code:'FILE_TOO_LARGE'});
@@ -181,7 +181,7 @@
     dialog.showModal();await act(async()=>{try{
       try{const caps=await request('/capabilities');videoUpload=caps.features?.videoUpload===true&&!!window.RoomVideoPlayback;
         if(videoUpload){input.accept+=',.mp4';formats.textContent=t('formatsVideo');}
-        pptxImport=caps.features?.pptxImport===true;if(pptxImport){input.accept+=',.pptx';formats.textContent+=' · PPTX ≤ 20 MiB';const hint=node('p','material-private-hint',t('pptxNotice'));hint.id='material-pptx-notice';input.setAttribute('aria-describedby','material-formats material-pptx-notice');label.after(hint);}}catch(e){if(!dialog.open)return;}
+        pptxImport=caps.features?.pptxImport===true;if(pptxImport){input.accept+=',.pptx';formats.textContent+=' · '+t('formatsPptx');const hint=node('p','material-private-hint',t('pptxNotice'));hint.id='material-pptx-notice';input.setAttribute('aria-describedby','material-formats material-pptx-notice');label.after(hint);}}catch(e){if(!dialog.open)return;}
       await refresh();}catch(e){if(!list.querySelector('.material-row'))list.replaceChildren(node('p','material-empty',t('failed')));throw e;}finally{list.setAttribute('aria-busy','false');}});
   }
   window.RoomMaterials={open,close};

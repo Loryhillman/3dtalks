@@ -27,7 +27,7 @@ async function inspectContainer(input,size){
  }finally{await handle.close();}
 }
 async function inspectVideo(input){
- const stat=await fs.stat(input);if(!stat.isFile()||stat.size<16||stat.size>Contract.video.bytes)fail('FILE_TOO_LARGE');
+ const stat=await fs.stat(input);if(!stat.isFile()||stat.size<16||stat.size>Contract.importLimits.video.bytes)fail('FILE_TOO_LARGE');
  await inspectContainer(input,stat.size);
  const args=['-v','error','-max_alloc','67108864','-threads','1','-protocol_whitelist','file','-format_whitelist','mov','-enable_drefs','0','-use_absolute_path','0','-count_packets',
   '-show_entries','format=duration,start_time:stream=codec_type,codec_name,codec_tag_string,pix_fmt,width,height,r_frame_rate,avg_frame_rate,duration,nb_read_packets,channels,sample_rate:stream_disposition=attached_pic:stream_side_data_list','-of','json','-i',input];
@@ -46,6 +46,7 @@ async function inspectVideo(input){
    (v.side_data_list||[]).some(s=>s.rotation!==undefined&&Number(s.rotation)!==0)||!Number.isFinite(Number(probe.format?.start_time??0))||Math.abs(Number(probe.format?.start_time??0))>.1||
    streams.some(s=>!Number.isSafeInteger(Number(s.nb_read_packets))||Number(s.nb_read_packets)<1)||
    a&&(!['mp4a'].includes(a.codec_tag_string)||!Number.isInteger(a.channels)||a.channels<1||a.channels>2||!Number.isFinite(Number(a.sample_rate))||Number(a.sample_rate)<8000||Number(a.sample_rate)>48000))fail('UNSUPPORTED_VIDEO');
+ if(metadata.durationMs>Contract.importLimits.video.durationMs)fail('VIDEO_LIMIT_EXCEEDED');
  const hash=createHash('sha256');for await(const chunk of createReadStream(input))hash.update(chunk);
  return {bytes:stat.size,pageCount:null,mime:'video/mp4',checksum:hash.digest('hex'),video:metadata};
 }

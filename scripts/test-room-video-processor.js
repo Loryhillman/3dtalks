@@ -5,6 +5,10 @@ const {video}=require('./room-video-fixtures'),{createRoomMediaProcessor}=requir
  try{
   for(const audio of [true,false]){const file=video(dir,{audio}),bytes=await fs.readFile(file),result=await processor.run('video',file,path.join(dir,'unused'));assert.equal(result.mime,'video/mp4');assert.equal(result.bytes,bytes.length);assert.equal(result.checksum,createHash('sha256').update(bytes).digest('hex'));assert.equal(result.pageCount,null);assert.equal(result.video.audioCodec,audio?'aac':null);assert(result.video.durationMs>=2000&&result.video.durationMs<2100);}
   for(const options of [{codec:'mpeg4'},{fps:31}])await assert.rejects(processor.run('video',video(dir,options),'unused'),e=>e.code==='UNSUPPORTED_VIDEO');
+  assert.equal((await processor.run('video',video(dir,{duration:180,width:16,height:16,fps:1,audio:false}),'unused')).video.durationMs,180000);
+  await assert.rejects(processor.run('video',video(dir,{duration:181,width:16,height:16,fps:1,audio:false}),'unused'),e=>e.code==='VIDEO_LIMIT_EXCEEDED');
+  const oversized=path.join(dir,'oversized.mp4');const handle=await fs.open(oversized,'w');await handle.truncate(20*1024**2+1);await handle.close();
+  await assert.rejects(processor.run('video',oversized,'unused'),e=>e.code==='FILE_TOO_LARGE');
   const bad=path.join(dir,'bad.mp4');await fs.writeFile(bad,'definitely not an MP4 video');await assert.rejects(processor.run('video',bad,'unused'),e=>e.code==='INVALID_VIDEO');
   const bytes=await fs.readFile(video(dir));await fs.writeFile(bad,bytes.subarray(0,bytes.length-20));await assert.rejects(processor.run('video',bad,'unused'),e=>e.code==='INVALID_VIDEO');
   // Native descendants share the worker process group and its monitored RSS.

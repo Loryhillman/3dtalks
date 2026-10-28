@@ -10,6 +10,17 @@ class TestValidation(unittest.TestCase):
             self.assertEqual(inspect(root/'valid.pptx'),2)
             for name in ['external','macro','traversal','bomb','slides-overflow','doctype','invalid']:
                 with self.subTest(name=name),self.assertRaises(Rejected): inspect(root/(name+'.pptx'))
+    def test_trial_limits(self):
+        with tempfile.TemporaryDirectory() as d:
+            file=Path(d)/'trial.pptx'
+            file.write_bytes(fixtures.archive(fixtures.entries(20)))
+            self.assertEqual(inspect(file),20)
+            file.write_bytes(fixtures.archive(fixtures.entries(21)))
+            with self.assertRaises(Rejected) as caught: inspect(file)
+            self.assertEqual(caught.exception.code,'PPTX_LIMIT_EXCEEDED')
+            file.write_bytes(b'0'*(5*1024**2+1))
+            with self.assertRaises(Rejected) as caught: inspect(file)
+            self.assertEqual(caught.exception.code,'FILE_TOO_LARGE')
     def test_duplicate_and_symlink(self):
         with tempfile.TemporaryDirectory() as d:
             for bad in ['duplicate','symlink','backslash','crc','missing-part']:

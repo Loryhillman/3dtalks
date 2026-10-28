@@ -26,6 +26,8 @@ assert(V2.capabilities({protocolVersion:2}));assert(!V2.capabilities({protocolVe
 assert(V2.clockRequest({protocolVersion:2,nonce:id}));assert(!V2.clockRequest({protocolVersion:2,nonce:'bad'}));
 assert(V2.clockResponse({protocolVersion:2,nonce:id,receivedAtMs:10,sentAtMs:11}));
 for(const patch of [{sentAtMs:9},{receivedAtMs:NaN},{sentAtMs:8640000000000001},{nonce:'bad'},{roomId}])assert(!V2.clockResponse({protocolVersion:2,nonce:id,receivedAtMs:10,sentAtMs:11,...patch}));
+assert.deepEqual(Media.importLimits,{video:{bytes:20*1024**2,durationMs:180000},pptx:{bytes:5*1024**2,pages:20}});
+// Released 10-minute assets remain valid for playback despite stricter import caps.
 const metadata={durationMs:600000,width:1920,height:1080,fps:30,codec:'h264',pixelFormat:'yuv420p',audioCodec:'aac'};assert(Media.videoMetadata(metadata));assert(Media.videoMetadata({...metadata,audioCodec:null}));
 for(const patch of [{durationMs:600001},{width:1921},{height:1081},{fps:30.01},{fps:NaN},{fps:Infinity},{codec:'hevc'},{pixelFormat:'yuv444p'},{audioCodec:'opus'},{audioCodec:undefined},{path:'../secret'}])assert(!Media.videoMetadata({...metadata,...patch}));
 assert.deepEqual(Media.features(),{videoUpload:false,videoPlayback:false,pptxImport:false});
@@ -36,3 +38,12 @@ const context={};context.window=context;require('node:vm').createContext(context
 for(const file of ['roomMediaContract','roomPresentationProtocol','roomPresentationProtocolV2'])require('node:vm').runInContext(require('node:fs').readFileSync(require.resolve('../public/js/'+file),'utf8'),context);
 assert(context.RoomPresentationProtocolV2.state(state));assert(context.RoomPresentationProtocol.state(context.RoomPresentationProtocolV2.legacyState(state)));
 console.log('V2 contracts: explicit version, V1 isolation, exact shapes, bounded codecs/positions/timestamps, clock and disabled-by-default features passed.');
+
+(async()=>{
+ const service=require('../src/services/roomMedia').createRoomMediaService({connect(){throw Error('Oversized upload reached SQL');}},{features:()=>({videoUpload:true,videoPlayback:true,pptxImport:true})});
+ try{
+  for(const body of [{kind:'video',bytes:20*1024**2+1},{kind:'pdf',sourceFormat:'pptx',bytes:5*1024**2+1}])
+   await assert.rejects(service.reserve(randomUUID(),randomUUID(),{requestId:randomUUID(),name:'Trial',...body}),e=>e.code==='FILE_TOO_LARGE'&&e.status===413);
+  console.log('Trial upload reservations: oversized video/PPTX rejected before SQL or conversion.');
+ }finally{service.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -2,7 +2,8 @@
 import os, re, stat, zipfile, posixpath
 import xml.etree.ElementTree as ET
 from urllib.parse import unquote, urlsplit
-INPUT=20*1024**2
+INPUT=5*1024**2
+PAGES=20  # Temporary trial import bound, before LibreOffice starts.
 EXPANDED=200*1024**2
 XML_LIMIT=8*1024**2
 NS='http://schemas.openxmlformats.org/presentationml/2006/main'
@@ -80,6 +81,7 @@ def inspect(file):
             slide_ids=presentation.findall('{'+NS+'}sldIdLst/{'+NS+'}sldId')
             if not 1 <= len(slide_ids) <= 100 or not 1 <= len(slides) <= 100:
                 raise Rejected('TOO_MANY_PAGES')
+            if len(slide_ids)>PAGES or len(slides)>PAGES: raise Rejected('PPTX_LIMIT_EXCEEDED')
             if len(slide_ids)!=len(slides): raise Rejected()
             ctypes={n.get('PartName'):n.get('ContentType') for n in content}
             if ctypes.get('/ppt/presentation.xml')!=CT: raise Rejected('UNSUPPORTED_PPTX')

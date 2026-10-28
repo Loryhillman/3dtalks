@@ -57,7 +57,7 @@ function createRoomMediaService(pool,{directory=path.resolve(__dirname,'../../up
     const imported=body.sourceFormat==='pptx';
     if(imported&&!features().pptxImport)fail('PPTX_UNAVAILABLE',503);
     if(body.kind==='video'&&!features().videoUpload)fail('VIDEO_UNAVAILABLE',503);
-    if(body.bytes>(body.kind==='video'?MediaContract.video.bytes:body.kind==='pdf'?limits.pdfBytes:limits.imageBytes))fail('FILE_TOO_LARGE',413);
+    if(body.bytes>(imported?MediaContract.importLimits.pptx.bytes:body.kind==='video'?MediaContract.importLimits.video.bytes:body.kind==='pdf'?limits.pdfBytes:limits.imageBytes))fail('FILE_TOO_LARGE',413);
     const charge=imported?2*body.bytes+2*MediaContract.pptx.outputBytes:body.bytes+(body.kind==='image'?limits.imageBytes:0);
     return transaction(userId,roomId,async client=>{
       const prior=(await client.query('SELECT * FROM room_media_assets WHERE owner_user_id=$1 AND request_id=$2',[userId,body.requestId])).rows[0];
@@ -102,6 +102,7 @@ function createRoomMediaService(pool,{directory=path.resolve(__dirname,'../../up
         const a=await asset(client,userId,roomId,id);
         if(a.source_format==='pptx'&&(!features().pptxImport||!pptx.available()))fail('PPTX_UNAVAILABLE',503);
         if(a.kind==='video'&&!features().videoUpload)fail('VIDEO_UNAVAILABLE',503);
+        if(Number(a.declared_bytes)>(a.source_format==='pptx'?MediaContract.importLimits.pptx.bytes:a.kind==='video'?MediaContract.importLimits.video.bytes:Infinity))fail('FILE_TOO_LARGE',413);
         if(a.state!=='reserved'||new Date(a.lease_until)<=new Date())fail('UPLOAD_EXPIRED');
         if(!processor.available())fail('PROCESSOR_BUSY',503);
         return (await client.query("UPDATE room_media_assets SET state='uploading',lease_until=now()+$2*interval '1 millisecond',updated_at=now() WHERE id=$1 RETURNING *",[id,limits.processingLeaseMs])).rows[0];
@@ -136,6 +137,8 @@ function createRoomMediaService(pool,{directory=path.resolve(__dirname,'../../up
     if(!Number.isSafeInteger(result.bytes)||result.bytes<1||result.bytes>Number(row.reserved_bytes)||!/^[a-f0-9]{64}$/.test(result.checksum||'')||
       (video?result.bytes!==stat.size||result.pageCount!==null||result.mime!=='video/mp4'||!MediaContract.videoMetadata(result.video):
         !Number.isInteger(result.pageCount)||result.pageCount<1||result.pageCount>limits.pages||result.mime!==(row.kind==='pdf'?'application/pdf':'image/webp')))fail('PROCESSOR_FAILED',422);
+    if(video&&result.video.durationMs>MediaContract.importLimits.video.durationMs)fail('VIDEO_LIMIT_EXCEEDED',422);
+    if(imported&&result.pageCount>MediaContract.importLimits.pptx.pages)fail('PPTX_LIMIT_EXCEEDED',422);
     if(imported&&result.bytes>MediaContract.pptx.outputBytes)fail('FILE_TOO_LARGE',413);
     await fs.rename(row.kind==='image'||imported?paths.output:paths.input,paths.final);
     if(row.kind==='image'||imported)await fs.unlink(paths.input);

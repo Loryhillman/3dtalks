@@ -5741,7 +5741,7 @@
   },
   "roomMaterials": {
     "convertedPdf": "已转换为 PDF",
-    "pptxNotice": "PPTX 将转换为 PDF：动画和切换效果会移除，字体和布局可能不同。不支持内嵌视频、文档、宏和外部图片。演示前请检查 PDF。转换期间最多会临时预留 80 MiB 的资料库配额。",
+    "pptxNotice": "PPTX 将转换为 PDF：动画和切换效果会移除，字体和布局可能不同。不支持内嵌视频、文档、宏和外部图片。演示前请检查 PDF。转换期间最多会临时预留 50 MiB 的资料库配额。",
     "convertingPptx": "正在将 PPTX 转换为 PDF…",
     "PPTX_UNAVAILABLE": "PPTX 导入暂不可用。请稍后重试或上传 PDF。",
     "PPTX_BUSY": "转换器正忙，请稍后重试。",
@@ -5751,10 +5751,12 @@
     "PPTX_CONVERSION_FAILED": "无法转换 PPTX。请尝试另存为 PDF。",
     "PPTX_TIMEOUT": "PPTX 转换超时。请上传 PDF。",
 
-    "formatsVideo": "PDF 最大 20 MiB / 100 页；图片最大 8 MiB；MP4 H.264/AAC 最大 40 MiB、10 分钟、1080p/30 fps。",
+    "formatsPptx": "PPTX 最大 5 MiB / 20 页（临时限制）",
+    "VIDEO_LIMIT_EXCEEDED": "视频临时限制：20 MiB、3 分钟。",
+    "formatsVideo": "PDF 最大 20 MiB / 100 页；图片最大 8 MiB；MP4 H.264/AAC 最大 20 MiB、3 分钟、1080p/30 fps。",
     "VIDEO_UNAVAILABLE": "视频演示暂不可用。",
     "INVALID_VIDEO": "视频播放失败，请检查连接后重试。",
-    "UNSUPPORTED_VIDEO": "PDF 最大 20 MiB / 100 页；图片最大 8 MiB；MP4 H.264/AAC 最大 40 MiB、10 分钟、1080p/30 fps。",
+    "UNSUPPORTED_VIDEO": "PDF 最大 20 MiB / 100 页；图片最大 8 MiB；MP4 H.264/AAC 最大 20 MiB、3 分钟、1080p/30 fps。",
     "title": "会议材料",
     "hint": "PDF 最大 20 MiB / 100 页；PNG、JPEG 或 WebP 最大 8 MiB。仅您可访问此资料库，预览仅供您查看。",
     "upload": "上传文件",

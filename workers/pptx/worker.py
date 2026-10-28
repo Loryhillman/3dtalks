@@ -19,7 +19,7 @@ def bounded(path,size):
 def job(folder):
     profile=Path('/tmp/pptx-jobs')/folder.name
     try:
-        bounded(folder/'input.pptx',20*1024**2)
+        bounded(folder/'input.pptx',5*1024**2)
         inspect(folder/'input.pptx')
         profile.mkdir(parents=True,exist_ok=False)
         # Very high macro security (3), no trusted locations. ZIP validation also

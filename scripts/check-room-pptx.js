@@ -8,9 +8,9 @@ async function main(){
  const importer=require('../src/services/roomPptxImport').createRoomPptxImport();let enabled=false,service,server;
  try{
   for(let n=0;n<100&&!importer.available();n++)await new Promise(r=>setTimeout(r,100));assert(importer.available(),'isolated converter heartbeat');
-  await pool.query('CREATE TABLE users(id uuid PRIMARY KEY);CREATE TABLE admin_users(id int PRIMARY KEY);CREATE TABLE characters(id uuid PRIMARY KEY);CREATE TABLE geometry_buildings(id serial PRIMARY KEY,user_id integer NOT NULL);CREATE TABLE world_objects(id serial PRIMARY KEY,type text,position_x float,position_z float,created_at timestamptz);');
+  await pool.query('CREATE TABLE users(id uuid PRIMARY KEY,room_character_id uuid,avatar_config jsonb);CREATE TABLE admin_users(id int PRIMARY KEY);CREATE TABLE characters(id uuid PRIMARY KEY,user_id uuid,name text,last_position jsonb,last_online timestamptz);CREATE TABLE geometry_buildings(id serial PRIMARY KEY,user_id integer NOT NULL);CREATE TABLE world_objects(id serial PRIMARY KEY,type text,position_x float,position_z float,created_at timestamptz);');
   for(const migration of ['add_rooms.sql','add_room_rejoin_grants.sql','add_room_seats.sql','add_user_rooms.sql','add_room_media.sql','add_room_presentation.sql','add_room_media_v2.sql'])await pool.query(await fs.readFile(path.join(__dirname,'../database/migrations',migration),'utf8'));
-  const owner=randomUUID(),other=randomUUID(),room=randomUUID();for(const id of [owner,other])await pool.query('INSERT INTO users VALUES($1)',[id]);
+  const owner=randomUUID(),other=randomUUID(),room=randomUUID();for(const id of [owner,other])await pool.query('INSERT INTO users(id) VALUES($1)',[id]);
   await pool.query("INSERT INTO rooms(id,slug,name,owner_user_id,status,seating_mode) VALUES($1,$2,'PPTX fixture',$3,'open','seated')",[room,room,owner]);
   service=require('../src/services/roomMedia').createRoomMediaService(pool,{directory:dir,pptx:importer,features:()=>({videoUpload:false,videoPlayback:false,pptxImport:enabled})});
   process.env.JWT_SECRET='pptx-private-test-only';const token=jwt.sign({userId:owner},process.env.JWT_SECRET),otherToken=jwt.sign({userId:other},process.env.JWT_SECRET);
@@ -25,6 +25,7 @@ async function main(){
   assert.equal((await request('/capabilities')).features.pptxImport,false);
   assert.equal((await request('/uploads',{method:'POST',body})).code,'PPTX_UNAVAILABLE');enabled=true;
   assert.equal((await request('/capabilities')).features.pptxImport,true);
+  assert.equal((await request('/uploads',{method:'POST',body:{...body,requestId:randomUUID(),bytes:5*1024**2+1}})).code,'FILE_TOO_LARGE');
   const reserve=await request('/uploads',{method:'POST',body});assert.equal(reserve.status,201,JSON.stringify(reserve));
   const id=reserve.upload.id,row=(await pool.query('SELECT * FROM room_media_assets WHERE id=$1',[id])).rows[0];assert.equal(row.source_format,'pptx');assert.equal(Number(row.reserved_bytes),2*good.length+40*1024**2);
   const post=async(id,bytes)=>{const form=new FormData();form.append('file',new Blob([bytes]),'input.pptx');return request('/uploads/'+id+'/file',{method:'POST',body:form});};
@@ -54,6 +55,7 @@ async function main(){
   assert(Number((await pool.query('SELECT reserved_bytes FROM room_media_assets WHERE id=$1',[cancelled.upload.id])).rows[0].reserved_bytes)>0,'cancel does not prematurely release charge');
   const cancelledReply=await posting;assert.equal(cancelledReply.code,'UPLOAD_CANCELLED',JSON.stringify(cancelledReply));
   await pool.query("UPDATE room_media_assets SET lease_until=now()-interval '1 second' WHERE id=$1",[cancelled.upload.id]);await service.cleanup();assert.equal(Number((await pool.query('SELECT reserved_bytes FROM room_media_assets WHERE id=$1',[cancelled.upload.id])).rows[0].reserved_bytes),0);
+  if(process.env.ROOM_PPTX_STRESS_CHECK==='1')await require('./room-pptx-stress').check({pool,service,server,room,owner,token,assetId:id,directory:dir,schema});
   // Completed PDF remains readable/deletable with PPTX disabled.
   enabled=false;assert.equal((await request('/'+id+'/content',{raw:true})).status,200);assert.equal((await request('/'+id,{method:'DELETE'})).status,200);await service.cleanup();
   console.log('PPTX SQL/JWT/HTTP + isolated LibreOffice: flags, private 2-page PDF, idempotency, source/spool removal, peak quota, malicious OOXML rejection, cancel/ack and disabled-flag PDF deletion passed.');

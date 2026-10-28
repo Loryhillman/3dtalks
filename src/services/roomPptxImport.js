@@ -39,7 +39,7 @@ function createRoomPptxImport({directory=process.env.ROOM_PPTX_SPOOL||null,timeo
   try{
    signal?.throwIfAborted();await fs.mkdir(folder,{mode:0o700});created=true;
    const source=await fs.open(input,sync.constants.O_RDONLY|sync.constants.O_NOFOLLOW);
-   try{const s=await source.stat();if(!s.isFile()||!s.size||s.size>Contract.pptx.bytes)throw error('FILE_TOO_LARGE');
+   try{const s=await source.stat();if(!s.isFile()||!s.size||s.size>Contract.importLimits.pptx.bytes)throw error('FILE_TOO_LARGE');
     const dest=await fs.open(path.join(folder,'input.pptx'),'wx',0o600);
     try{await require('node:stream/promises').pipeline(source.createReadStream(),dest.createWriteStream(),{signal});}finally{await dest.close();}
    }finally{await source.close();}

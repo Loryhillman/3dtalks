@@ -22,7 +22,7 @@ async function main(){
   assert.equal((await request('/uploads',{method:'POST',body:reservation})).status,503);enabled=true;
   assert.equal((await request('/uploads',{actor:null,method:'POST',body:reservation})).status,401);
   assert.equal((await request('/uploads',{actor:'other',method:'POST',body:reservation})).status,404);
-  assert.equal((await request('/uploads',{method:'POST',body:{...reservation,bytes:41943041}})).status,413);
+  assert.equal((await request('/uploads',{method:'POST',body:{...reservation,bytes:20*1024**2+1}})).status,413);
   const reserve=await request('/uploads',{method:'POST',body:reservation});assert.equal(reserve.status,201);const id=(await reserve.json()).upload.id;
   assert.equal((await request('/uploads',{method:'POST',body:reservation})).status,200);
   const form=new FormData();form.append('file',new Blob([bytes],{type:'text/plain'}),'misleading.txt');

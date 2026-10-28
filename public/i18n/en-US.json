@@ -5787,7 +5787,7 @@
   },
   "roomMaterials": {
     "convertedPdf": "PDF from PPTX",
-    "pptxNotice": "PPTX is converted to PDF: animations and transitions are removed; fonts and layout may differ. Embedded videos, documents, macros and external images are unsupported. Review the PDF before presenting. Conversion temporarily reserves up to 80 MiB of your library quota.",
+    "pptxNotice": "PPTX is converted to PDF: animations and transitions are removed; fonts and layout may differ. Embedded videos, documents, macros and external images are unsupported. Review the PDF before presenting. Conversion temporarily reserves up to 50 MiB of your library quota.",
     "convertingPptx": "Converting PPTX to PDF…",
     "PPTX_UNAVAILABLE": "PPTX import is unavailable. Try later or upload a PDF.",
     "PPTX_BUSY": "The converter is busy. Try again later.",
@@ -5797,10 +5797,12 @@
     "PPTX_CONVERSION_FAILED": "Could not convert the PPTX. Try saving it as a PDF.",
     "PPTX_TIMEOUT": "PPTX conversion took too long. Upload a PDF instead.",
 
-    "formatsVideo": "PDF up to 20 MiB / 100 pages; images up to 8 MiB; MP4 H.264/AAC up to 40 MiB, 10 minutes, 1080p/30 fps.",
+    "formatsPptx": "PPTX up to 5 MiB / 20 slides (temporary limit)",
+    "VIDEO_LIMIT_EXCEEDED": "Temporary video limit: 20 MiB and 3 minutes.",
+    "formatsVideo": "PDF up to 20 MiB / 100 pages; images up to 8 MiB; MP4 H.264/AAC up to 20 MiB, 3 minutes, 1080p/30 fps.",
     "VIDEO_UNAVAILABLE": "Video presentation is unavailable.",
     "INVALID_VIDEO": "Could not play the video. Check your connection and retry.",
-    "UNSUPPORTED_VIDEO": "PDF up to 20 MiB / 100 pages; images up to 8 MiB; MP4 H.264/AAC up to 40 MiB, 10 minutes, 1080p/30 fps.",
+    "UNSUPPORTED_VIDEO": "PDF up to 20 MiB / 100 pages; images up to 8 MiB; MP4 H.264/AAC up to 20 MiB, 3 minutes, 1080p/30 fps.",
     "title": "Room materials",
     "hint": "PDF up to 20 MiB / 100 pages; PNG, JPEG or WebP up to 8 MiB. Only you can access this library. Preview is local.",
     "upload": "Upload a file",
