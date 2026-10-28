@@ -16,7 +16,7 @@ const header=Buffer.alloc(20);header.writeUInt32LE(0x46546c67,0);header.writeUIn
 const binHeader=Buffer.alloc(8);binHeader.writeUInt32LE(binary.length,0);binHeader.writeUInt32LE(0x004e4942,4);
 const glb=Buffer.concat([header,json,binHeader,binary]);
 const draft={name:'Fixture',revision:1,base_version:3,layout:[1,2].map(id=>({editor_id:id,type:'uploaded_model',kind:'furniture',name:'Chair '+id,model_id:1,model_path:model.path,position:{x:id===1?-2:2,y:0,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1},collision:true,seats:[]}))};
-const room={id:roomId,name:'Fixture',status:'draft',revision:1,seating_mode:'seated'};
+const room={id:roomId,name:'Fixture',template_key:'fixture',status:'draft',revision:1,seating_mode:'seated'};
 const server=http.createServer(async(req,res)=>{
  try {
   const url=new URL(req.url,'http://local').pathname;
@@ -45,7 +45,7 @@ const server=http.createServer(async(req,res)=>{
   }
   const file=path.resolve(root,'.'+url);if(!file.startsWith(root+path.sep))throw new Error('Invalid path');
   let content=await fs.readFile(file);
-  if(url==='/js/roomEditor.js') content=Buffer.from('window.fixtureLoads=0;const fixtureLoad=THREE.GLTFLoader.prototype.load;THREE.GLTFLoader.prototype.load=function(...args){window.fixtureLoads++;return fixtureLoad.apply(this,args);};THREE.WebGLRenderer = class extends THREE.WebGLRenderer { constructor(...args) { super(...args); const render=this.render; this.render=(scene,camera)=>{window.fixtureScene=scene;return render.call(this,scene,camera);}; } };\n'+content.toString());
+  if(url==='/js/roomEditor.js') content=Buffer.from('window.fixtureLoads=0;const fixtureLoad=THREE.GLTFLoader.prototype.parse;THREE.GLTFLoader.prototype.parse=function(...args){window.fixtureLoads++;return fixtureLoad.apply(this,args);};THREE.WebGLRenderer = class extends THREE.WebGLRenderer { constructor(...args) { super(...args); const render=this.render; this.render=(scene,camera)=>{window.fixtureScene=scene;return render.call(this,scene,camera);}; } };\n'+content.toString());
   res.writeHead(200,{'Content-Type':file.endsWith('.js')?'text/javascript':file.endsWith('.json')?'application/json':'text/html'});res.end(content);
  }catch(error){res.writeHead(500);res.end(error.message);}
 });
@@ -67,6 +67,7 @@ let browser;
  await page.goto(base+'/room_editor.html?room='+roomId);
  await page.waitForFunction(()=>document.querySelectorAll('#object-list button').length===2);
  await page.waitForFunction(()=>window.fixtureScene);
+ assert.equal(await page.locator('#environment-import').isVisible(),false,'existing room cannot switch its template environment');
  const first=page.locator('#object-list [data-id="1"]'),second=page.locator('#object-list [data-id="2"]');
  await first.click();
  const groupId=await page.evaluate(()=>fixtureScene.children.find(g=>g.userData.roomObjectId===1).uuid);
@@ -110,6 +111,7 @@ let browser;
  await page.locator('#copy-object').click();
  await page.waitForFunction(()=>document.querySelectorAll('#object-list button').length===4);
  assert.equal(await page.locator('#object-list .selected').getAttribute('data-id'),'4');
+ await page.waitForFunction(()=>fixtureLoads===4);
  const copyLoads=await page.evaluate(()=>fixtureLoads);
  await page.locator('#template-save').click();
  await page.waitForFunction(()=>document.body.getAttribute('aria-busy')==='false');

@@ -1,0 +1,170 @@
+{
+  "version": 1,
+  "license": "CC0-1.0",
+  "preparedOn": "2026-10-21",
+  "toolchain": {
+    "blender": "4.5.3 LTS",
+    "mpfb": "2.0.18",
+    "mpfbCommit": "b1a2dc98776da9d1eea751b159d42cf61778fe2e"
+  },
+  "sources": [
+    {
+      "url": "https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip",
+      "sha256": "b542127a8e25547c7c29c19f2d1d2adb9a664c80396ecd694095dbc8028a0107"
+    },
+    {
+      "url": "https://files.makehumancommunity.org/functional/visemes02.zip",
+      "sha256": "a69ab6fb95ddd5f56f70acc7e859f5f9c6ae613c527d577ea1571eff2183d29e"
+    }
+  ],
+  "models": [
+    {
+      "id": "male-asian-v1",
+      "label": "Мужской персонаж — азиатская внешность",
+      "file": "male-asian.glb",
+      "bytes": 3360528,
+      "sha256": "2755fa1f4c90eb0f265bf24c6d31bb237b3eb9772fedbc75b61035fba26e6b0b",
+      "triangles": 35580,
+      "boneMap": {
+        "hips": "Hips",
+        "head": "Head",
+        "leftUpLeg": "LeftUpLeg",
+        "leftLeg": "LeftLeg",
+        "leftFoot": "LeftFoot",
+        "rightUpLeg": "RightUpLeg",
+        "rightLeg": "RightLeg",
+        "rightFoot": "RightFoot",
+        "leftArm": "LeftArm",
+        "leftForeArm": "LeftForeArm",
+        "leftHand": "LeftHand",
+        "rightArm": "RightArm",
+        "rightForeArm": "RightForeArm",
+        "rightHand": "RightHand"
+      },
+      "mouthTargets": [
+        "viseme_aa"
+      ],
+      "components": [
+        {
+          "name": "young_asian_male",
+          "author": "makehuman_system",
+          "license": "CC0"
+        },
+        {
+          "name": "low-poly",
+          "author": "makehuman_system",
+          "license": "CC0"
+        },
+        {
+          "name": "eyebrow001",
+          "author": "makehuman_system",
+          "license": "CC0"
+        },
+        {
+          "name": "eyelashes01",
+          "author": "makehuman_system",
+          "license": "CC0"
+        },
+        {
+          "name": "tongue01",
+          "author": "makehuman_system",
+          "license": "CC0"
+        },
+        {
+          "name": "teeth_base",
+          "author": "makehuman_system",
+          "license": "CC0"
+        },
+        {
+          "name": "short02",
+          "author": "makehuman_system",
+          "license": "CC0"
+        },
+        {
+          "name": "male_casualsuit03",
+          "author": "makehuman_system",
+          "license": "CC0"
+        },
+        {
+          "name": "shoes01",
+          "author": "makehuman_system",
+          "license": "CC0"
+        }
+      ]
+    },
+    {
+      "id": "female-neutral-v1",
+      "label": "Женский персонаж",
+      "file": "female-neutral.glb",
+      "bytes": 3868412,
+      "sha256": "90353594f504020e0f635896c1917897bb06b53d8b8192f3d0063c24e59c6118",
+      "triangles": 37588,
+      "boneMap": {
+        "hips": "Hips",
+        "head": "Head",
+        "leftUpLeg": "LeftUpLeg",
+        "leftLeg": "LeftLeg",
+        "leftFoot": "LeftFoot",
+        "rightUpLeg": "RightUpLeg",
+        "rightLeg": "RightLeg",
+        "rightFoot": "RightFoot",
+        "leftArm": "LeftArm",
+        "leftForeArm": "LeftForeArm",
+        "leftHand": "LeftHand",
+        "rightArm": "RightArm",
+        "rightForeArm": "RightForeArm",
+        "rightHand": "RightHand"
+      },
+      "mouthTargets": [
+        "viseme_aa"
+      ],
+      "components": [
+        {
+          "name": "young_caucasian_female",
+          "author": "makehuman_system",
+          "license": "CC0"
+        },
+        {
+          "name": "low-poly",
+          "author": "makehuman_system",
+          "license": "CC0"
+        },
+        {
+          "name": "eyebrow001",
+          "author": "makehuman_system",
+          "license": "CC0"
+        },
+        {
+          "name": "eyelashes01",
+          "author": "makehuman_system",
+          "license": "CC0"
+        },
+        {
+          "name": "tongue01",
+          "author": "makehuman_system",
+          "license": "CC0"
+        },
+        {
+          "name": "teeth_base",
+          "author": "makehuman_system",
+          "license": "CC0"
+        },
+        {
+          "name": "ponytail01",
+          "author": "makehuman_system",
+          "license": "CC0"
+        },
+        {
+          "name": "male_casualsuit03",
+          "author": "makehuman_system",
+          "license": "CC0"
+        },
+        {
+          "name": "shoes01",
+          "author": "makehuman_system",
+          "license": "CC0"
+        }
+      ]
+    }
+  ]
+}

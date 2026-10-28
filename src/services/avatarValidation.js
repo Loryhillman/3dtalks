@@ -35,13 +35,40 @@ function inspectGlbData(buffer, kind) {
   },0));
   nodes.forEach(n=>{if(n.mesh!==undefined){if(meshTris[n.mesh]===undefined)fail('INVALID_GLB');triangles+=meshTris[n.mesh];}});
   if (!triangles || triangles>(kind==='head'?30000:100000)) fail('MODEL_TOO_COMPLEX');
-  const joints=new Set((json.skins||[]).flatMap(s=>s.joints||[])), mapped=rig.mapNodes(nodes,joints);
+  const skins=json.skins||[];
+  if(skins.length>32)fail('MODEL_TOO_COMPLEX');
+  for(const skin of skins){
+    if(!Array.isArray(skin.joints)||!skin.joints.length||skin.joints.length>512||new Set(skin.joints).size!==skin.joints.length||
+      skin.joints.some(i=>!Number.isInteger(i)||!nodes[i]))fail('UNSUPPORTED_RIG');
+    if(skin.skeleton!==undefined&&(!Number.isInteger(skin.skeleton)||!nodes[skin.skeleton]))fail('UNSUPPORTED_RIG');
+    if(skin.inverseBindMatrices!==undefined){
+      const inverse=json.accessors?.[skin.inverseBindMatrices];
+      if(!Number.isInteger(skin.inverseBindMatrices)||inverse?.type!=='MAT4'||inverse.componentType!==5126||inverse.count!==skin.joints.length)fail('UNSUPPORTED_RIG');
+    }
+  }
+  for(const node of nodes)if(node.skin!==undefined&&(!Number.isInteger(node.skin)||!skins[node.skin]||node.mesh===undefined))fail('UNSUPPORTED_RIG');
+  const joints=new Set(skins.flatMap(s=>s.joints)), mapped=rig.mapNodes(nodes,joints);
   const descendant=(child,parent)=> {if(child===undefined||parent===undefined)return false;for(let p=parents.get(child);p!==undefined;p=parents.get(p))if(p===parent)return true;return false;};
   if(kind==='head' && (json.skins||[]).length)fail('HEAD_MUST_BE_STATIC');
   if(kind==='body') {
     const valid=['left','right'].every(side=>descendant(mapped[side+'UpLeg'],mapped.hips)&&descendant(mapped[side+'Leg'],mapped[side+'UpLeg'])&&descendant(mapped[side+'Foot'],mapped[side+'Leg']))&&descendant(mapped.head,mapped.hips);
     const skinned=nodes.some(n=>n.skin!==undefined && n.mesh!==undefined);
-    if(!valid || !skinned || (json.skins||[]).length!==1)fail('UNSUPPORTED_RIG');
+    if(!valid || !skinned || !skins.length)fail('UNSUPPORTED_RIG');
+    // Clothing, eyes and body can use different joint subsets of one rig.
+    // Reject unrelated skeletons rather than assuming any collection of skins works.
+    if([...joints].some(i=>i!==mapped.hips&&!descendant(i,mapped.hips)&&!descendant(mapped.hips,i)))fail('UNSUPPORTED_RIG');
+    for(const node of nodes)if(node.skin!==undefined){
+      for(const primitive of meshes[node.mesh].primitives||[]){
+        const position=json.accessors?.[primitive.attributes?.POSITION];
+        const jointAccessor=json.accessors?.[primitive.attributes?.JOINTS_0];
+        const weightAccessor=json.accessors?.[primitive.attributes?.WEIGHTS_0];
+        if(!jointAccessor||!weightAccessor||jointAccessor.type!=='VEC4'||weightAccessor.type!=='VEC4'||
+          ![5121,5123].includes(jointAccessor.componentType)||jointAccessor.normalized||
+          ![5121,5123,5126].includes(weightAccessor.componentType)||
+          (weightAccessor.componentType!==5126&&!weightAccessor.normalized)||
+          jointAccessor.count!==position?.count||weightAccessor.count!==position?.count)fail('UNSUPPORTED_RIG');
+      }
+    }
     if(Object.values(mapped).some(i=>nodes.filter(n=>n.name===nodes[i].name).length!==1))fail('UNSUPPORTED_RIG');
   }
   for (const view of json.bufferViews||[]) {
@@ -59,19 +86,26 @@ function inspectGlbData(buffer, kind) {
   function visit(i){if(!Number.isInteger(i)||!nodes[i])fail('INVALID_GLB');if(reachable.has(i))fail('INVALID_GLB');reachable.add(i);for(const child of nodes[i].children||[])visit(child);}
   for(const i of json.scenes[0].nodes||[])visit(i);
   if(![...reachable].some(i=>nodes[i].mesh!==undefined))fail('INVALID_GLB');
-  if(kind==='body'&&Object.values(mapped).some(i=>!reachable.has(i)))fail('UNSUPPORTED_RIG');
+  if(kind==='body'&&[...joints,...Object.values(mapped)].some(i=>!reachable.has(i)))fail('UNSUPPORTED_RIG');
   return {triangles, boneMap:kind==='body'?Object.fromEntries(Object.entries(mapped).map(([key,i])=>[key,nodes[i].name])):{}};
 }
 function inspectGlb(buffer,kind) {
   try { return inspectGlbData(buffer,kind); } catch(error) { if(error.status)throw error;fail('INVALID_GLB'); }
 }
 function normalizeConfig(input) {
-  if (!input || !['standard','full'].includes(input.mode)) fail('INVALID_CONFIG');
+  if (!input || !['standard','full','builtin'].includes(input.mode)) fail('INVALID_CONFIG');
+  const gain=input.mouthGain===undefined?1:input.mouthGain;
+  if(typeof gain!=='number'||!Number.isFinite(gain)||gain<.5||gain>2)fail('INVALID_CONFIG');
+  const mouth=gain===1?{}:{mouthGain:gain};
+  if(input.mode==='builtin'){
+    if(typeof input.builtinId!=='string'||!require('./avatarCatalog').presetConfig(input.builtinId))fail('INVALID_CONFIG');
+    return {version:1,mode:'builtin',builtinId:input.builtinId,...mouth};
+  }
   const color = value=> {if(typeof value!=='string'||!/^#[0-9a-f]{6}$/i.test(value))fail('INVALID_CONFIG');return value;};
   const number=(value,min,max,def)=>{if(value===undefined)return def;if(typeof value!=='number'||!Number.isFinite(value)||value<min||value>max)fail('INVALID_CONFIG');return value;};
   const id=value=>{if(value==null)return null;if(typeof value!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value))fail('INVALID_CONFIG');return value;};
-  if(input.mode==='full')return {version:1,mode:'full',bodyAssetId:id(input.bodyAssetId),bodyYaw:number(input.bodyYaw,-180,180,0)};
+  if(input.mode==='full')return {version:1,mode:'full',bodyAssetId:id(input.bodyAssetId),bodyYaw:number(input.bodyYaw,-180,180,0),...mouth};
   if(!['image','sphere','cube','model'].includes(input.headType))fail('INVALID_CONFIG');
-  return {version:1,mode:'standard',headType:input.headType,headAssetId:id(input.headAssetId),bodyColor:color(input.bodyColor||'#4a90e2'),headColor:color(input.headColor||'#ffaa99'),headScale:number(input.headScale,.5,1.5,1),headOffset:number(input.headOffset,-.3,.3,0),headYaw:number(input.headYaw,-180,180,0)};
+  return {version:1,mode:'standard',headType:input.headType,headAssetId:id(input.headAssetId),bodyColor:color(input.bodyColor||'#4a90e2'),headColor:color(input.headColor||'#ffaa99'),headScale:number(input.headScale,.5,1.5,1),headOffset:number(input.headOffset,-.3,.3,0),headYaw:number(input.headYaw,-180,180,0),...mouth};
 }
 module.exports={LIMITS,fail,inspectGlb,normalizeConfig};

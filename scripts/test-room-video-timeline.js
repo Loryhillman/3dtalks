@@ -1,0 +1,15 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),{randomUUID}=require('node:crypto');
+const Timeline=require('../public/js/roomVideoTimeline'),V2=require('../public/js/roomPresentationProtocolV2');
+assert.equal(Timeline.position({status:'playing',positionMs:1000,anchorServerTimeMs:10000},12000,12500),3500);
+assert.equal(Timeline.position({status:'playing',positionMs:1000,anchorServerTimeMs:10000},12000,9999),1000);
+assert.equal(Timeline.position({status:'playing',positionMs:1000,anchorServerTimeMs:10000},12000,50000),12000);
+assert.equal(Timeline.position({status:'paused',positionMs:3000,anchorServerTimeMs:null},12000,50000),3000);
+let time=100,next=0;const timers=new Map(),sent=[];
+const context={RoomPresentationProtocol:{requestId:randomUUID},RoomPresentationProtocolV2:V2,performance:{now:()=>time},Date:{now:()=>1000000+time},setTimeout:fn=>{timers.set(++next,fn);return next;},setInterval:fn=>{timers.set(++next,fn);return next;},clearInterval:id=>timers.delete(id),clearTimeout:id=>timers.delete(id)};
+context.window=context;vm.createContext(context);vm.runInContext(fs.readFileSync(require.resolve('../public/js/roomVideoClock'),'utf8'),context);
+const clock=new context.RoomVideoClock((type,payload)=>sent.push({type,payload}));clock.start();clock.sample();
+let nonce=sent.at(-1).payload.nonce;time=150;clock.message({protocolVersion:2,nonce,receivedAtMs:500120,sentAtMs:500130});assert.equal(clock.now(),500150);
+time=200;clock.sample();nonce=sent.at(-1).payload.nonce;time=400;clock.message({protocolVersion:2,nonce,receivedAtMs:700250,sentAtMs:700260});assert.equal(clock.now(),500400,'a slower sample cannot override the best estimate');
+clock.message({protocolVersion:2,nonce:randomUUID(),receivedAtMs:1,sentAtMs:2});assert.equal(clock.now(),500400);
+for(let i=0;i<20;i++)clock.sample();assert(clock.pending.size<=3);clock.close();assert.equal(timers.size,0);assert.equal(clock.pending.size,0);
+console.log('Video timeline/clock: paused and bounded positions, negative skew, best RTT/server timestamps, unsolicited responses, bounded pending samples and timer cleanup passed.');

@@ -4,6 +4,8 @@ const { authenticateToken } = require('../middleware/auth');
 const { listRoomObjects } = require('../services/roomObjects');
 
 const router = express.Router();
+router.use('/:slug/presentation',require('./roomPresentation').createRoomPresentationRouter(
+  require('../services/roomPresentationRuntime').service,require('../services/roomMediaRuntime').service));
 router.use(authenticateToken);
 
 router.get('/', async (_req, res) => {
@@ -22,7 +24,7 @@ router.get('/', async (_req, res) => {
 
 async function findAccessibleRoom(slug, userId, characterId) {
   const { rows } = await pool.query(`
-    SELECT id, slug, name, capacity, spawn_position, status, allow_rejoin, seating_mode
+    SELECT id, slug, name, capacity, spawn_position, status, allow_rejoin, seating_mode, avatar_scale
     FROM rooms WHERE slug = $1 AND status IN ('open', 'closed')
   `, [slug]);
   const room = rows[0];

@@ -8,15 +8,16 @@
  *   body: { agent_description: string|null }
  *   语义：复用 uploaded_models.description 列（历史闲置），标注为「给 AI 看」。
  *   AI 客户端经放置后的 world_objects.agent_description（observe 下发）读取。
- *   鉴权：与既有 PUT display-name / tags 同级（编辑器同源工具端点）。
+ *   Requires administrator authorization.
  */
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../database/db');
+const { authenticateAdminToken } = require('../middleware/adminAuth');
 
 const MAX_LEN = 500;
 
-router.put('/uploaded-models/:id/agent-description', async (req, res) => {
+router.put('/uploaded-models/:id/agent-description', authenticateAdminToken, async (req, res) => {
   try {
     const { id } = req.params;
     const raw = req.body ? req.body.agent_description : undefined;

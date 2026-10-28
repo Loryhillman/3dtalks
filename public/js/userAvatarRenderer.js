@@ -1,15 +1,18 @@
 /* Account avatars use their own loader, independent of legacy RPG templates. */
 (() => {
   function dispose(root) {
-    const textures=new Set(),skeletons=new Set();
+    const textures=new Set(),skeletons=new Set(),geometries=new Set(),materials=new Set();
     root?.traverse(node=>{
-      node.geometry?.dispose();
+      // THREE.Sprite geometry is shared by all sprites, including other participants.
+      if(node.geometry && !node.isSprite)geometries.add(node.geometry);
       if(node.skeleton)skeletons.add(node.skeleton);
       for(const material of [].concat(node.material||[])){
         for(const value of Object.values(material))if(value?.isTexture)textures.add(value);
-        material.dispose();
+        materials.add(material);
       }
     });
+    geometries.forEach(geometry=>geometry.dispose());
+    materials.forEach(material=>material.dispose());
     textures.forEach(texture=>texture.dispose());
     skeletons.forEach(skeleton=>skeleton.dispose());
   }
@@ -26,7 +29,7 @@
   async function apply(group,config){
     const data=group.userData;
     const signature=JSON.stringify(config);
-    if(data.accountAvatarSignature===signature)return;
+    if(data.accountAvatarSignature===signature&&!data.accountAvatarError)return;
     data.accountAvatarSignature=signature;
     const ticket=(data.accountAvatarTicket||0)+1;data.accountAvatarTicket=ticket;
     data.accountAvatarConfig=config;
@@ -38,14 +41,15 @@
       data.seatHead=data.defaultSeatHead;data.defaultSeatHead.visible=true;
       if(data.seatFallbackParts)data.seatFallbackParts[1]=data.defaultSeatHead;
     }
-    if(!config||config.mode!=='full'&&config.mode!=='standard')return;
+    if(!config||!['full','standard','builtin'].includes(config.mode))return;
     const root=new THREE.Group();data.accountAvatarRoot=root;group.add(root);
     try{
-      if(config.mode==='full'){
+      if(config.mode==='full'||config.mode==='builtin'){
         const gltf=await new THREE.GLTFLoader().loadAsync(config.asset.path);
         if(data.accountAvatarTicket!==ticket||!root.parent){dispose(gltf.scene);return;}
         normalize(gltf.scene,'body');gltf.scene.rotation.y=(config.bodyYaw||0)*Math.PI/180;
         root.add(gltf.scene);data.glbModel=root;data.boneMap=config.asset.boneMap||{};
+        data.accountAvatarGeometryVersion=(data.accountAvatarGeometryVersion||0)+1;
         data.seatFallbackParts?.forEach(part=>{part.visible=false;});
         return;
       }
@@ -80,6 +84,7 @@
       data.defaultSeatHead.visible=false;data.seatHead=root;
       if(data.nameSprite)data.nameSprite.position.y=root.position.y+.4*(config.headScale||1)+.25;
       if(data.seatFallbackParts)data.seatFallbackParts[1]=root;
+      data.accountAvatarGeometryVersion=(data.accountAvatarGeometryVersion||0)+1;
     }catch(error){
       if(data.accountAvatarTicket!==ticket)return;
       group.remove(root);dispose(root);data.accountAvatarRoot=null;

@@ -8,6 +8,8 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
 const fsSync = require('fs');
+const { authenticateAdminToken } = require('../middleware/adminAuth');
+router.use(authenticateAdminToken);
 
 // 图片上传存储配置
 const storage = multer.diskStorage({

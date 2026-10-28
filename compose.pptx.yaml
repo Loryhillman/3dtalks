@@ -1,0 +1,35 @@
+# Optional isolated converter. Do not add to a 1 GiB production VPS before stage 6.
+# docker compose -f compose.yaml -f compose.pptx.yaml --profile pptx up -d --build
+services:
+  app:
+    environment:
+      ROOM_PPTX_SPOOL: /app/pptx-spool
+    volumes:
+      - virtual_world_pptx_spool:/app/pptx-spool
+  pptx:
+    profiles: [pptx]
+    build:
+      context: .
+      dockerfile: workers/pptx/Dockerfile
+    image: 3dtalks:pptx-worker
+    restart: unless-stopped
+    user: "1000:1000"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 384m
+    memswap_limit: 384m
+    cpus: 0.75
+    pids_limit: 64
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    volumes:
+      - virtual_world_pptx_spool:/spool
+volumes:
+  virtual_world_pptx_spool:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: size=128m,uid=1000,gid=1000,mode=0700

@@ -1,11 +1,12 @@
 const { normalizeConfig,fail } = require('./avatarValidation');
-const DEFAULT = {version:1,mode:'standard',headType:'sphere',headAssetId:null,bodyColor:'#4a90e2',headColor:'#ffaa99',headScale:1,headOffset:0,headYaw:0};
+const {DEFAULT_ID,presetConfig,listPresets,resolveConfig}=require('./avatarCatalog');
+const DEFAULT = presetConfig(DEFAULT_ID);
 function createUserAvatarService(pool, { assetInUse = () => false } = {}) {
   async function get(userId) {
     const user=(await pool.query('SELECT avatar_config,avatar_revision FROM users WHERE id=$1',[userId])).rows[0];
     if(!user)fail('ACCOUNT_NOT_FOUND',404);
     const assets=(await pool.query('SELECT id,kind,path,byte_size,metadata FROM user_avatar_assets WHERE user_id=$1 ORDER BY created_at DESC',[userId])).rows;
-    return {config:Object.keys(user.avatar_config||{}).length?user.avatar_config:{...DEFAULT},revision:user.avatar_revision,assets};
+    return {config:resolveConfig(user.avatar_config),revision:user.avatar_revision,assets,catalog:listPresets(),defaultConfig:presetConfig(DEFAULT_ID)};
   }
   async function transaction(userId,fn) {
     const client=await pool.connect();
@@ -29,7 +30,7 @@ function createUserAvatarService(pool, { assetInUse = () => false } = {}) {
         config.asset={id:asset.id,path:asset.path,kind:asset.kind,boneMap:asset.metadata?.boneMap||{}};
       }else if(config.mode==='full'||['model','image'].includes(config.headType))fail('ASSET_REQUIRED');
       const result=(await client.query('UPDATE users SET avatar_config=$2,avatar_revision=avatar_revision+1 WHERE id=$1 RETURNING avatar_revision',[userId,config])).rows[0];
-      return {config,revision:result.avatar_revision};
+      return {config:resolveConfig(config),revision:result.avatar_revision};
     });
   }
   async function addAsset(userId,asset) {

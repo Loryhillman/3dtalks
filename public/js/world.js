@@ -12,6 +12,7 @@ function worldText(key, params) {
 class World {
   constructor(canvas) {
     this.canvas = canvas;
+    this.isMeeting = Boolean(window.MeetingUI?.active);
     this.scene = new THREE.Scene();
     
     // 计算FOV，使用水平FOV限制法（防止超宽屏变形）
@@ -116,8 +117,10 @@ class World {
     
     // 技能系统
 
-    this.objLoader = new THREE.OBJLoader(); // OBJ模型加载器
-    this.mtlLoader = new THREE.MTLLoader(); // MTL材质加载器
+    if (!this.isMeeting) {
+      this.objLoader = new THREE.OBJLoader();
+      this.mtlLoader = new THREE.MTLLoader();
+    }
     
     // 加载优化
     this.baseLoadDistance = 200; // 基础加载距离
@@ -191,7 +194,7 @@ class World {
     
     // 预加载核心资源
     this.preloadedResources = new Map();
-    this.preloadCoreResources();
+    if (!this.isMeeting) this.preloadCoreResources();
     
     // 加载状态管理
     this.loadingStatus = {
@@ -238,7 +241,7 @@ class World {
     // Web Worker
     this.worker = null;
     this.workerCallbacks = new Map();
-    this.initWorker();
+    if (!this.isMeeting) this.initWorker();
 
     // 优先级队列和消息队列（addToPriorityQueue / handleBatchData 依赖）
     this.priorityQueue = [];
@@ -267,7 +270,7 @@ class World {
     this.warmupShaders();
 
     // 初始化对象池
-    this.initObjectPools();
+    if (!this.isMeeting) this.initObjectPools();
 
     // Handle window resize
     window.addEventListener('resize', () => this.onWindowResize());
@@ -282,7 +285,8 @@ class World {
 
     
     // 异步加载AI生成的建筑（不阻塞初始化）
-    setTimeout(() => {
+    this._buildingLoadTimer = setTimeout(() => {
+      if (this._renderStopped) return;
       this.loadGeneratedBuildings().catch(err => {
         console.error('加载生成建筑失败:', err);
       });
@@ -1769,7 +1773,17 @@ class World {
     return maxHeight;
   }
 
+  getMeetingParticipants() {
+    if (!this._meetingParticipants) this._meetingParticipants = new window.MeetingParticipants(this);
+    return this._meetingParticipants;
+  }
+
+  clearMeetingParticipants() {
+    this._meetingParticipants?.clear();
+  }
+
   removePlayer(characterId) {
+    if (this.isMeeting) return this.getMeetingParticipants().remove(characterId);
     const playerData = this.players.get(characterId);
     if (playerData && playerData.group) {
       // 清理骨骼物理实例
@@ -1796,8 +1810,9 @@ class World {
   }
 
   addPlayer(characterId, characterName, position = { x: 0, y: 0, z: 0 }, isLoggedIn = true, glbUrl = null, weaponConfig = null, boneMapConfig = null, weaponSocketConfig = null, calibrationConfig = null, avatarConfig = null) {
+    if (this.isMeeting) return this.getMeetingParticipants().add(characterId, characterName, position, avatarConfig);
     this.removePlayer(characterId);
-    
+
     const {characterGroup,body,head,leftArmGroup,rightArmGroup,leftLegGroup,rightLegGroup,leftElbowGroup,rightElbowGroup,leftKneeGroup,rightKneeGroup} = window.AvatarBase.create(isLoggedIn);
 
     // 右手武器：仅当 weaponConfig 有效（非 null 且为对象）时才创建
@@ -1925,7 +1940,7 @@ class World {
     }
 
     // Name label（使用评估高度，模型加载后会重新校准）
-    const estimatedHeight = parseFloat(localStorage.getItem('selectedTemplateHeight') || '1.8');
+    const estimatedHeight = window.MeetingUI?.active ? 1.8 : parseFloat(localStorage.getItem('selectedTemplateHeight') || '1.8');
     const nameSprite = this.createNameSprite(characterName, estimatedHeight);
     characterGroup.add(nameSprite);
     characterGroup.userData.nameSprite = nameSprite;
@@ -2846,6 +2861,7 @@ class World {
 
   // Update player name
   updatePlayerName(characterId, newName) {
+    if (this.isMeeting) return this.getMeetingParticipants().rename(characterId, newName);
     const playerData = this.players.get(characterId);
     if (playerData) {
       // Update stored name
@@ -4720,6 +4736,7 @@ class World {
    * 加载AI生成的建筑模型
    */
   async loadGeneratedBuildings() {
+    if (window.ACTIVE_ROOM) return this.getRoomScene().enter(window.ACTIVE_ROOM.slug);
     try {
       // 防止重复加载
       if (this.isLoadingBuildings) {
@@ -4738,19 +4755,7 @@ class World {
       // 只获取世界对象，不需要获取hunyuan3d/buildings，因为世界对象已经包含了所有已放置的建筑
       // P1: 空间分页——按玩家位置增量拉取，替代一次性全量（返回结构完全兼容）
       let worldObjects;
-      if (window.ACTIVE_ROOM) {
-        const response = await fetch('/api/rooms/' + encodeURIComponent(window.ACTIVE_ROOM.slug) +
-          '/objects?characterId=' + encodeURIComponent(localStorage.getItem('characterId') || ''), {
-          headers: { Authorization: 'Bearer ' + localStorage.getItem('token') }
-        });
-        worldObjects = await response.json();
-        if (!response.ok || !worldObjects.success) throw new Error('Room objects unavailable');
-        await this.loadRoomScene(worldObjects.objects);
-        this.isLoadingBuildings = false;
-        this.updateLoadingStatus(1, 1);
-        window.RoomSeating?.sceneReady();
-        return;
-      } else if (window.WorldSpatialManager) {
+      if (window.WorldSpatialManager) {
         if (!this._spatialMgr) {
           this._spatialMgr = new window.WorldSpatialManager(this);
         }
@@ -7251,35 +7256,17 @@ class World {
   /**
    * 添加几何体建筑到场景
    */
-  async loadRoomScene(objects) {
-    if (!Array.isArray(objects) || !objects.length) throw new Error('Room scene is empty');
-    this.allWorldObjects = [];
-    this.loadingQueue = [];
-    for (const object of objects) {
-      if (this.loadedObjects.has(object.id)) continue;
-      if (object.type === 'geometry_building') {
-        const geometry = typeof object.geometry_data === 'string' ? JSON.parse(object.geometry_data) : object.geometry_data;
-        if (!geometry?.components?.length) throw new Error(`Room geometry missing: ${object.id}`);
-        const group = GeometryRenderer.renderFromComponents(geometry.components, THREE);
-        group.position.set(object.position_x ?? 0, object.position_y ?? 0, object.position_z ?? 0);
-        group.rotation.set(object.rotation_x ?? 0, object.rotation_y ?? 0, object.rotation_z ?? 0);
-        group.scale.set(object.scale_x ?? 1, object.scale_y ?? 1, object.scale_z ?? 1);
-        group.userData.worldObjectId = object.id;
-        group.userData.componentCollision = true;
-        this.scene.add(group);
-        group.updateMatrixWorld(true);
-        this.generatedBuildings.set(object.id, { model: group, data: object, isGeometry: true });
-        if (object.has_collision) this.collisionObjects.push(...GeometryRenderer.buildCollisionObjects(group, object, THREE));
-      } else if (object.type === 'uploaded_model') {
-        await this.addUploadedModel(object);
-        if (!this.generatedBuildings.has(object.id) || this.generatedBuildings.get(object.id).isPlaceholder) {
-          throw new Error(`Room model unavailable: ${object.id}`);
-        }
-      } else {
-        throw new Error(`Unsupported room object: ${object.type}`);
-      }
-      this.loadedObjects.add(object.id);
-    }
+  getRoomScene() {
+    if (!this._roomScene) this._roomScene = new window.RoomScene(this);
+    return this._roomScene;
+  }
+
+  loadRoomScene(objects) {
+    return this.getRoomScene().load(objects);
+  }
+
+  clearRoomScene() {
+    this._roomScene?.clear();
   }
 
   async addGeometryBuilding(worldObject) {
@@ -7842,8 +7829,15 @@ class World {
     }
   }
 
+  stopRendering() {
+    this._renderStopped = true;
+    cancelAnimationFrame(this._animationFrame);
+    clearTimeout(this._buildingLoadTimer);
+  }
+
   animate() {
-    requestAnimationFrame(() => this.animate());
+    if (this._renderStopped) return;
+    this._animationFrame = requestAnimationFrame(() => this.animate());
 
     // 使用真实帧间隔，限制最大值防止卡顿后跳变
     const now = performance.now();
@@ -7867,7 +7861,11 @@ class World {
       // 玩家物理+摄像机更新（必须在渲染前完成，确保视锥体剔除使用最新相机矩阵）
       playerRef.update(delta, this.camera);
       // 调试面板更新
-      this._updateDebugPanel(playerRef);
+      if (!this.isMeeting) this._updateDebugPanel(playerRef);
+    }
+    if (this.isMeeting) {
+      window.MeetingFrame.update(this, delta, now);
+      return;
     }
     // 技能系统更新
     if (window.skillsManager) window.skillsManager.update();

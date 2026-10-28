@@ -1,0 +1,74 @@
+.app-shell { --shell-width: var(--sidebar-expanded); }
+.app-shell.shell-collapsed { --shell-width: var(--sidebar-collapsed); }
+.app-shell.shell-signed-out { --shell-width: 0px; }
+.app-shell main { max-width: 1280px; margin: 0 auto 0 var(--shell-width); padding: var(--space-8); transition: margin-left 200ms; }
+.app-shell .shell-header {
+  position: sticky; top: 0; z-index: 20; height: var(--header-height);
+  margin-left: var(--shell-width); padding: 0 var(--space-6);
+  display: flex; align-items: center; flex-wrap: nowrap; gap: var(--space-4);
+  background: var(--color-header-bg); border-bottom: 1px solid var(--color-border);
+  transition: margin-left 200ms;
+}
+.app-shell .shell-context { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-shell .shell-tools { display: flex; align-items: center; gap: var(--space-3); margin-left: auto; }
+.app-shell .shell-language { display: block; margin: 0; min-width: 0; flex: none; }
+.app-shell .shell-language > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.app-shell .shell-language select { width: auto; max-width: 144px; }
+.app-shell .shell-sidebar {
+  position: fixed; inset: 0 auto 0 0; z-index: 30; width: var(--shell-width);
+  background: var(--color-sidebar-bg); border-right: 1px solid var(--color-border);
+  padding: 12px; overflow: visible; transition: width 200ms;
+}
+.app-shell .shell-brand { display: flex; align-items: center; height: 40px; margin-bottom: 24px; padding: 0 12px; font-size: 20px; font-weight: 600; color: var(--color-text-primary); text-decoration: none; }
+.app-shell .shell-nav { display: grid; gap: 8px; }
+.app-shell .shell-link { display: flex; position: relative; align-items: center; gap: 12px; padding: 12px; min-height: 44px; border-radius: 8px; color: var(--color-text-muted); text-decoration: none; white-space: nowrap; }
+.app-shell .shell-link:hover { background: var(--color-hover); }
+.app-shell .shell-link[aria-current=page] { color: var(--color-action); background: var(--color-nav-active); font-weight: 600; }
+.app-shell .shell-icon { flex: none; opacity: .8; }
+.app-shell .shell-toggle { flex: none; padding: 8px; width: 40px; }
+.app-shell .shell-close { display: none; }
+.app-shell.shell-collapsed .shell-sidebar { padding: 12px 8px; }
+.app-shell.shell-collapsed .shell-brand { font-size: 0; padding: 0; justify-content: center; }
+.app-shell.shell-collapsed .shell-brand::before { content: '3D'; font-size: 18px; }
+.app-shell.shell-collapsed .shell-link { justify-content: center; }
+.app-shell.shell-collapsed .shell-link-label { position: absolute; left: calc(100% + 12px); padding: 8px 12px; background: var(--color-text-primary); color: white; border-radius: 8px; pointer-events: none; visibility: hidden; }
+.app-shell.shell-collapsed .shell-link:hover .shell-link-label,
+.app-shell.shell-collapsed .shell-link:focus-visible .shell-link-label { visibility: visible; }
+.app-shell .shell-account { position: relative; }
+.app-shell .shell-account summary { list-style: none; }
+.app-shell .shell-account summary::-webkit-details-marker { display: none; }
+.app-shell .shell-account summary:focus-visible { outline: 2px solid var(--color-action); outline-offset: 3px; }
+.app-shell .shell-dropdown { position: absolute; right: 0; top: calc(100% + 8px); min-width: 192px; max-width: calc(100vw - 32px); padding: 8px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); box-shadow: 0 8px 24px rgb(23 38 56 / 10%); }
+.app-shell .shell-dropdown > * { display: flex; width: 100%; padding: 10px 12px; border-radius: 8px; text-decoration: none; justify-content: flex-start; }
+.app-shell .shell-dropdown-link:hover { background: var(--color-hover); }
+.app-shell .shell-account[open] .shell-dropdown { animation: shell-dropdown-in 150ms ease-out; }
+@keyframes shell-dropdown-in { from { opacity: 0; } to { opacity: 1; } }
+.app-shell .shell-backdrop { position: fixed; inset: 0; z-index: 40; background: rgb(23 38 56 / 35%); }
+.app-shell .shell-skip { position: fixed; top: 8px; left: 8px; z-index: 100; padding: 12px; background: white; border: 2px solid var(--color-action); border-radius: 8px; transform: translateY(-150%); }
+.app-shell .shell-skip:focus { transform: none; }
+.app-shell .avatar-preview { top: calc(var(--header-height) + 16px); }
+.app-shell .avatar-layout p, .app-shell #avatar-status { color: var(--color-text-muted); }
+.app-shell .avatar-layout section, .app-shell .avatar-layout form { border-color: var(--color-border); background: var(--color-surface); }
+.app-shell .avatar-layout { grid-template-columns: minmax(0, 1fr) minmax(260px, 360px); }
+@media (max-width: 1023px) { .app-shell .avatar-layout { grid-template-columns: 1fr; } .app-shell .avatar-preview { position: static; } }
+@media (max-width: 767px) {
+  .app-shell main, .app-shell .shell-header { margin-left: 0; padding: 16px; transition: none; }
+  .app-shell .shell-header { gap: 8px; padding-top: 0; padding-bottom: 0; }
+  .app-shell .shell-tools { gap: 4px; }
+  .app-shell .shell-context { font-size: 12px; }
+  .app-shell .shell-account-label { display: none; }
+  .app-shell .shell-account summary { padding: 8px; }
+  .app-shell .shell-language select { max-width: 110px; padding-left: 8px; padding-right: 4px; }
+  .app-shell .shell-sidebar, .app-shell.shell-collapsed .shell-sidebar { z-index: 50; width: min(248px, calc(100vw - 48px)); padding: 12px; transform: translateX(-100%); transition: transform 200ms; height: 100dvh; overflow-y: auto; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .app-shell.shell-drawer-open .shell-sidebar { transform: none; }
+  .app-shell .shell-close { display: inline-flex; position: absolute; right: 8px; top: 10px; padding: 8px; }
+  .app-shell .shell-brand, .app-shell.shell-collapsed .shell-brand { font-size: 20px; justify-content: flex-start; padding: 0 12px; }
+  .app-shell.shell-collapsed .shell-brand::before { content: none; }
+  .app-shell.shell-collapsed .shell-link { justify-content: flex-start; }
+  .app-shell.shell-collapsed .shell-link-label { position: static; padding: 0; visibility: visible; background: none; color: inherit; }
+  .app-shell .shell-toggle { width: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell main, .app-shell .shell-header, .app-shell .shell-sidebar { transition: none; }
+  .app-shell .shell-account[open] .shell-dropdown { animation: none; }
+}

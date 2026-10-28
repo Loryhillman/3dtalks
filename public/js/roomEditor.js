@@ -6,6 +6,80 @@
   const message = document.getElementById('message');
   const viewport = document.getElementById('viewport');
   const objects = new Map();
+  const selectedIds=new Set();
+  let environmentHuman;
+  let environmentHelper, environmentSignature, framedEnvironment, frameId, environmentProposal, seatAvatar;
+  let placementIssues=[];
+  let editorStopped=false;
+  let calibrationSeatsSignature='',calibrationView=false;
+  const calibrationHidden=new Map();
+  function restoreCalibrationFurniture(){for(const [group,visible] of calibrationHidden)if(group.parent)group.visible=visible;calibrationHidden.clear();}
+  function endCalibrationView(){restoreCalibrationFurniture();calibrationView=false;if(environmentHelper)environmentHelper.visible=!environmentProposal&&!preview&&document.getElementById('environment-bounds').checked;}
+  const calibrationScale=()=>RoomAvatarScale.resolve(template?.draft?.avatar_scale??room?.avatar_scale);
+  function syncCalibration(){
+    document.getElementById('avatar-calibration-panel').hidden=!template;
+    document.getElementById('room-avatar-scale').value=String(calibrationScale());
+    document.getElementById('room-avatar-scale-value').textContent=calibrationScale().toFixed(2)+'×';
+    const signature=JSON.stringify(seatPreview.map(s=>[s.id,s.label]));
+    const select=document.getElementById('calibration-seat');
+    if(signature!==calibrationSeatsSignature){
+      calibrationSeatsSignature=signature;select.replaceChildren(new Option(tr('avatarChooseSeat','Выберите место'),''));
+      seatPreview.forEach((s,i)=>select.add(new Option(s.label,String(i))));
+    }
+    select.value=selectedSeat<0?'':String(selectedSeat);
+    for(const angle of ['front','side','overview'])document.getElementById('calibration-'+angle).disabled=selectedSeat<0;
+  }
+  function changeAvatarScale(value){
+    if(!template||busy||preview||!RoomAvatarScale.valid(value))return;
+    template.draft.avatar_scale=value;template.room.avatar_scale=value;if(room)room.avatar_scale=value;
+    template.changed();renderSeatPreview();
+  }
+  document.getElementById('room-avatar-scale').oninput=event=>changeAvatarScale(Number(event.target.value));
+  document.getElementById('room-avatar-scale-reset').onclick=()=>changeAvatarScale(1);
+  document.getElementById('calibration-seat').onchange=event=>{
+    if(!template||busy||event.target.value==='')return;
+    document.getElementById('seat-avatar-preview').checked=true;
+    window.dispatchEvent(new CustomEvent('room-seat-picked',{detail:Number(event.target.value)}));
+  };
+  document.getElementById('calibration-avatar').onchange=()=>{
+    for(const group of [seatAvatar,environmentHuman])if(group)loadReference(group);
+  };
+  function focusCalibration(angle){
+    const seat=seatPreview[selectedSeat];if(!seat||!template||busy)return;
+    restoreCalibrationFurniture();
+    if(angle!=='overview')for(const entry of objects.values())if(entry.data.template_kind==='chair'&&entry.data.id!==seat.object_id){calibrationHidden.set(entry.group,entry.group.visible);entry.group.visible=false;}
+    const pose=RoomSeatCoordinates.world(seat,window.RoomEditorObjects.get(seat.object_id)),scale=calibrationScale();
+    const target=new THREE.Vector3(pose.position.x,pose.position.y+.35*scale,pose.position.z);
+    const offset=angle==='front'?new THREE.Vector3(0,.8,4):angle==='side'?new THREE.Vector3(4,.8,0):new THREE.Vector3(3,3,3);
+    offset.multiplyScalar(scale).applyEuler(new THREE.Euler(pose.rotation.x,pose.rotation.y,pose.rotation.z));
+    calibrationView=true;renderSeatPreview();transform.detach();orbit.target.copy(target);camera.position.copy(target).add(offset);orbit.update();
+  }
+  for(const angle of ['front','side','overview'])document.getElementById('calibration-'+angle).onclick=()=>focusCalibration(angle);
+  function referenceStatus() {
+    const data=[seatAvatar,environmentHuman].filter(Boolean).map(group=>group.userData);
+    const failed=data.some(entry=>entry.editorAvatarError),loading=data.some(entry=>entry.editorAvatarLoading);
+    document.getElementById('calibration-avatar').disabled=loading;
+    document.getElementById('reference-avatar-message').hidden=!failed&&!loading;
+    document.getElementById('reference-avatar-status').textContent=window.i18n?.t('avatar.'+(failed?'referenceError':'loading'))||'';
+    document.getElementById('reference-avatar-retry').hidden=!failed;
+  }
+  function loadReference(group) {
+    if(editorStopped||group.userData.editorAvatarLoading)return;
+    group.userData.editorAvatarLoading=true;group.userData.editorAvatarError=false;referenceStatus();
+    window.BuiltinAvatarCatalog.applyDefault(group,document.getElementById('calibration-avatar').value).then(async()=>{
+      if(editorStopped)return;
+      const catalog=await BuiltinAvatarCatalog.load();if(editorStopped)return;
+      const select=document.getElementById('calibration-avatar');
+      if(select.options.length===1)for(const preset of catalog.presets)select.add(new Option(window.i18n?.t(preset.labelKey)||preset.label,preset.id));
+      group.userData.editorAvatarLoading=false;referenceStatus();renderSeatPreview();
+    }).catch(()=>{
+      if(editorStopped)return;
+      group.userData.editorAvatarLoading=false;group.userData.editorAvatarError=true;referenceStatus();
+    });
+  }
+  document.getElementById('reference-avatar-retry').onclick=()=>{
+    for(const group of [seatAvatar,environmentHuman])if(group?.userData.editorAvatarError)loadReference(group);
+  };
   let seatPreview = [], selectedSeat = -1, selectionMode = 'objects';
   const seatLabels = new RoomSeatLabels(index => {if(selectionMode==='seats')window.dispatchEvent(new CustomEvent('room-seat-picked',{detail:Number(index)}));}, 5);
   const seatMarkers = new Map();
@@ -16,6 +90,7 @@
     return value;
   }};
   function renderSeatPreview() {
+    syncCalibration();
     for (const [index, marker] of seatMarkers) if (index >= seatPreview.length) {
       if (transform.object === marker) transform.detach();
       scene.remove(marker); marker.traverse(n=>{n.geometry?.dispose();n.material?.dispose();});seatMarkers.delete(index);
@@ -32,15 +107,77 @@
       marker.position.set(pose.position.x,pose.position.y,pose.position.z);
       marker.rotation.set(pose.rotation.x,pose.rotation.y,pose.rotation.z);
       marker.children[0].material.color.set(index===selectedSeat?0x44ff99:seat.enabled?0xffcc33:0x888888);
-      marker.visible=!preview;
+      marker.visible=!preview&&!calibrationView;
     });
     if (selectedSeat < 0 && transform.object?.userData.seatIndex !== undefined) transform.detach();
+    const seat=seatPreview[selectedSeat];
+    const show=!!seat&&selectionMode==='seats'&&document.getElementById('seat-avatar-preview').checked;
+    if(show){
+      if(!seatAvatar){seatAvatar=AvatarBase.create().characterGroup;seatAvatar.userData.editorSeatAvatar=true;scene.add(seatAvatar);loadReference(seatAvatar);}
+      const pose=RoomSeatCoordinates.world(seat,window.RoomEditorObjects.get(seat.object_id));
+      seatAvatar.position.set(pose.position.x,pose.position.y,pose.position.z);
+      seatAvatar.rotation.set(pose.rotation.x,pose.rotation.y,pose.rotation.z);
+      seatAvatar.userData.roomAvatarScale=calibrationScale();
+      RoomSeatAvatar.apply(seatAvatar); // Reset to the seat before the procedural hip offset.
+    }
+    if(seatAvatar)seatAvatar.visible=show;
+    renderEnvironmentHuman();
+    updatePlacementCheck();
+  }
+  document.getElementById('seat-avatar-preview').addEventListener('change',renderSeatPreview);
+
+  function renderEnvironmentHuman(){
+    const object=environmentProposal?.data||[...objects.values()].find(entry=>entry.data.is_room_environment)?.data;
+    document.getElementById('environment-human-panel').hidden=!object;
+    const values=['x','y','z','yaw'].map(axis=>Number(document.getElementById('environment-human-'+axis).value));
+    const visible=!!object&&selectionMode==='room'&&document.getElementById('environment-human-visible').checked&&values.every(value=>Number.isFinite(value)&&Math.abs(value)<=10000);
+    if(visible){
+      if(!environmentHuman){environmentHuman=AvatarBase.create().characterGroup;environmentHuman.userData.editorEnvironmentHuman=true;scene.add(environmentHuman);loadReference(environmentHuman);}
+      const bounds=object.room_environment.bounds;
+      const t=Object.fromEntries(['position','rotation','scale'].map(p=>[p,Object.fromEntries(['x','y','z'].map(a=>[a,object[p+'_'+a]]))]));
+      const floor=RoomEnvironment.toWorld({x:(bounds.min.x+bounds.max.x)/2,y:bounds.min.y,z:(bounds.min.z+bounds.max.z)/2},t);
+      // The chosen GLB floor is aligned to world Y=0 by the preparation form;
+      // bounds.min.y can include a margin and must not shift this reference.
+      environmentHuman.position.set(floor.x+values[0],values[1],floor.z+values[2]);
+      environmentHuman.rotation.set(0,t.rotation.y+values[3]*Math.PI/180,0);
+      environmentHuman.userData.roomAvatarScale=calibrationScale();RoomSeatAvatar.apply(environmentHuman);
+    }
+    if(environmentHuman)environmentHuman.visible=visible;
+  }
+  for(const axis of ['x','y','z','yaw'])document.getElementById('environment-human-'+axis).addEventListener('input',renderEnvironmentHuman);
+  document.getElementById('environment-human-visible').addEventListener('change',renderEnvironmentHuman);
+  document.getElementById('environment-human-focus').addEventListener('click',()=>{
+    if(!environmentHuman?.visible)return;
+    orbit.target.copy(environmentHuman.position);camera.position.copy(environmentHuman.position).add(new THREE.Vector3(2,1.5,3));orbit.update();
+  });
+
+  function updatePlacementCheck(){
+    const rows=[...objects.values()].map(entry=>window.RoomEditorObjects.get(entry.data.id));
+    if(environmentProposal){
+      const i=rows.findIndex(o=>o.is_room_shell||o.is_room_environment);
+      const row={...environmentProposal.data,id:i<0?'proposal':rows[i].id,is_room_environment:true};
+      if(i<0)rows.push(row);else rows[i]=row;
+    }
+    placementIssues=RoomPlacementCheck.check(rows,seatPreview,(seat,object)=>RoomSeatCoordinates.world(seat,object));
+    const tr=key=>window.i18n.t('roomPlacement.'+key);
+    document.getElementById('placement-summary').textContent=placementIssues.length?tr('review'):tr('valid');
+    const list=document.getElementById('placement-issues');list.replaceChildren();
+    for(const issue of placementIssues.slice(0,20)){
+      const li=document.createElement('li');li.dataset.type=issue.type;
+      li.textContent=tr(issue.type)+(issue.label!=null?': '+issue.label:issue.name!=null?': '+issue.name:'');list.append(li);
+    }
+    if(placementIssues.length>20){const li=document.createElement('li');li.textContent=tr('more')+': '+(placementIssues.length-20);list.append(li);}
+    const badSeats=new Set(placementIssues.filter(i=>i.index!=null).map(i=>i.index));
+    for(const [index,marker]of seatMarkers)marker.children[0].material.color.set(badSeats.has(index)?0xff6655:index===selectedSeat?0x44ff99:seatPreview[index]?.enabled?0xffcc33:0x888888);
+    const badObjects=new Set(placementIssues.filter(i=>i.id!=null).map(i=>String(i.id)));
+    for(const button of document.querySelectorAll('#object-list .item'))button.classList.toggle('placement-error',badObjects.has(button.dataset.id));
+    [...document.getElementById('seat-list').children].forEach((button,index)=>button.classList.toggle('placement-error',badSeats.has(index)));
   }
   window.addEventListener('room-seat-preview',event=>{seatPreview=event.detail.seats;selectedSeat=event.detail.selected;renderSeatPreview();updateSelection();});
   window.addEventListener('room-seat-selected',event=>{
     if (busy || preview) return;
     action(async()=>{
-      await applyCurrent(); selected=null; objectDirty=false;
+      await applyCurrent(); selected=null; selectedIds.clear(); objectDirty=false;
       document.getElementById('edit-form').hidden=true;
       updateSelection();showPanel('seats');transform.detach();
       selectedSeat=event.detail;
@@ -132,12 +269,19 @@
     if (transform.object?.userData.seatIndex !== undefined) {
       const g=transform.object;
       window.dispatchEvent(new CustomEvent('room-seat-dragged',{detail:{position:{x:g.position.x,y:g.position.y,z:g.position.z},rotation:{x:g.rotation.x,y:g.rotation.y,z:g.rotation.z}}}));
-    } else {syncPositionFields();objectDirty=true;window.RoomSeatEditor?.refresh();}
+    } else {
+      if(selected?.type==='presentation_screen'&&transform.object){
+        transform.object.rotation.set(0,transform.object.rotation.y,0);transform.object.scale.set(1,1,1);
+      }
+      syncPositionFields();objectDirty=true;window.RoomSeatEditor?.refresh();
+    }
     updateTemplateStatus();
   });
   scene.add(transform.getHelper ? transform.getHelper() : transform);
   const selectionBox = new THREE.BoxHelper(new THREE.Group(), 0xffcc66);
   selectionBox.visible = false; scene.add(selectionBox);
+  const groupSelectionBox=new THREE.Box3Helper(new THREE.Box3(),0xffcc66);
+  groupSelectionBox.visible=false;scene.add(groupSelectionBox);
   scene.add(new THREE.HemisphereLight(0xffffff, 0x748090, 2));
   const grid = new THREE.GridHelper(40, 40, 0x64748b, 0x394657);
   grid.position.y = -0.01;
@@ -148,7 +292,8 @@
   const draco = new THREE.DRACOLoader().setDecoderPath('/js/libs/draco/');
   loader.setDRACOLoader(draco);
   const decoderReady = import('/js/libs/meshopt/meshopt_decoder.module.js')
-    .then(m => loader.setMeshoptDecoder(m.MeshoptDecoder));
+    .then(m => loader.setMeshoptDecoder(m.MeshoptDecoder))
+    .catch(error => { console.warn('[RoomEditor] Meshopt decoder unavailable:',error); });
 
   function resize() {
     const w = viewport.clientWidth, h = viewport.clientHeight;
@@ -160,13 +305,14 @@
   new ResizeObserver(resize).observe(viewport);
   resize();
   function frame() {
-    requestAnimationFrame(frame);
+    frameId = requestAnimationFrame(frame);
     orbit.update();
+    if(calibrationView){selectionBox.visible=false;groupSelectionBox.visible=false;if(environmentHelper)environmentHelper.visible=false;}
     if (selectionBox.visible) selectionBox.update();
     renderer.render(scene, camera);
     seatLabels.update(camera,renderer.domElement,seatPreview.map((seat,index)=>({id:index,label:seat.label,
       position:RoomSeatCoordinates.world(seat,window.RoomEditorObjects.get(seat.object_id)).position,
-      selected:index===selectedSeat,color:seat.enabled?'#8a6200':'#555b66'})),!preview,selectionMode==='seats');
+      selected:index===selectedSeat,color:seat.enabled?'#8a6200':'#555b66'})),!preview&&!calibrationView,selectionMode==='seats');
   }
   frame();
 
@@ -184,6 +330,7 @@
   function currentBody() {
     if (!document.getElementById('edit-form').reportValidity()) throw new Error(tr('invalidTransform', 'Проверьте координаты и размеры'));
     const body = { has_collision: document.getElementById('object-collision').checked };
+    if(selected?.type==='presentation_screen')body.screen={version:1,width:Number(document.getElementById('screen-width').value),height:Number(document.getElementById('screen-height').value)};
     if (template) body.name = document.getElementById('object-name').value.trim();
     for (const a of ['x','y','z']) {
       body['position_'+a] = Number(document.getElementById('pos-'+a).value);
@@ -230,43 +377,72 @@
     selectionBox.visible = !!group && !preview && selectionMode === 'objects';
     if (group) selectionBox.setFromObject(group);
     document.querySelectorAll('#object-list .item').forEach(button =>
-      button.classList.toggle('selected', Number(button.dataset.id) === selected?.id));
+      {const active=selectedIds.has(Number(button.dataset.id));button.classList.toggle('selected',active);button.setAttribute('aria-pressed',String(active));});
+    const multiple=selectedIds.size>1;
+    const screen=selected?.type==='presentation_screen';
+    document.getElementById('add-screen').hidden=!template;
+    document.getElementById('add-screen').disabled=[...objects.values()].some(e=>e.data.type==='presentation_screen');
+    document.getElementById('screen-fields').hidden=!screen;
+    for(const a of ['x','y','z']){document.getElementById('scale-'+a).disabled=screen;document.getElementById('scale-'+a).closest('.coords').hidden=screen;}
+    for(const a of ['x','z']){document.getElementById('rot-'+a).disabled=screen;document.getElementById('rot-'+a).parentElement.hidden=screen;}
+    document.getElementById('object-scale-label').hidden=screen;
+    document.getElementById('object-collision').disabled=screen;document.getElementById('object-collision').parentElement.hidden=screen;
+    document.getElementById('template-object-actions').hidden=screen||room?.status!=='draft';
+    if(screen&&transform.mode==='scale')transform.setMode('translate');
+    transform.showX=transform.showZ=!(screen&&transform.mode==='rotate');transform.showY=true;
+    document.getElementById('group-scale-form').hidden=!template||!multiple||preview||room?.status!=='draft';
+    for(const id of ['move-mode','rotate-mode','scale-mode'])document.getElementById(id).disabled=multiple||(id==='scale-mode'&&screen);
+    document.getElementById('group-selection-count').textContent=tr('groupSelected','Выбрано предметов')+': '+selectedIds.size;
+    groupSelectionBox.visible=multiple&&!preview&&selectionMode==='objects';
+    if(multiple){groupSelectionBox.box.makeEmpty();for(const id of selectedIds){const entry=objects.get(id);if(entry)groupSelectionBox.box.union(new THREE.Box3().setFromObject(entry.group));}}
     if (selected) {
       const label = `${selected.name} (#${selected.id})`;
       document.getElementById('selected-name').textContent = label;
       const button = document.querySelector(`#object-list [data-id="${selected.id}"]`);
       if (button) button.textContent = label;
     }
-    document.getElementById('deselect').disabled = !selected && selectedSeat < 0;
+    document.getElementById('deselect').disabled = !selectedIds.size && selectedSeat < 0;
     document.getElementById('placement-beside').disabled = !selected;
     if (!selected) document.getElementById('add-placement').value = 'center';
-    document.getElementById('selection-empty').hidden = !!selected;
+    document.getElementById('selection-empty').hidden = !!selectedIds.size;
   }
   function selectObject(object) {
+    selectedIds.clear();if(object)selectedIds.add(object.id);
     selected = object || null;
     transform.detach();
-    document.getElementById('edit-form').hidden = !selected || room.status !== 'draft';
+    document.getElementById('edit-form').hidden = !selected || room.status !== 'draft' || (!template&&selected.type==='presentation_screen');
     if (selected) {
-      if (!preview && selectionMode === 'objects' && room.status === 'draft') transform.attach(objects.get(selected.id).group);
+      if (!preview && selectionMode === 'objects' && room.status === 'draft' && (template||selected.type!=='presentation_screen')) transform.attach(objects.get(selected.id).group);
       document.getElementById('selected-name').textContent = `${selected.name} (#${selected.id})`;
       document.getElementById('object-name').value = selected.name || '';
+      if(selected.type==='presentation_screen'){document.getElementById('screen-width').value=selected.presentation_screen.width;document.getElementById('screen-height').value=selected.presentation_screen.height;document.getElementById('screen-ratio').value='custom';}
       document.getElementById('object-collision').checked = selected.has_collision === true;
       syncPositionFields();
     }
     updateSelection();
   }
   async function clearSelection() {
+    endCalibrationView();
     await applyCurrent();
     window.RoomSeatEditor?.deselect();
     selectedSeat = -1; selectObject(null); renderSeatPreview();
   }
-  async function choose(object) {
-    if (busy || preview || selected?.id === object.id) return;
+  function selectObjects(ids){
+    const rows=ids.map(id=>objects.get(id)?.data).filter(o=>o&&!o.is_room_shell&&!o.is_room_environment&&o.type!=='presentation_screen');
+    selectObject(rows.length===1?rows[0]:null);
+    for(const row of rows)selectedIds.add(row.id);
+    updateSelection();
+  }
+  async function choose(object,event={}) {
+    const multiple=!!template&&object.type!=='presentation_screen'&&!Array.from(selectedIds).some(id=>objects.get(id)?.data.type==='presentation_screen')&&(event.ctrlKey||event.metaKey||document.getElementById('multi-select').checked);
+    if (busy || preview || (!multiple&&selected?.id === object.id&&selectedIds.size===1)) return;
     return action(async () => {
       await applyCurrent();
       window.RoomSeatEditor?.deselect();
-      if (object.is_room_shell) { selectObject(null); showPanel('room'); return; }
-      showPanel('objects'); selectObject(objects.get(object.id)?.data);
+      if (object.is_room_shell || object.is_room_environment) { selectObject(null); showPanel('room'); return; }
+      showPanel('objects');
+      if(multiple){const ids=new Set(selectedIds);if(ids.has(object.id))ids.delete(object.id);else ids.add(object.id);selectObjects([...ids]);}
+      else selectObject(objects.get(object.id)?.data);
     });
   }
   document.getElementById('deselect').addEventListener('click', () => action(clearSelection));
@@ -299,11 +475,12 @@
       while (node && node.userData.roomObjectId == null) node = node.parent;
       if (node) {
         const object = objects.get(node.userData.roomObjectId)?.data;
+        if(object?.is_room_environment){if(selectionMode==='room'){showPanel('room');return;}continue;}
         if(object?.is_room_shell){
           if(selectionMode==='room') {showPanel('room');if(hit.object.userData.roomSurface)window.dispatchEvent(new CustomEvent('room-surface-picked',{detail:hit.object.userData.roomSurface}));return;}
           continue;
         }
-        if(selectionMode!=='room'&&object)choose(object);
+        if(selectionMode!=='room'&&object)choose(object,event);
         if(selectionMode!=='room')return;
       }
     }
@@ -316,43 +493,103 @@
     group.position.set(object.position_x || 0, object.position_y || 0, object.position_z || 0);
     group.rotation.set(object.rotation_x || 0, object.rotation_y || 0, object.rotation_z || 0);
     group.scale.set(object.scale_x ?? 1, object.scale_y ?? 1, object.scale_z ?? 1);
-    if (object.type === 'geometry_building' && object.geometry_data?.components?.length) {
+    const entry = { data: object, group, state: 'ready' };
+    scene.add(group); objects.set(object.id,entry);
+    if(object.type==='presentation_screen'){group.add(RoomScreenRenderer.create(object.presentation_screen));
+    } else if (object.type === 'geometry_building' && object.geometry_data?.components?.length) {
       group.add(GeometryRenderer.renderFromComponents(object.geometry_data.components, THREE));
     } else if (object.type === 'uploaded_model' && object.model_path?.toLowerCase().endsWith('.glb')) {
-      const placeholder = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1),
-        new THREE.MeshStandardMaterial({ color: 0x5b9dca, wireframe: true }));
-      group.add(placeholder);
-      decoderReady.then(() => loader.load(object.model_path, gltf => {
-        if (objects.get(object.id)?.group !== group) { disposeGroup(gltf.scene); return; }
-        group.remove(placeholder);
-        disposeGroup(placeholder);
-        group.add(gltf.scene);
-      }, undefined, () => { message.textContent = `${tr('modelLoadError', 'Не загрузилась модель')}: ${object.model_path}`; }))
-        .catch(error => { message.textContent = error.message; });
+      if (!object.is_room_environment) {
+        entry.placeholder = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1),new THREE.MeshStandardMaterial({color:0x5b9dca,wireframe:true}));
+        group.add(entry.placeholder);
+      }
+      loadModel(entry);
     } else {
       group.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1),
         new THREE.MeshStandardMaterial({ color: 0x5b9dca, wireframe: true })));
     }
-    scene.add(group);
-    objects.set(object.id, { data: object, group });
   }
 
+  async function loadModel(entry) {
+    entry.controller?.abort();
+    if (message.textContent === entry.errorMessage) message.textContent = '';
+    const controller = new AbortController(); entry.controller = controller; entry.state = 'loading'; entry.error = '';
+    syncEnvironmentView();
+    let root;
+    try {
+      if (!entry.data.is_room_environment) await decoderReady;
+      const response = await fetch(entry.data.model_path,{signal:controller.signal});
+      if (!response.ok) throw new Error('HTTP '+response.status);
+      const buffer = await response.arrayBuffer();
+      if (controller.signal.aborted || objects.get(entry.data.id) !== entry) return;
+      const directory = new URL('.',new URL(entry.data.model_path,document.baseURI)).href;
+      root = (await loader.parseAsync(buffer,directory)).scene;
+      if (controller.signal.aborted || objects.get(entry.data.id) !== entry) { disposeGroup(root); return; }
+      if (!root) throw new Error('GLB scene missing');
+      if (entry.placeholder) {entry.group.remove(entry.placeholder);disposeGroup(entry.placeholder);entry.placeholder=null;}
+      entry.group.add(root);entry.state='ready';syncEnvironmentView();
+    } catch (error) {
+      if (controller.signal.aborted || objects.get(entry.data.id) !== entry) return;
+      entry.state='error';entry.error=error.message;
+      entry.errorMessage=tr('modelLoadError','Не загрузилась модель')+': '+entry.data.name+' ('+error.message+')';
+      message.textContent=entry.errorMessage;
+      syncEnvironmentView();
+    }
+  }
+
+  function removeVisual(entry) {
+    entry.controller?.abort();scene.remove(entry.group);disposeGroup(entry.group);
+  }
+
+  function syncEnvironmentView() {
+    renderEnvironmentHuman();
+    if(environmentProposal?.helper)environmentProposal.helper.visible=!preview&&document.getElementById('environment-bounds').checked;
+    const entry=[...objects.values()].find(e=>e.data.is_room_environment);
+    document.getElementById('room-environment-preview').hidden=!entry;
+    if (!entry) {
+      if(environmentHelper){scene.remove(environmentHelper);disposeGroup(environmentHelper);environmentHelper=null;}
+      environmentSignature=null;framedEnvironment=null;return;
+    }
+    const object=entry.data, box=RoomEnvironmentView.bounds(object);
+    const signature=JSON.stringify([object.room_environment,...['position','rotation','scale'].flatMap(p=>['x','y','z'].map(a=>object[p+'_'+a]))]);
+    if(signature!==environmentSignature){
+      if(environmentHelper){scene.remove(environmentHelper);disposeGroup(environmentHelper);}
+      environmentHelper=RoomEnvironmentView.helper(object);environmentSignature=signature;if(environmentHelper)scene.add(environmentHelper);
+    }
+    if(environmentHelper)environmentHelper.visible=!environmentProposal&&!preview&&document.getElementById('environment-bounds').checked;
+    entry.group.visible=!environmentProposal;
+    document.getElementById('environment-name').textContent=object.name;
+    const b=object.room_environment?.bounds,s=Number(object.scale_x);
+    const size=box&&new THREE.Vector3((b.max.x-b.min.x)*s,(b.max.y-b.min.y)*s,(b.max.z-b.min.z)*s);
+    document.getElementById('environment-size').textContent=size ? [size.x,size.y,size.z].map(n=>Number(n.toFixed(2))).join(' × ')+' '+tr('metres','м') : tr('environmentInvalid','Некорректные границы помещения');
+    document.getElementById('environment-load-status').textContent=entry.state==='ready'?tr('environmentReady','Помещение загружено'):entry.state==='error'?tr('environmentFailed','Не удалось загрузить помещение')+' ('+entry.error+')':tr('environmentLoading','Загрузка помещения…');
+    document.getElementById('environment-retry').hidden=entry.state!=='error';
+    const key=object.id+':'+object.model_path;
+    if(box && framedEnvironment!==key){framedEnvironment=key;RoomEnvironmentView.fit(camera,orbit,box);}
+  }
+  document.getElementById('environment-bounds').addEventListener('change',syncEnvironmentView);
+  document.getElementById('environment-retry').addEventListener('click',()=>{
+    if(busy)return;const entry=[...objects.values()].find(e=>e.data.is_room_environment);if(entry?.state==='error')loadModel(entry);
+  });
+
   function disposeGroup(group) {
-    group.traverse(node => { node.geometry?.dispose();
+    if(!group)return;
+    const geometries=new Set(),materials=new Set(),textures=new Set();
+    group.traverse(node => { if(node.geometry)geometries.add(node.geometry);
       for (const material of Array.isArray(node.material) ? node.material : [node.material]) if (material) {
-        for (const value of Object.values(material)) if (value?.isTexture) value.dispose();
-        material.dispose();
+        materials.add(material);for (const value of Object.values(material)) if (value?.isTexture) textures.add(value);
       }
     });
+    for(const value of textures)value.dispose();for(const value of materials)value.dispose();for(const value of geometries)value.dispose();
   }
-  const visualSignature = object => JSON.stringify([object.type, object.model_path, object.geometry_data]);
+  const visualSignature = object => JSON.stringify([object.type, object.model_path, object.geometry_data,object.presentation_screen]);
   async function loadObjects(selectId = selected?.id) {
     await window.RoomEnvelopeEditor?.flush();
     const data = await api('/objects');
     const ids = new Set(data.objects.map(object => object.id));
     for (const [key, entry] of objects) if (!ids.has(key)) {
       if (transform.object === entry.group) transform.detach();
-      scene.remove(entry.group); disposeGroup(entry.group); objects.delete(key);
+      removeVisual(entry); objects.delete(key);
     }
     for (const object of data.objects) {
       const entry = objects.get(object.id);
@@ -360,7 +597,7 @@
         Object.assign(entry.data, object);
         for (const prefix of ['position','rotation','scale']) entry.group[prefix].set(...['x','y','z'].map(a => object[prefix+'_'+a] ?? (prefix==='scale'?1:0)));
       } else {
-        if (entry) { transform.detach(); scene.remove(entry.group); disposeGroup(entry.group); objects.delete(object.id); }
+        if (entry) { transform.detach(); removeVisual(entry); objects.delete(object.id); }
         visualFor(object);
       }
     }
@@ -368,17 +605,19 @@
     const list = document.getElementById('object-list');
     list.replaceChildren();
     for (const object of data.objects) {
-      if(object.is_room_shell)continue;
+      if(object.is_room_shell||object.is_room_environment)continue;
       const button = document.createElement('button');
       button.className = 'item';
       button.dataset.id = object.id;
       button.textContent = `${object.name || object.type} (#${object.id})`;
       button.dataset.search = button.textContent.toLocaleLowerCase();
-      button.addEventListener('click', () => choose(object));
-      button.addEventListener('dblclick', async () => {await choose(object);focusObject(object.id);});
+      button.addEventListener('click', event => choose(object,event));
+      button.addEventListener('dblclick', () => focusObject(object.id));
       list.append(button);
     }
-    selectObject(objects.get(selectId)?.data);
+    const selection=objects.get(selectId)?.data;
+    selectObject(selection?.is_room_environment||selection?.is_room_shell?null:selection);
+    syncEnvironmentView();
     renderSeatPreview();filterElements();
     window.dispatchEvent(new CustomEvent('room-editor-loaded', { detail: { room, objects: data.objects } }));
   }
@@ -400,6 +639,7 @@
       document.getElementById('add-form').hidden = room.status !== 'draft';
       document.getElementById('model-upload-panel').hidden = room.status !== 'draft';
       document.getElementById('template-panel').hidden = !template;
+      document.getElementById('multi-select-label').hidden=!template;
       document.getElementById('template-object-actions').hidden = room.status !== 'draft';
       document.getElementById('replace-model-label').hidden = !template;
       document.getElementById('replace-object').hidden = !template;
@@ -415,7 +655,14 @@
     }
   }
 
-  document.getElementById('move-mode').addEventListener('click', () => transform.setMode('translate'));
+  document.getElementById('move-mode').addEventListener('click', () => {transform.setMode('translate');updateSelection();});
+  document.getElementById('focus-room').addEventListener('click',()=>{
+    endCalibrationView();renderSeatPreview();
+    if(environmentProposal){RoomEnvironmentView.fit(camera,orbit,RoomEnvironmentView.bounds(environmentProposal.data));return;}
+    const entry=[...objects.values()].find(e=>e.data.is_room_environment||e.data.is_room_shell);if(!entry)return;
+    const box=entry.data.is_room_environment?RoomEnvironmentView.bounds(entry.data):new THREE.Box3().setFromObject(entry.group);
+    RoomEnvironmentView.fit(camera,orbit,box);
+  });
   function focusObject(id) {
     const group=objects.get(id)?.group;if(!group)return;
     const box=new THREE.Box3().setFromObject(group),target=box.getCenter(new THREE.Vector3());
@@ -429,6 +676,7 @@
   document.getElementById('element-search').addEventListener('input',filterElements);
   window.addEventListener('room-seat-preview',filterElements);
   function showPanel(panel) {
+    endCalibrationView();
     selectionMode=panel;
     document.getElementById('room-panel').hidden=panel!=='room';
     document.getElementById('room-properties').hidden=panel!=='room';
@@ -439,9 +687,9 @@
     document.getElementById('seat-properties').hidden=panel!=='seats';
     document.getElementById('show-objects').setAttribute('aria-pressed',String(panel==='objects'));
     document.getElementById('show-seats').setAttribute('aria-pressed',String(panel==='seats'));
-    transform.detach(); updateSelection();
+    transform.detach(); updateSelection();renderSeatPreview();
     if(!preview && room?.status==='draft') {
-      if(panel==='objects' && selected)transform.attach(objects.get(selected.id).group);
+      if(panel==='objects' && selected && (template||selected.type!=='presentation_screen'))transform.attach(objects.get(selected.id).group);
       if(panel==='seats' && selectedSeat>=0){transform.setMode('translate');transform.attach(seatMarkers.get(selectedSeat));}
     }
   }
@@ -457,11 +705,14 @@
   });
   document.getElementById('show-objects').addEventListener('click',()=>switchPanel('objects'));
   document.getElementById('show-seats').addEventListener('click',()=>switchPanel('seats'));
-  document.getElementById('rotate-mode').addEventListener('click', () => transform.setMode('rotate'));
-  document.getElementById('scale-mode').addEventListener('click', () => {if(transform.object?.userData.seatIndex===undefined)transform.setMode('scale');});
+  document.getElementById('rotate-mode').addEventListener('click', () => {transform.setMode('rotate');updateSelection();});
+  document.getElementById('scale-mode').addEventListener('click', () => {if(selected?.type!=='presentation_screen'&&transform.object?.userData.seatIndex===undefined){transform.setMode('scale');updateSelection();}});
   document.getElementById('preview-mode').addEventListener('click', () => action(async () => {
+    endCalibrationView();
     await applyCurrent(); window.RoomSeatEditor?.flush();
     preview = !preview; grid.visible = !preview;
+    syncEnvironmentView();
+    updatePlacementCheck();
     transform.detach();
     showPanel(selectionMode);
     renderSeatPreview();
@@ -471,6 +722,13 @@
     if (!selected) return;
     objectDirty = true;
     const group = objects.get(selected.id).group;
+    if(selected.type==='presentation_screen'){
+      const screen={version:1,width:Number(document.getElementById('screen-width').value),height:Number(document.getElementById('screen-height').value)};
+      if(RoomScreen.metadata(screen)){
+        for(const child of [...group.children]){group.remove(child);disposeGroup(child);}
+        group.add(RoomScreenRenderer.create(screen));selected.presentation_screen=screen;
+      }
+    }
     for (const a of ['x','y','z']) {
       for (const [field,prefix,multiplier] of [['position','pos',1],['rotation','rot',Math.PI/180],['scale','scale',1]]) {
         const input = document.getElementById(prefix+'-'+a);
@@ -486,6 +744,19 @@
     const bounds = new THREE.Box3().setFromObject(group);
     return { x: Math.max(bounds.max.x, group.position.x) + .5, y: group.position.y, z: group.position.z };
   }
+  document.getElementById('add-screen').addEventListener('click',()=>action(async()=>{
+    await prepareTemplate();const data=await api('/screen',{method:'POST'});showPanel('objects');await loadObjects(data.object.id);
+  }));
+  document.getElementById('screen-ratio').addEventListener('change',event=>{
+    if(event.target.value==='custom')return;
+    const [w,h]=event.target.value.split(':').map(Number);
+    document.getElementById('screen-height').value=Number(document.getElementById('screen-width').value)*h/w;
+    document.getElementById('screen-height').dispatchEvent(new Event('input',{bubbles:true}));
+  });
+  document.getElementById('screen-preview').addEventListener('click',event=>{
+    const group=objects.get(selected?.id)?.group;const canvas=group?.children.find(c=>c.userData.screenCanvas)?.userData.screenCanvas;
+    if(canvas)RoomScreenPreview.open(canvas,selected.name,event.currentTarget);
+  });
   document.getElementById('add-form').addEventListener('submit', event => {
     event.preventDefault();
     action(async () => {
@@ -514,6 +785,19 @@
       message.textContent = template ? tr('appliedDraft', 'Изменения применены. Сохраните черновик') : tr('saved', 'Положение сохранено');
     });
   });
+  document.getElementById('group-scale-form').addEventListener('submit',event=>{
+    event.preventDefault();
+    if(!template||preview)return;
+    action(async()=>{
+      if(!document.getElementById('group-scale-form').reportValidity())return;
+      const ids=[...selectedIds],factor=Number(document.getElementById('group-scale-factor').value);
+      await prepareTemplate();
+      try{template.scaleObjects(ids,factor);}catch(error){throw new Error(tr(error.message,'Проверьте общий масштаб'));}
+      await loadObjects(null);selectObjects(ids);
+      document.getElementById('group-scale-factor').value='1';
+      message.textContent=tr('groupScaleApplied','Общий масштаб применён. Проверьте места и сохраните черновик');
+    });
+  });
   document.getElementById('delete-object').addEventListener('click', () => action(async () => {
     if (!selected || !confirm(tr('confirmDelete', 'Удалить этот предмет?'))) return;
     await applyCurrent(); await window.RoomSeatEditor?.save();
@@ -534,12 +818,80 @@
   window.addEventListener('room-template-changed', updateTemplateStatus);
   window.addEventListener('room-seat-dirty', updateTemplateStatus);
   async function prepareTemplate() { await window.RoomEnvelopeEditor?.flush(); window.RoomSeatEditor?.flush(); await applyCurrent(); await window.RoomSeatEditor?.save(); }
+  function clearEnvironmentProposal(){
+    if(environmentProposal){scene.remove(environmentProposal.group);disposeGroup(environmentProposal.group);
+      if(environmentProposal.helper){scene.remove(environmentProposal.helper);disposeGroup(environmentProposal.helper);}environmentProposal=null;}
+    for(const entry of objects.values())if(entry.data.is_room_environment||entry.data.is_room_shell)entry.group.visible=true;
+    syncEnvironmentView();
+    updatePlacementCheck();
+  }
+  window.RoomEditorEnvironment = {
+    available:()=>!!template,
+    get:()=>template?.draft.layout.find(i=>i.kind==='room'),
+    models:()=>template?.models||[],
+    previousShell:()=>template?.previousShell,
+    clearPreview:clearEnvironmentProposal,
+    preview(item,root){
+      if(!RoomEnvironment.validTransform(item)){if(root)disposeGroup(root);return;}
+      const fitNewModel=!!root;
+      if(!root&&!environmentProposal){
+        const current=[...objects.values()].find(e=>e.data.is_room_environment&&e.state==='ready');
+        const source=current?.group.children[0];
+        if(source){
+          // A preview owns its copies. Disposing it must never invalidate the
+          // applied model, including shared meshes, materials and textures.
+          root=source.clone(true);
+          const geometries=new Map(),materials=new Map(),textures=new Map();
+          const materialCopy=m=>{
+            if(!materials.has(m)){const copy=m.clone();
+              for(const [key,value] of Object.entries(copy))if(value?.isTexture){if(!textures.has(value))textures.set(value,value.clone());copy[key]=textures.get(value);}
+              materials.set(m,copy);
+            }return materials.get(m);
+          };
+          root.traverse(n=>{
+            if(n.geometry){if(!geometries.has(n.geometry))geometries.set(n.geometry,n.geometry.clone());n.geometry=geometries.get(n.geometry);}
+            if(n.material)n.material=Array.isArray(n.material)?n.material.map(materialCopy):materialCopy(n.material);
+          });
+        }
+      }
+      const data={room_environment:item.environment};
+      for(const p of ['position','rotation','scale'])for(const a of ['x','y','z'])data[p+'_'+a]=item[p][a];
+      if(root){clearEnvironmentProposal();const group=new THREE.Group();group.userData.officeProposal=true;group.add(root);scene.add(group);environmentProposal={group,data};}
+      if(!environmentProposal)return;
+      environmentProposal.data=data;
+      const group=environmentProposal.group;
+      for(const p of ['position','rotation','scale'])group[p].set(...['x','y','z'].map(a=>item[p][a]));
+      if(environmentProposal.helper){scene.remove(environmentProposal.helper);disposeGroup(environmentProposal.helper);}
+      environmentProposal.helper=RoomEnvironmentView.helper(data);if(environmentProposal.helper){scene.add(environmentProposal.helper);environmentProposal.helper.visible=!preview&&document.getElementById('environment-bounds').checked;}
+      for(const entry of objects.values())if(entry.data.is_room_environment||entry.data.is_room_shell)entry.group.visible=false;
+      if(environmentHelper)environmentHelper.visible=false;
+      if(fitNewModel)RoomEnvironmentView.fit(camera,orbit,RoomEnvironmentView.bounds(data));
+      renderEnvironmentHuman();
+      updatePlacementCheck();
+    },
+    register(model){if(!template)return;if(!template.models.some(m=>m.id===model.id)){template.models.push(model);addModelOption(model);}window.RoomEnvironmentEditor?.refreshModels();},
+    async apply(item){
+      if(!template || busy)return false;
+      let applied=false;
+      await action(async()=>{await prepareTemplate();await api('/environment',{method:'PATCH',body:JSON.stringify({item})});clearEnvironmentProposal();
+        framedEnvironment=null;await loadObjects(null);message.textContent=window.i18n.t('roomEnvironmentEditor.applied');applied=true;});
+      return applied;
+    }
+  };
   document.getElementById('template-save').addEventListener('click', () => action(async () => {
+    if(window.RoomEnvironmentEditor?.isPending())throw new Error(window.i18n.t('roomEnvironmentEditor.pending'));
     await prepareTemplate(); await template.save(); message.textContent = tr('draftSaved', 'Черновик сохранён');
   }));
   document.getElementById('template-publish').addEventListener('click', () => {
     if (!confirm(tr('confirmPublish', 'Опубликовать обстановку для новых комнат?'))) return;
-    action(async () => { await prepareTemplate(); const version = await template.publish();
+    action(async () => {
+      if(window.RoomEnvironmentEditor?.isPending())throw new Error(window.i18n.t('roomEnvironmentEditor.pending'));
+      await prepareTemplate();
+      const environment=[...objects.values()].find(e=>e.data.is_room_environment);
+      if(environment && environment.state!=='ready')throw new Error(tr('environmentWait','Дождитесь успешной загрузки помещения перед публикацией'));
+      updatePlacementCheck();
+      if(placementIssues.some(i=>i.severity==='error'))throw new Error(window.i18n.t('roomPlacement.blocked'));
+      const version = await template.publish();
       message.textContent = `${tr('publishedVersion', 'Опубликованная версия')}: ${version}`;
     });
   });
@@ -558,6 +910,17 @@
   }));
   window.addEventListener('beforeunload', event => {
     if (objectDirty || template?.dirty) { event.preventDefault(); event.returnValue = ''; }
+  });
+  window.addEventListener('pagehide',event=>{
+    if(event.persisted)return;
+    editorStopped=true;
+    restoreCalibrationFurniture();
+    RoomScreenPreview.close();
+    cancelAnimationFrame(frameId);for(const entry of objects.values())removeVisual(entry);objects.clear();
+    if(environmentProposal){disposeGroup(environmentProposal.group);disposeGroup(environmentProposal.helper);}
+    for(const group of [seatAvatar,environmentHuman])if(group){group.userData.accountAvatarTicket=(group.userData.accountAvatarTicket||0)+1;group.removeFromParent();window.UserAvatarRenderer.dispose(group);}
+    disposeGroup(groupSelectionBox);
+    if(environmentHelper)disposeGroup(environmentHelper);orbit.dispose();transform.dispose();renderer.dispose();
   });
   init();
 })();

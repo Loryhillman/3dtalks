@@ -9,6 +9,36 @@ const legacyGameRoutes = [
   ['/api/monster', 'monster'], ['/api/portal', 'portal'], ['/api/inventory', 'inventory'],
   ['/api/npc', 'npc'], ['/api/custom-npc', 'customNpc'], ['/api/character-templates', 'characterTemplates']
 ];
+const legacyToolRoutes = [
+  ['/api/tripo', 'tripo'], ['/api/ai', 'aiAssistant'],
+  ['/api/geometry-building', 'geometryBuilding'],
+  ['/api/ai-providers', 'aiProviders'], ['/api/ai-scene', 'aiSceneGenerator'],
+  ['/api/media', 'media'], ['/api/tags', 'tags'], ['/api/three-dgs', 'threeDgs'],
+  ['/api/ai-factory', 'aiFactory'], ['/api/gallery', 'gallery'],
+  ['/api/model-guard', 'modelGuard'], ['/api/admin/model-guard', 'modelGuard'],
+  ['/api/threejs-blocks', 'threejsCodeBlocks'], ['/api/threejs-blocks', 'threejsImport'],
+  ['/api/subscription', 'subscription'], ['/api/ui-controls', 'uiControls'],
+  ['/api/sky', 'sky']
+];
+function registerLegacyToolRoutes(app, load = require) {
+  for (const [prefix, name] of legacyToolRoutes) {
+    if (isRoomsMode()) app.use(prefix, unavailable);
+    else {
+      const module = load('../routes/' + name);
+      app.use(prefix, module.router || module);
+    }
+  }
+  // This router used the shared /api prefix; mount only its actual resource.
+  if (isRoomsMode()) app.use('/api/uploaded-models', unavailable);
+  else app.use('/api', load('../routes/uploadedModelMeta'));
+}
+function registerLegacyAdminRoutes(app, load = require) {
+  if (!isRoomsMode()) return app.use('/api/admin', load('../routes/admin'));
+  for (const resource of ['users', 'characters', 'portals', 'worlds', 'portal-logs',
+    'stats', 'federation-stats', 'plots', 'config', '3dgs']) {
+    app.use('/api/admin/' + resource, unavailable);
+  }
+}
 function registerLegacyGameRoutes(app, load = require) {
   if (isRoomsMode()) {
     for (const prefix of ['/api/world', '/api/public/character-templates', ...legacyGameRoutes.map(([prefix]) => prefix)]) app.use(prefix, unavailable);
@@ -60,4 +90,4 @@ function startWorldBackgroundServices(load = require) {
     catch (error) { console.warn(`[World] ${name} failed to start:`, error.message); }
   }
 }
-module.exports = { isRoomsMode, registerLegacyGameRoutes, registerWorldIntegrations, initializeWorldFederation, startWorldBackgroundServices };
+module.exports = { isRoomsMode, registerLegacyGameRoutes, registerLegacyToolRoutes, registerLegacyAdminRoutes, registerWorldIntegrations, initializeWorldFederation, startWorldBackgroundServices };

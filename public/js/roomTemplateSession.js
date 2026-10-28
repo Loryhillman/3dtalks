@@ -13,6 +13,10 @@
       return data;
     }
     changed() { this.dirty = true; window.dispatchEvent(new Event('room-template-changed')); }
+    scaleObjects(ids,factor) {
+      const layout=RoomObjectScale.apply(this.draft.layout,ids,factor);
+      this.draft.layout=layout;this.changed();
+    }
     adopt(draft) {
       this.draft = draft;
       // Upgrade old snapshots in memory; published versions remain immutable.
@@ -23,7 +27,7 @@
         }
       }
       Object.assign(this.room, { id: 'template-' + this.key, name: draft.name, status: 'draft',
-        revision: draft.revision, seating_mode: 'seated', template_key: this.key });
+        revision: draft.revision, seating_mode: 'seated', template_key: this.key,avatar_scale:draft.avatar_scale??1 });
       this.dirty = false;
       window.dispatchEvent(new Event('room-template-changed'));
     }
@@ -36,10 +40,12 @@
     }
     objects() {
       return this.draft.layout.filter(item => item.type !== 'seat').map(item => {
-        const row = { id: item.editor_id, name: item.name, type: item.type === 'room_shell' ? 'geometry_building' : item.type || 'geometry_building',
+        const row = { id: item.editor_id, name: item.name, type: item.type === 'room_environment' ? 'uploaded_model' : item.type === 'room_shell' ? 'geometry_building' : item.type || 'geometry_building',
           model_path: item.model_path, model_id: item.model_id, template_kind: item.kind,
-          has_collision: item.collision, is_room_shell:item.kind==='room',room_envelope:item.envelope||null,
-          geometry_data: item.type==='room_shell' ? {envelope:item.envelope,components:RoomEnvelope.components(item.envelope)} : { components: item.components } };
+          presentation_screen:item.type==='presentation_screen'?clone(item.screen):null,
+          has_collision: item.collision, is_room_shell:item.kind==='room' && item.type !== 'room_environment',room_envelope:item.envelope||null,
+          is_room_environment:item.type==='room_environment',room_environment:item.type==='room_environment'?clone(item.environment):null,
+          geometry_data: item.type==='presentation_screen'?null:item.type==='room_shell' ? {envelope:item.envelope,components:RoomEnvelope.components(item.envelope)} : { components: item.components } };
         const values = { position: item.position, rotation: item.rotation || { x: 0, y: item.rotation_y || 0, z: 0 },
           scale: item.scale || { x: 1, y: 1, z: 1 } };
         for (const prefix of Object.keys(values)) for (const a of ['x','y','z']) row[prefix+'_'+a] = values[prefix][a];
@@ -56,12 +62,32 @@
         if(JSON.stringify(item.envelope)!==JSON.stringify(body.envelope)){item.envelope=clone(body.envelope);this.changed();}
         return {room:this.room};
       }
+      if(path==='/environment' && method==='PATCH') {
+        const replacement=clone(body.item);
+        const current=this.draft.layout.find(i=>i.kind==='room');
+        const valid=replacement.type==='room_environment'?RoomEnvironment.validItem(replacement):
+          replacement.type==='room_shell' && replacement.kind==='room' && replacement.collision===true && RoomEnvelope.valid(replacement.envelope) &&
+          ['x','y','z'].every(a=>Number.isFinite(replacement.position?.[a]) && Math.abs(replacement.position[a])<=10000 &&
+            Number.isFinite(replacement.rotation?.[a]) && Math.abs(replacement.rotation[a])<=10000 && replacement.scale?.[a]===1);
+        if(!valid || replacement.seats?.length)throw new Error('INVALID_ROOM_ENVIRONMENT');
+        if(current?.seats?.length)throw new Error('Detach room seats before replacing the environment');
+        if(!current && this.draft.layout.length>=100)throw new Error('Template object limit reached');
+        if(current && current.type!=='room_environment')this.previousShell=clone(current);
+        replacement.editor_id=current?.editor_id ?? Math.max(0,...this.draft.layout.map(i=>i.editor_id))+1;
+        if(current)this.draft.layout[this.draft.layout.indexOf(current)]=replacement;else this.draft.layout.unshift(replacement);
+        this.changed();return {room:this.room};
+      }
       if (path === '/models') return { models: this.models };
+      if(path==='/screen'&&method==='POST'){
+        if(this.draft.layout.length>=100||this.draft.layout.some(i=>i.type==='presentation_screen'))throw new Error('INVALID_SCREEN');
+        const item=RoomScreen.create();item.editor_id=Math.max(0,...this.draft.layout.map(i=>i.editor_id))+1;
+        this.draft.layout.push(item);this.changed();return {object:this.objects().find(o=>o.id===item.editor_id)};
+      }
       if (path === '/objects' && method === 'GET') return { objects: this.objects() };
       if (path === '/seats' && method === 'GET') return { seats: this.seats() };
       if (path === '/seats' && method === 'POST') {
         if (body.seating_mode !== 'seated') throw new Error('Шаблон переговорной должен использовать рассадку');
-        for (const seat of body.seats) if (seat.object_id !== null && !this.draft.layout.some(i => i.type !== 'seat' && i.editor_id === seat.object_id)) throw new Error('Предмет места не найден');
+        for (const seat of body.seats) if (seat.object_id !== null && !this.draft.layout.some(i => i.type !== 'seat' && i.type !== 'presentation_screen' && i.kind !== 'room' && i.editor_id === seat.object_id)) throw new Error('Предмет места не найден');
         const previous = JSON.stringify(this.draft.layout);
         for (const item of this.draft.layout) item.seats = body.seats.filter(s => item.type !== 'seat' && s.object_id === item.editor_id)
           .map(({ id, object_id, room_id, ...seat }) => clone(seat));
@@ -88,6 +114,7 @@
       const item = this.draft.layout.find(i => i.editor_id === Number(match[1]));
       if (!item) throw new Error('Предмет не найден');
       if (match[2] && method === 'POST') {
+        if(item.type==='presentation_screen')throw new Error('INVALID_SCREEN');
         if(item.kind==='room')throw new Error('Помещение редактируется отдельно от мебели');
         if (this.draft.layout.length >= 100) throw new Error('Достигнут лимит предметов');
         if (this.seats().length + (item.seats || []).length > 100) throw new Error('В комнате может быть не более 100 мест');
@@ -115,6 +142,13 @@
         this.draft.layout = this.draft.layout.filter(i => i.editor_id !== item.editor_id); this.changed(); return {};
       }
       if (method === 'PATCH') {
+        if(item.type==='presentation_screen'){
+          if(body.model_id!==undefined)throw new Error('INVALID_SCREEN');
+          const replacement={...clone(item),name:body.name,collision:body.has_collision,screen:body.screen};
+          for(const p of ['position','rotation','scale'])replacement[p]=Object.fromEntries(['x','y','z'].map(a=>[a,body[p+'_'+a]]));
+          if(!RoomScreen.validItem(replacement))throw new Error('INVALID_SCREEN');
+          Object.assign(item,replacement);this.changed();return {object:this.objects().find(o=>o.id===item.editor_id),room:this.room};
+        }
         if(item.kind==='room')throw new Error('Используйте настройки помещения');
         const previous = JSON.stringify(item);
         if (body.model_id !== undefined) {
@@ -136,7 +170,7 @@
     }
     async save() {
       if (!this.dirty) return;
-      this.adopt((await this.request('/draft', { revision: this.draft.revision, name: this.draft.name, layout: this.draft.layout }, 'PUT')).draft);
+      this.adopt((await this.request('/draft', { revision: this.draft.revision, name: this.draft.name, layout: this.draft.layout,avatar_scale:this.draft.avatar_scale??1 }, 'PUT')).draft);
     }
     async publish() {
       await this.save();

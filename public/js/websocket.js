@@ -15,7 +15,7 @@ function wsTp(key, params, fallback) {
   return value && value !== fullKey ? value : fallback;
 }
 
-class WSClient {
+class WSClient extends window.SocketClient {
   static ws = null;
   static connected = false;
   static messageQueue = [];
@@ -23,58 +23,6 @@ class WSClient {
   static maxReconnectAttempts = 5;
   static roomEnded = false;
   static sessionReplaced = false;
-
-  static connect(url) {
-    return new Promise((resolve, reject) => {
-      try {
-        this.ws = new WebSocket(url);
-
-        this.ws.onopen = () => {
-          console.log('WebSocket connected');
-          this.connected = true;
-          this.reconnectAttempts = 0;
-          window.RoomSeating?.connecting();
-          this.flushMessageQueue();
-          resolve();
-        };
-
-        this.ws.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          this.handleMessage(data);
-        };
-
-        this.ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
-          reject(error);
-        };
-
-        this.ws.onclose = (event) => {
-          console.log('WebSocket disconnected');
-          this.connected = false;
-          if (event.code === 4002) this.sessionReplaced = true;
-          window.RoomSeating?.disconnected();
-          if (!this.roomEnded && !this.sessionReplaced) this.attemptReconnect();
-        };
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
-
-  static send(message) {
-    if (this.connected) {
-      this.ws.send(JSON.stringify(message));
-    } else {
-      this.messageQueue.push(message);
-    }
-  }
-
-  static flushMessageQueue() {
-    while (this.messageQueue.length > 0) {
-      const message = this.messageQueue.shift();
-      this.send(message);
-    }
-  }
 
   static handleMessage(data) {
     const { type, payload } = data;
@@ -556,26 +504,6 @@ class WSClient {
     if (characterId && window.nearbyBubbles) {
       window.nearbyBubbles.show(characterId, label, message);
     }
-  }
-
-  static attemptReconnect() {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      const delay = Math.pow(2, this.reconnectAttempts) * 1000;
-      console.log(`Attempting to reconnect in ${delay}ms...`);
-
-      setTimeout(() => {
-        this.connect(CONFIG.WS_URL).catch(() => {
-          this.attemptReconnect();
-        });
-      }, delay);
-    } else {
-      console.error('Max reconnect attempts reached');
-    }
-  }
-
-  static isConnected() {
-    return this.connected;
   }
 }
 

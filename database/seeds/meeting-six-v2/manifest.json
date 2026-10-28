@@ -1,0 +1,363 @@
+{
+  "bundle": "meeting-six-v2",
+  "templateKey": "meeting-six",
+  "name": "Переговорная комната",
+  "assets": [
+    {
+      "key": "chair",
+      "fromBundle": "meeting-six-v1",
+      "assetKey": "chair"
+    },
+    {
+      "key": "table",
+      "fromBundle": "meeting-six-v1",
+      "assetKey": "table"
+    },
+    {
+      "key": "office",
+      "fromBundle": "meeting-six-v1",
+      "assetKey": "office"
+    }
+  ],
+  "layout": [
+    {
+      "kind": "room",
+      "name": "conference_room1",
+      "type": "room_environment",
+      "scale": {
+        "x": 1.5625,
+        "y": 1.5625,
+        "z": 1.5625
+      },
+      "seats": [],
+      "position": {
+        "x": 2,
+        "y": 0.195321,
+        "z": -2.925
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "collision": false,
+      "environment": {
+        "bounds": {
+          "max": {
+            "x": 6,
+            "y": 4.37500544,
+            "z": 12
+          },
+          "min": {
+            "x": -10,
+            "y": -0.12500544,
+            "z": -6.15
+          }
+        },
+        "version": 1
+      },
+      "asset": "office"
+    },
+    {
+      "kind": "chair",
+      "name": "Стул 6",
+      "type": "uploaded_model",
+      "scale": {
+        "x": 0.02184,
+        "y": 0.02184,
+        "z": 0.02184
+      },
+      "seats": [
+        {
+          "label": "6",
+          "map_x": 2,
+          "map_y": 2,
+          "enabled": true,
+          "sort_order": 6,
+          "local_position": {
+            "x": -0.12841899616646876,
+            "y": 1.0380441115820334,
+            "z": 0.2940657858377176
+          },
+          "local_rotation": {
+            "x": -1.2246467991473532e-16,
+            "y": -7.498798913309288e-33,
+            "z": 1.2246467991473532e-16
+          },
+          "coordinate_space": "rigid"
+        }
+      ],
+      "position": {
+        "x": -0.593870374716803,
+        "y": 0.13499999999999998,
+        "z": -5.982579397724668
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "collision": true,
+      "asset": "chair"
+    },
+    {
+      "kind": "chair",
+      "name": "Стул 1",
+      "type": "uploaded_model",
+      "scale": {
+        "x": 0.02184,
+        "y": 0.02184,
+        "z": 0.02184
+      },
+      "seats": [
+        {
+          "label": "1",
+          "map_x": 3.5,
+          "map_y": 2,
+          "enabled": true,
+          "sort_order": 7,
+          "local_position": {
+            "x": -0.12841899616646876,
+            "y": 1.0380441115820334,
+            "z": 0.2940657858377176
+          },
+          "local_rotation": {
+            "x": -1.2246467991473532e-16,
+            "y": -7.498798913309288e-33,
+            "z": 1.2246467991473532e-16
+          },
+          "coordinate_space": "rigid"
+        }
+      ],
+      "position": {
+        "x": 4.059147590442299,
+        "y": 0.13499999999999998,
+        "z": -0.16862756855780558
+      },
+      "rotation": {
+        "x": 0,
+        "y": 3.141592653589793,
+        "z": 0
+      },
+      "collision": true,
+      "asset": "chair"
+    },
+    {
+      "kind": "chair",
+      "name": "Стул 2",
+      "type": "uploaded_model",
+      "scale": {
+        "x": 0.02184,
+        "y": 0.02184,
+        "z": 0.02184
+      },
+      "seats": [
+        {
+          "label": "2",
+          "map_x": 5,
+          "map_y": 2,
+          "enabled": true,
+          "sort_order": 8,
+          "local_position": {
+            "x": -0.12841899616646876,
+            "y": 1.0380441115820334,
+            "z": 0.2940657858377176
+          },
+          "local_rotation": {
+            "x": -1.2246467991473532e-16,
+            "y": -7.498798913309288e-33,
+            "z": 1.2246467991473532e-16
+          },
+          "coordinate_space": "rigid"
+        }
+      ],
+      "position": {
+        "x": 1.2958906970624189,
+        "y": 0.13499999999999998,
+        "z": -0.7086579628624561
+      },
+      "rotation": {
+        "x": 0,
+        "y": 3.141592653589793,
+        "z": 0
+      },
+      "collision": true,
+      "asset": "chair"
+    },
+    {
+      "kind": "chair",
+      "name": "Стул 3",
+      "type": "uploaded_model",
+      "scale": {
+        "x": 0.02184,
+        "y": 0.02184,
+        "z": 0.02184
+      },
+      "seats": [
+        {
+          "label": "3",
+          "map_x": 6.5,
+          "map_y": 2,
+          "enabled": true,
+          "sort_order": 9,
+          "local_position": {
+            "x": -0.12841899616646876,
+            "y": 1.0380441115820334,
+            "z": 0.2940657858377176
+          },
+          "local_rotation": {
+            "x": -1.2246467991473532e-16,
+            "y": -7.498798913309288e-33,
+            "z": 1.2246467991473532e-16
+          },
+          "coordinate_space": "rigid"
+        }
+      ],
+      "position": {
+        "x": -1.2070818835198678,
+        "y": 0.13499999999999998,
+        "z": -0.12915575406098068
+      },
+      "rotation": {
+        "x": 0,
+        "y": 3.141592653589793,
+        "z": 0
+      },
+      "collision": true,
+      "asset": "chair"
+    },
+    {
+      "kind": "chair",
+      "name": "Стул 4",
+      "type": "uploaded_model",
+      "scale": {
+        "x": 0.02184,
+        "y": 0.02184,
+        "z": 0.02184
+      },
+      "seats": [
+        {
+          "label": "4",
+          "map_x": 8,
+          "map_y": 2,
+          "enabled": true,
+          "sort_order": 10,
+          "local_position": {
+            "x": -0.12841899616646876,
+            "y": 1.0380441115820334,
+            "z": 0.2940657858377176
+          },
+          "local_rotation": {
+            "x": -1.2246467991473532e-16,
+            "y": -7.498798913309288e-33,
+            "z": 1.2246467991473532e-16
+          },
+          "coordinate_space": "rigid"
+        }
+      ],
+      "position": {
+        "x": 2.0179600421244817,
+        "y": 0.13499999999999998,
+        "z": -6.04738458032377
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "collision": true,
+      "asset": "chair"
+    },
+    {
+      "kind": "chair",
+      "name": "Стул 5",
+      "type": "uploaded_model",
+      "scale": {
+        "x": 0.02184,
+        "y": 0.02184,
+        "z": 0.02184
+      },
+      "seats": [
+        {
+          "label": "5",
+          "map_x": 9.5,
+          "map_y": 2,
+          "enabled": true,
+          "sort_order": 11,
+          "local_position": {
+            "x": -0.12841899616646876,
+            "y": 1.0380441115820334,
+            "z": 0.2940657858377176
+          },
+          "local_rotation": {
+            "x": -1.2246467991473532e-16,
+            "y": -7.498798913309288e-33,
+            "z": 1.2246467991473532e-16
+          },
+          "coordinate_space": "rigid"
+        }
+      ],
+      "position": {
+        "x": 4.3477459815673,
+        "y": 0.13499999999999998,
+        "z": -5.837324598353655
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "collision": true,
+      "asset": "chair"
+    },
+    {
+      "kind": "furniture",
+      "name": "Стол",
+      "type": "uploaded_model",
+      "scale": {
+        "x": 1.56,
+        "y": 1.56,
+        "z": 1.56
+      },
+      "seats": [],
+      "position": {
+        "x": 2.022027870826516,
+        "y": 0.009363028217946046,
+        "z": -3.0986188576665987
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "collision": true,
+      "asset": "table"
+    },
+    {
+      "type": "presentation_screen",
+      "kind": "screen",
+      "name": "Экран",
+      "collision": false,
+      "position": {
+        "x": 7.5,
+        "y": 2.4,
+        "z": -3.1
+      },
+      "rotation": {
+        "x": 0,
+        "y": -1.5707963267948966,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "screen": {
+        "version": 1,
+        "width": 3.2,
+        "height": 1.8
+      }
+    }
+  ]
+}

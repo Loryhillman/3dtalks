@@ -7,6 +7,7 @@ const { MAIN_ROOM_ID } = require('../services/roomScope');
 
 const router = express.Router();
 router.use(authenticateAdminToken);
+router.get('/avatar-catalog',(_req,res)=>{const catalog=require('../services/avatarCatalog');res.json({presets:catalog.listPresets(),defaultConfig:catalog.presetConfig(catalog.DEFAULT_ID)});});
 require('./adminRoomSeats').registerRoomSeatRoutes(router, pool, logAdminAction);
 require('./adminRoomTemplates').registerRoomTemplateRoutes(router, pool, logAdminAction);
 
@@ -68,9 +69,9 @@ router.get('/', async (_req, res) => {
       SELECT r.*, u.username AS owner_name, count(o.id)::int AS object_count
       FROM rooms r LEFT JOIN users u ON u.id=r.owner_user_id
       LEFT JOIN world_objects o ON o.room_id = r.id
-      WHERE r.deleted_at IS NULL
+      WHERE r.deleted_at IS NULL AND ($1::boolean = false OR r.slug <> 'main')
       GROUP BY r.id, u.username ORDER BY r.created_at DESC
-    `);
+    `, [process.env.APP_MODE === 'rooms']);
     res.json({ success: true, rooms: rows });
   } catch (error) {
     console.error('[adminRooms] list:', error);
@@ -126,7 +127,7 @@ router.post('/:id/objects', async (req, res) => {
         $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), now()
       FROM rooms r JOIN uploaded_models m ON m.id = $2
       WHERE r.id = $1 AND r.status = 'draft'
-      FOR UPDATE OF r
+      FOR UPDATE OF r FOR SHARE OF m
       RETURNING *
     `, [req.params.id, body.model_id, name,
       body.position_x, body.position_y, body.position_z,
@@ -158,6 +159,8 @@ router.patch('/:id/objects/:objectId', async (req, res) => {
         scale_x = $9, scale_y = $10, scale_z = $11,
         has_collision = $12, updated_at = now()
       WHERE id = $2 AND room_id = $1
+        AND room_environment IS NULL
+        AND type <> 'presentation_screen'
         AND NOT EXISTS (SELECT 1 FROM geometry_buildings g WHERE world_objects.model_path='geometry_building:'||g.id::text AND g.template_id='room_room')
         AND EXISTS (SELECT 1 FROM rooms WHERE id = $1 AND status = 'draft' FOR UPDATE)
       RETURNING *
@@ -298,10 +301,10 @@ router.post('/', async (req, res) => {
     const roomResult = await client.query(`
       INSERT INTO rooms
         (creation_key, slug, name, created_by_admin_id, capacity,
-         template_key, template_version, seating_mode, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft') RETURNING *
+         template_key, template_version, seating_mode, status, avatar_scale)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft', $9) RETURNING *
     `, [creationKey, slug, name, req.adminUser.id, capacity, template.template_key, template.version,
-      seatCount ? 'seated' : 'free']);
+      seatCount ? 'seated' : 'free',template.avatar_scale??1]);
     const room = roomResult.rows[0];
 
     await populateRoom(client, room, template, { adminId: req.adminUser.id });

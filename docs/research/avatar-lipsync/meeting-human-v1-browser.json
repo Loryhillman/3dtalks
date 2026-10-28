@@ -1,0 +1,21 @@
+{
+  "participants": 6,
+  "drawCalls": 54,
+  "triangles": 219504,
+  "memory": {
+    "geometries": 54,
+    "textures": 103
+  },
+  "baseline": {
+    "geometries": 0,
+    "textures": 1
+  },
+  "renderer": "WebKit WebGL",
+  "synchronousRenderMedianMs": 0.8999999761581421,
+  "note": "Headless Chromium/SwiftShader, not a hardware FPS or mobile benchmark",
+  "checkedOn": "2026-10-21",
+  "afterDisposal": {
+    "geometries": 0,
+    "textures": 1
+  }
+}

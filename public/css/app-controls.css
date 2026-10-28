@@ -1,0 +1,59 @@
+@import url('./app-tokens.css?v=1');
+
+/* Native UI controls only. Low specificity preserves page/component variants. */
+@font-face {
+  font-family: Inter;
+  src: url('/fonts/inter/InterVariable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:where(.app-ui, .meeting-ui) .ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  padding: 8px 16px;
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition: background-color var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast);
+}
+:where(.app-ui, .meeting-ui) .ui-button:hover { background: var(--color-hover); }
+:where(.app-ui, .meeting-ui) .ui-button:active { background: var(--color-nav-active); }
+:where(.app-ui, .meeting-ui) .ui-button--primary {
+  background: var(--color-action);
+  border-color: var(--color-action);
+  color: var(--color-primary-foreground);
+}
+:where(.app-ui, .meeting-ui) .ui-button--primary:hover { background: var(--color-action-hover); border-color: var(--color-action-hover); }
+:where(.app-ui, .meeting-ui) .ui-button--primary:active { background: var(--color-action-pressed); }
+:where(.app-ui, .meeting-ui) .ui-button--ghost { border-color: transparent; background: transparent; color: var(--color-action); }
+:where(.app-ui, .meeting-ui) .ui-button--destructive { color: var(--color-danger-action); border-color: var(--color-danger-action); }
+:where(.app-ui, .meeting-ui) .ui-button--destructive:hover { background: var(--color-danger-bg); }
+:where(.app-ui, .meeting-ui) .ui-button:disabled {
+  opacity: .5;
+  cursor: default;
+  pointer-events: none;
+}
+:where(.app-ui, .meeting-ui) .ui-button[aria-busy='true'] { cursor: progress; }
+:where(.app-ui, .meeting-ui) .ui-button--danger { color: white; background: var(--color-danger-action); border-color: var(--color-danger-action); }
+:where(.app-ui, .meeting-ui) .ui-button--danger:hover { background: #912018; border-color: #912018; }
+
+:where(.app-ui, .meeting-ui) .ui-button:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 3px; }
+@media (max-width: 767px), (pointer: coarse) {
+  :where(.app-ui, .meeting-ui) .ui-button { min-height: var(--control-touch-size); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(.app-ui, .meeting-ui) .ui-button { transition: none; }
+}

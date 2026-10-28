@@ -27,7 +27,7 @@ async function main() {
         rotation_x float DEFAULT 0,rotation_y float DEFAULT 0,rotation_z float DEFAULT 0,
         scale_x float DEFAULT 1,scale_y float DEFAULT 1,scale_z float DEFAULT 1,has_collision boolean,
         created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now());`);
-    for (const file of ['add_rooms.sql','add_room_seats.sql','add_user_rooms.sql','add_room_template_editor.sql','add_room_template_editor.sql','add_independent_room_seats.sql','add_independent_room_seats.sql']) {
+    for (const file of ['add_rooms.sql','add_room_seats.sql','add_user_rooms.sql','add_room_template_editor.sql','add_room_template_editor.sql','add_independent_room_seats.sql','add_independent_room_seats.sql','add_room_environment.sql','add_room_environment.sql','add_room_avatar_scale.sql','add_room_avatar_scale.sql']) {
       await pool.query(readFileSync(path.join(__dirname, '../database/migrations', file), 'utf8'));
     }
     await pool.query("INSERT INTO admin_users VALUES (1); INSERT INTO uploaded_models VALUES (1,'/models/uploaded/check.glb','glb')");
@@ -38,6 +38,7 @@ async function main() {
     const rooms = createUserRoomService(pool, (id, db) => validateRoom(id, db, stat));
     const createRoom = () => rooms.create(owner, { name: 'Fixture', capacity: 6, request_key: randomUUID() });
     const before = (await createRoom()).room;
+    assert.equal(before.avatar_scale,1);
     const beforeObjects = (await pool.query('SELECT * FROM world_objects WHERE room_id=$1 ORDER BY id', [before.id])).rows;
     const [a,b] = await Promise.all([service.getDraft('meeting-six', 1), service.getDraft('meeting-six', 1)]);
     assert.equal(a.revision, b.revision);
@@ -46,6 +47,9 @@ async function main() {
     unsupported.layout.find(i=>i.kind==='chair').components = [{ type: 'unsupported' }];
     await assert.rejects(service.save('meeting-six', unsupported, 1), { code:'INVALID_TEMPLATE' });
     const chair = a.layout.find(i => i.kind === 'chair');
+    for(const avatar_scale of [0,2.01,'1.2',null,NaN])await assert.rejects(service.save('meeting-six',{...a,avatar_scale},1),{code:'INVALID_TEMPLATE'});
+    await assert.rejects(pool.query('UPDATE rooms SET avatar_scale=0 WHERE id=$1',[before.id]),e=>e.code==='23514');
+    a.avatar_scale=1.35;
     const seat = JSON.parse(JSON.stringify(chair.seats));
     Object.assign(chair, { type:'uploaded_model',model_id:1,model_path:'https://untrusted.invalid/x.glb',
       rotation:{x:.1,y:.2,z:.3},scale:{x:1.1,y:1.2,z:1.3} });
@@ -74,6 +78,12 @@ async function main() {
     const envelopeSnapshot=(await pool.query("SELECT layout FROM room_templates WHERE template_key='meeting-six' AND version=4")).rows[0].layout.find(i=>i.type==='room_shell');
     assert(envelopeSnapshot);assert.equal(envelopeSnapshot.envelope.width,23.8);
     const after = (await createRoom()).room;
+    assert.equal(after.avatar_scale,1.35);
+    assert.equal((await pool.query('SELECT avatar_scale FROM rooms WHERE id=$1',[before.id])).rows[0].avatar_scale,1,'old room snapshot keeps its scale');
+    assert.equal((await pool.query("SELECT avatar_scale FROM room_templates WHERE template_key='meeting-six' AND version=3")).rows[0].avatar_scale,1);
+    const savedDraft=await service.getDraft('meeting-six',1);assert.equal(savedDraft.avatar_scale,1.35);
+    const {avatar_scale:omitted,...oldClient}=savedDraft;
+    assert.equal((await service.save('meeting-six',oldClient,1)).avatar_scale,1.35,'older clients do not erase calibration');
     assert.equal(after.template_version, 4);
     const object = (await pool.query("SELECT * FROM world_objects WHERE room_id=$1 AND type='uploaded_model'", [after.id])).rows[0];
     assert.equal(object.model_path, '/models/uploaded/check.glb');
@@ -144,6 +154,31 @@ async function main() {
     console.log('Room envelope PostgreSQL: compiled snapshots, draft-only settings, revision conflicts and old-room isolation: OK');
     await pool.query('DELETE FROM room_template_draft_model_refs');
     await assert.rejects(pool.query('DELETE FROM uploaded_models WHERE id=1'), e => ['23503','23001'].includes(e.code));
+    // New format exercises the actual SQL constraint and old-room isolation when explicitly run on a test DB.
+    const beforeOffice = (await pool.query('SELECT * FROM world_objects WHERE room_id=$1 ORDER BY id',[before.id])).rows;
+    const environmentDraft = await service.getDraft('meeting-six', 1);
+    environmentDraft.layout = [{ editor_id: 1, type:'room_environment',kind:'room',name:'Office',collision:false,
+      model_id:1,model_path:'/models/uploaded/check.glb',position:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1},
+      environment:{version:1,bounds:{min:{x:-4,y:0,z:-3},max:{x:4,y:3,z:3}}}},
+      {editor_id:2,type:'seat',kind:'seat',name:'Office seats',collision:false,
+        position:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1},
+        seats:Array.from({length:6},(_,index)=>({label:String(index+1),sort_order:index,enabled:true,
+          coordinate_space:'rigid',map_x:index-2.5,map_y:0,local_position:{x:index-2.5,y:1,z:0},local_rotation:{x:0,y:0,z:0}}))}];
+    const environmentService=createRoomTemplateEditor(pool,stat,{readFile:async()=>require('./room-environment-fixtures').officeGlb()});
+    const environmentSaved=await environmentService.save('meeting-six',environmentDraft,1);
+    await environmentService.publish('meeting-six',environmentSaved.revision);
+    const officeRoom=(await createRoom()).room;
+    const officeObjects=await require('../src/services/roomObjects').listRoomObjects(officeRoom.id,pool);
+    assert.equal(officeObjects.length,1);assert.equal(officeObjects[0].type,'uploaded_model');
+    assert.equal(officeObjects[0].is_room_environment,true);assert.equal(officeObjects[0].has_collision,false);
+    assert.deepEqual(officeObjects[0].room_environment,environmentDraft.layout[0].environment);
+    await assert.rejects(pool.query('UPDATE world_objects SET has_collision=true WHERE id=$1',[officeObjects[0].id]),e=>e.code==='23514');
+    await assert.rejects(pool.query("UPDATE world_objects SET room_environment='{}'::jsonb WHERE id=$1",[officeObjects[0].id]),e=>e.code==='23514');
+    const guarded=require('../src/services/roomModelMutation');
+    let processed=false;
+    await assert.rejects(guarded.withMutableRoomModel(pool,1,async()=>{processed=true;}),{status:409});assert.equal(processed,false);
+    assert.deepEqual((await pool.query('SELECT * FROM world_objects WHERE room_id=$1 ORDER BY id',[before.id])).rows,beforeOffice);
+    console.log('GLB office PostgreSQL: repeated additive migration, published refs, runtime metadata, constraint guards and old-room isolation: OK');
     console.log('PostgreSQL: isolated drafts, save/publish races, model protection, GLB transforms, seat cloning, old rooms preserved: OK');
   } finally {
     if (pool) await pool.end();

@@ -2,12 +2,15 @@
 (function (root) {
   const aliases = {
     hips:['hips','pelvis'], head:['head'],
-    leftUpLeg:['leftupleg','leftthigh','thighl'], leftLeg:['leftleg','leftcalf','calfl'], leftFoot:['leftfoot','footl'],
-    rightUpLeg:['rightupleg','rightthigh','thighr'], rightLeg:['rightleg','rightcalf','calfr'], rightFoot:['rightfoot','footr'],
+    leftUpLeg:['leftupleg','leftthigh','thighl','upperlegl','uplegl'], leftLeg:['leftleg','leftcalf','calfl','lowerlegl','legl'], leftFoot:['leftfoot','footl'],
+    rightUpLeg:['rightupleg','rightthigh','thighr','upperlegr','uplegr'], rightLeg:['rightleg','rightcalf','calfr','lowerlegr','legr'], rightFoot:['rightfoot','footr'],
     leftArm:['leftarm','upperarml'], leftForeArm:['leftforearm','lowerarml'], leftHand:['lefthand','handl'],
     rightArm:['rightarm','upperarmr'], rightForeArm:['rightforearm','lowerarmr'], rightHand:['righthand','handr']
   };
-  const normalize = name => String(name || '').toLowerCase().replace(/^mixamorig\d*:?/, '').replace(/[^a-z0-9]/g, '');
+  // Strip exporter namespaces and separated numeric IDs, preserving semantic
+  // digits such as Spine1. Ambiguous matches remain unsupported.
+  const normalize = name => String(name || '').toLowerCase().split(/[|:]/).pop()
+    .replace(/^mixamorig\d*/, '').replace(/[_.\s-]+\d+$/, '').replace(/[^a-z0-9]/g, '');
   function mapNodes(nodes, joints) {
     const result = {};
     for (const [key,names] of Object.entries(aliases)) {

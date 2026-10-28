@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+  <!-- Generic illustration; not a rendering of a user's room. -->
+  <rect width="640" height="360" fill="#E8F2EF"/>
+  <path d="M0 274 320 156l320 118v86H0Z" fill="#DBE9E4"/>
+  <path d="m144 174 176-66 176 66-176 70Z" fill="#FFF"/>
+  <path d="M144 174v18l176 70v-18Z" fill="#CBDDD5"/>
+  <path d="M320 244v18l176-70v-18Z" fill="#B6CDC1"/>
+  <path d="M178 205v66m284-66v66m-142-9v48" stroke="#94B5A5" stroke-width="12" stroke-linecap="round"/>
+  <g fill="#ABC8BA" stroke="#7B9E8D" stroke-width="5" stroke-linejoin="round">
+    <path d="m101 211 56-22 41 19-56 23Zm13 14v46m70-52v46m-74-83 33-13 25 13v34l-25 9-33-14Z"/>
+    <path d="m442 258 56-22 41 19-56 23Zm14 15v39m70-50v38m-72-75 30-13 27 13v32l-27 10-30-15Z"/>
+  </g>
+  <circle cx="540" cy="84" r="26" fill="#D0E3D9"/>
+  <path d="M92 79h102m-102 17h60" stroke="#C1D9CD" stroke-width="8" stroke-linecap="round"/>
+</svg>

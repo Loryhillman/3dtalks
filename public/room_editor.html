@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title data-i18n="roomEditor.title">Редактор комнаты</title>
+  <title>3DTalks — Room editor</title>
   <style>
     *{box-sizing:border-box}[hidden]{display:none!important}
     body{margin:0;background:#171b24;color:#f2f2f2;font:14px system-ui;display:grid;grid-template-columns:260px minmax(0,1fr) 320px;grid-template-rows:auto minmax(0,1fr);height:100dvh;overflow:hidden}
@@ -20,6 +20,7 @@
     #element-tabs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}#show-room{grid-column:1/-1}#element-tabs button{min-width:0;overflow-wrap:anywhere}
     #seat-save{position:sticky;bottom:0;width:100%;margin-top:10px}#template-object-actions button{margin:4px 0}body.saving aside,body.saving main,body.saving #editor-header{pointer-events:none;opacity:.65}
     @media(max-width:1050px){body{grid-template-columns:210px minmax(0,1fr) 270px}aside{padding:10px}#room-status{display:none}}
+    .item.placement-error{border-color:#ff6655}#placement-check{margin-top:16px;font-size:12px}#placement-check li{margin-bottom:5px}
     @media(max-width:760px){body{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto minmax(220px,50dvh) minmax(0,1fr)}main{grid-row:2;grid-column:1/-1}#element-panel{grid-row:3;grid-column:1}#properties-panel{grid-row:3;grid-column:2}#template-status,#message{font-size:11px}#toolbar button{font-size:12px;padding:6px}}
   </style>
 </head>
@@ -27,6 +28,7 @@
   <header id="editor-header">    <h1 id="room-title" data-i18n="roomEditor.room">Комната</h1>
     <p id="room-status"></p>
     <p id="message" role="status"></p>
+    <div id="reference-avatar-message" role="status" hidden><span id="reference-avatar-status"></span><button id="reference-avatar-retry" type="button" hidden data-i18n="avatar.retryPreview">Повторить загрузку персонажа</button></div>
     <section id="template-panel" hidden>
       <label><span data-i18n="roomEditor.templateName">Название шаблона</span><input id="template-name" maxlength="120" required></label>
       <p id="template-status" role="status"></p>
@@ -42,12 +44,23 @@
       <button id="show-objects" type="button" data-i18n="roomEditor.objects">Предметы</button>
       <button id="show-seats" type="button" data-i18n="roomSeatsEditor.title">Посадочные места</button>
     </div>
+      <details id="avatar-calibration-panel" hidden>
+        <summary data-i18n="roomEditor.avatarCalibration">Размер персонажей</summary>
+        <p data-i18n="roomEditor.avatarScaleHint">Выберите место: персонаж сидит на настоящем кресле. Настройка общая для новых комнат; мебель и точки мест не меняются.</p>
+        <label><span data-i18n="roomEditor.avatarScale">Масштаб персонажей</span><input id="room-avatar-scale" type="range" min="0.5" max="2" step="0.05" value="1"><output id="room-avatar-scale-value" for="room-avatar-scale">1.00×</output></label>
+        <button id="room-avatar-scale-reset" type="button" data-i18n="roomEditor.avatarScaleReset">Вернуть 1×</button>
+        <label><span data-i18n="roomEditor.avatarModel">Модель для проверки</span><select id="calibration-avatar"><option value="" data-i18n="roomEditor.avatarDefault">Стандартный персонаж</option></select></label>
+        <label><span data-i18n="roomEditor.avatarSeat">Место для проверки</span><select id="calibration-seat"></select></label>
+        <div class="row"><button id="calibration-front" type="button" data-i18n="roomEditor.avatarFront">Спереди</button><button id="calibration-side" type="button" data-i18n="roomEditor.avatarSide">Сбоку</button><button id="calibration-overview" type="button" data-i18n="roomEditor.avatarOverview">Общий вид</button></div>
+        <p id="calibration-hint" role="status" data-i18n="roomEditor.avatarCheck">Проверьте таз у сиденья, стопы у пола, плечи и край стола. Подгонка визуальная; пересечения тела не проверяются автоматически.</p>
+      </details>
     <section id="room-panel" hidden>
-      <p data-i18n="roomEnvelope.hint">Выберите поверхность в списке или нажмите на неё в сцене. Окна и двери добавляются как обычные модели.</p>
+      <p id="room-shell-hint" data-i18n="roomEnvelope.hint">Выберите поверхность в списке или нажмите на неё в сцене. Окна и двери добавляются как обычные модели.</p>
       <div id="room-surface-list"></div>
       <p id="room-envelope-warning" role="status" style="color:#f0d280"></p>
     </section>
     <section id="objects-panel">
+      <button id="add-screen" type="button" hidden data-i18n="roomScreen.add">Добавить экран</button>
     <h2 data-i18n="roomEditor.addModel">Добавить модель</h2>
     <section id="model-upload-panel" hidden>
       <label><span data-i18n="roomEditor.uploadFile">Загрузить GLB с компьютера</span><input id="model-upload-file" type="file" accept=".glb"></label>
@@ -60,6 +73,7 @@
       <button type="submit" data-i18n="roomEditor.addObject">Добавить предмет</button>
     </form>
     <h2 data-i18n="roomEditor.objects">Предметы</h2>
+    <label id="multi-select-label" hidden><input id="multi-select" type="checkbox" style="width:auto"><span data-i18n="roomEditor.multiSelect">Выбирать несколько предметов (или Ctrl/⌘-клик)</span></label>
     <div id="object-list"></div>
 
     </section>
@@ -73,11 +87,55 @@
       <p id="seat-overlap" role="status" style="color:#f0d280"></p>
     </section>
 
+    <section id="placement-check">
+      <h2 data-i18n="roomPlacement.title">Проверка расположения</h2>
+      <p id="placement-summary" role="status"></p>
+      <ul id="placement-issues" style="padding-left:20px"></ul>
+      <p data-i18n="roomPlacement.hint">Проверяются доступные места и точки привязки предметов. Пересечения моделей и положение головы/ног проверяйте по предпросмотру.</p>
+    </section>
   </aside>
-  <main><div id="viewport"></div><div id="toolbar"><button id="move-mode" type="button" data-i18n="roomEditor.move">Перемещение</button><button id="rotate-mode" type="button" data-i18n="roomEditor.rotate">Поворот</button><button id="scale-mode" type="button" data-i18n="roomEditor.scale">Масштаб</button><button id="deselect" type="button" disabled data-i18n="roomEditor.deselect">Снять выделение (Esc)</button><button id="preview-mode" type="button" data-i18n="roomEditor.preview">Предпросмотр</button></div></main>
+  <main><div id="viewport"></div><div id="toolbar"><button id="focus-room" type="button" data-i18n="roomEditor.focusRoom">Показать помещение целиком</button><button id="move-mode" type="button" data-i18n="roomEditor.move">Перемещение</button><button id="rotate-mode" type="button" data-i18n="roomEditor.rotate">Поворот</button><button id="scale-mode" type="button" data-i18n="roomEditor.scale">Масштаб</button><button id="deselect" type="button" disabled data-i18n="roomEditor.deselect">Снять выделение (Esc)</button><button id="preview-mode" type="button" data-i18n="roomEditor.preview">Предпросмотр</button></div></main>
   <aside id="properties-panel">
     <h2 data-i18n="roomEditor.properties">Свойства выбранного элемента</h2>
     <section id="room-properties" hidden>
+      <section id="environment-human-panel" hidden>
+        <label><input id="environment-human-visible" type="checkbox" checked style="width:auto"><span data-i18n="roomEditor.environmentHuman">Сидящий персонаж для сравнения размеров</span></label>
+        <p data-i18n="roomEditor.environmentHumanHint">Масштаб персонажа не меняется вместе с офисом. X/Z — смещение от центра помещения, Y — высота точки посадки над выбранным полом. Это ориентир, не посадочное место.</p>
+        <div class="coords"><label>X<input id="environment-human-x" type="number" step="any" value="0"></label><label>Y<input id="environment-human-y" type="number" step="any" value="1"></label><label>Z<input id="environment-human-z" type="number" step="any" value="0"></label></div>
+        <label><span data-i18n="roomEditor.environmentHumanYaw">Поворот персонажа, градусы</span><input id="environment-human-yaw" type="number" step="any" value="0"></label>
+        <button id="environment-human-focus" type="button" data-i18n="roomEditor.environmentHumanFocus">Приблизить персонажа</button>
+      </section>
+      <section id="environment-import" hidden>
+        <h2 data-i18n="roomEnvironmentEditor.title">Способ создания помещения</h2>
+        <p data-i18n="roomEnvironmentEditor.hint">Соберите стены или выберите готовый статический офис GLB. Мебель и места сохраняются при переключении.</p>
+        <button id="environment-shell" type="button" data-i18n="roomEnvironmentEditor.shell">Собранное помещение</button>
+        <label><span data-i18n="roomEnvironmentEditor.library">GLB из библиотеки</span><select id="environment-model"></select></label>
+        <button id="environment-prepare" type="button" data-i18n="roomEnvironmentEditor.prepare">Подготовить модель</button>
+        <label><span data-i18n="roomEnvironmentEditor.upload">Загрузить офис GLB (до 100 МБ)</span><input id="environment-file" type="file" accept=".glb"></label>
+        <p id="environment-import-status" role="status"></p>
+        <button id="environment-cancel" type="button" hidden data-i18n="roomEnvironmentEditor.cancel">Отменить подготовку</button>
+        <form id="environment-settings" hidden>
+          <p id="environment-source"></p>
+          <label><span data-i18n="roomEnvironmentEditor.width">Ширина границ, м (меняет общий масштаб)</span><input id="environment-width" type="number" step="any" min="1" max="200" required></label>
+          <label><span data-i18n="roomEnvironmentEditor.yaw">Поворот вокруг Y, °</span><input id="environment-yaw" type="number" step="any" required></label>
+          <label><span data-i18n="roomEnvironmentEditor.floor">Уровень поверхности пола в модели, м</span><input id="environment-floor" type="number" step="any" required></label>
+          <div class="coords"><label>X<input id="environment-x" type="number" step="any" required></label><label>Z<input id="environment-z" type="number" step="any" required></label></div>
+          <button id="environment-center" type="button" data-i18n="roomEnvironmentEditor.center">Центрировать по границам</button>
+          <p data-i18n="roomEnvironmentEditor.bounds">Внутренние границы в координатах модели, м. Габариты файла могут включать стены и декор: подтвердите пригодную для посадки область.</p>
+          <div class="coords"><label>Min X<input id="environment-min-x" type="number" step="any" required></label><label>Min Y<input id="environment-min-y" type="number" step="any" required></label><label>Min Z<input id="environment-min-z" type="number" step="any" required></label></div>
+          <div class="coords"><label>Max X<input id="environment-max-x" type="number" step="any" required></label><label>Max Y<input id="environment-max-y" type="number" step="any" required></label><label>Max Z<input id="environment-max-z" type="number" step="any" required></label></div>
+          <label><input id="environment-confirm" type="checkbox" required style="width:auto"><span data-i18n="roomEnvironmentEditor.confirmBounds">Подтверждаю уровень пола и внутренние границы</span></label>
+          <button type="submit" data-i18n="roomEnvironmentEditor.apply">Применить помещение</button>
+        </form>
+      </section>
+      <section id="room-environment-preview" hidden>
+        <h2 data-i18n="roomEditor.environmentTitle">Готовое GLB-помещение</h2>
+        <p id="environment-name"></p><p id="environment-size"></p>
+        <p data-i18n="roomEditor.environmentMaterials">Мебель и оформление внутри файла — часть одной модели. Настройки поверхностей доступны для собранного помещения.</p>
+        <p id="environment-load-status" role="status"></p>
+        <button id="environment-retry" type="button" hidden data-i18n="roomEditor.environmentRetry">Повторить загрузку помещения</button>
+        <label><input id="environment-bounds" type="checkbox" checked style="width:auto"> <span data-i18n="roomEditor.environmentBounds">Показывать служебные границы</span></label>
+      </section>
       <form id="room-envelope-form">
         <h2 data-i18n="roomEnvelope.dimensions">Размеры помещения</h2>
         <div class="coords">
@@ -110,15 +168,31 @@
       </form>
       <p id="room-envelope-message" role="status"></p>
     </section>
-    <section id="object-properties"><p id="selection-empty" data-i18n="roomEditor.selectionEmpty">Выберите предмет в списке или в комнате. Esc снимает выделение.</p><form id="edit-form" hidden>
+    <section id="object-properties">
+      <form id="group-scale-form" hidden>
+        <h2 data-i18n="roomEditor.groupScale">Общий масштаб</h2>
+        <p id="group-selection-count"></p>
+        <p data-i18n="roomEditor.groupScaleHint">Размеры и расстояния меняются относительно среднего положения выбранных предметов. Места не масштабируются; проверьте посадку после изменения.</p>
+        <label><span data-i18n="roomEditor.groupScaleFactor">Коэффициент: 0.5 — уменьшить вдвое, 2 — увеличить вдвое</span><input id="group-scale-factor" type="number" step="any" min="0.000001" required value="1"></label>
+        <button type="submit" data-i18n="roomEditor.groupScaleApply">Применить к выбранным предметам</button>
+      </form>
+      <p id="selection-empty" data-i18n="roomEditor.selectionEmpty">Выберите предмет в списке или в комнате. Esc снимает выделение.</p><form id="edit-form" hidden>
       <h2 id="selected-name"></h2>
       <label id="object-name-label" hidden><span data-i18n="roomEditor.name">Название</span><input id="object-name" maxlength="120"></label>
       <div class="coords"><label>X<input id="pos-x" type="number" step="any" required></label><label>Y<input id="pos-y" type="number" step="any" required></label><label>Z<input id="pos-z" type="number" step="any" required></label></div>
       <p data-i18n="roomEditor.rotationDegrees">Поворот, градусы</p>
       <div class="coords"><label>X<input id="rot-x" type="number" step="any" required></label><label>Y<input id="rot-y" type="number" step="any" required></label><label>Z<input id="rot-z" type="number" step="any" required></label></div>
-      <p data-i18n="roomEditor.scale">Масштаб</p>
+      <p id="object-scale-label" data-i18n="roomEditor.scale">Масштаб</p>
       <div class="coords"><label>X<input id="scale-x" type="number" step="any" min="0.01" max="100" required></label><label>Y<input id="scale-y" type="number" step="any" min="0.01" max="100" required></label><label>Z<input id="scale-z" type="number" step="any" min="0.01" max="100" required></label></div>
       <label><input id="object-collision" type="checkbox" style="width:auto"> <span data-i18n="roomEditor.collision">Столкновения</span></label>
+      <section id="screen-fields" hidden>
+        <h3 data-i18n="roomScreen.settings">Настройки экрана</h3>
+        <p data-i18n="roomScreen.hint">Центр полотна, метры. Фронт — локальная +Z. Поворот только вокруг Y.</p>
+        <label><span data-i18n="roomScreen.ratio">Пропорции</span><select id="screen-ratio"><option value="custom" data-i18n="roomScreen.custom">Свой размер</option><option value="16:9">16:9</option><option value="4:3">4:3</option></select></label>
+        <label><span data-i18n="roomScreen.width">Ширина, м</span><input id="screen-width" type="number" min="0.5" max="8" step="any" value="3.2" required></label>
+        <label><span data-i18n="roomScreen.height">Высота, м</span><input id="screen-height" type="number" min="0.3" max="4.5" step="any" value="1.8" required></label>
+        <button id="screen-preview" type="button" data-i18n="roomScreen.enlarge">Увеличить экран</button>
+      </section>
       <div id="template-object-actions" hidden>
         <label id="replace-model-label"><span data-i18n="roomEditor.replacementModel">Новая модель предмета</span><select id="replace-model"></select></label>
         <button id="replace-object" type="button" data-i18n="roomEditor.replaceModel">Заменить модель, сохранив место</button>
@@ -126,7 +200,9 @@
       </div>
       <div class="row"><button type="submit" data-i18n="roomEditor.savePosition">Сохранить положение</button><button id="delete-object" type="button" data-i18n="roomEditor.delete">Удалить</button></div>
     </form></section>
-    <section id="seat-properties" hidden>      <form id="seat-form">
+    <section id="seat-properties" hidden>
+      <label><input id="seat-avatar-preview" type="checkbox" checked style="width:auto"><span data-i18n="roomSeatsEditor.avatarPreview">Показывать сидящего персонажа на выбранном месте</span></label>
+      <p data-i18n="roomSeatsEditor.avatarHint">Стандартный персонаж показан в масштабе игры. Проверьте высоту сиденья, направление и положение ног.</p>      <form id="seat-form">
         <label><span data-i18n="roomSeatsEditor.object">Привязка к предмету (необязательно)</span><select id="seat-object"></select></label>
         <label><span data-i18n="roomSeatsEditor.label">Номер / название места</span><input id="seat-label" maxlength="40" required></label>
         <div class="coords"><label>X<input id="seat-x" type="number" step="any" value="0" required></label><label>Y<input id="seat-y" type="number" step="any" value="1" required></label><label>Z<input id="seat-z" type="number" step="any" value="0" required></label></div>
@@ -147,12 +223,26 @@
   <script src="js/geometryRenderer.js?v=2"></script>
   <script src="/i18n/i18n.js"></script>
   <script src="js/roomEnvelope.js?v=1"></script>
-  <script src="js/roomEnvelopeEditor.js?v=1"></script>
+  <script src="js/roomEnvironment.js?v=1"></script>
+  <script src="js/roomScreen.js?v=1"></script>
+  <script src="js/roomScreenRenderer.js?v=1-presentation"></script>
+  <link rel="stylesheet" href="/css/room-screen-preview.css?v=2">
+  <script src="js/roomScreenPreview.js?v=4"></script>
+  <script src="js/roomEnvironmentView.js?v=1"></script>
+  <script src="js/roomPlacementCheck.js?v=1-screen"></script>
+  <script src="js/avatarBase.js?v=1"></script>
+  <script src="js/avatarRig.js?v=2"></script>
+  <script src="js/userAvatarRenderer.js?v=4"></script>
+  <script src="js/builtinAvatarCatalog.js?v=2"></script>
+  <script src="js/roomAvatarScale.js?v=1"></script><script src="js/roomSeatAvatar.js?v=6"></script>
+  <script src="js/roomEnvelopeEditor.js?v=2"></script>
   <script src="js/roomSeatLabels.js?v=1"></script>
   <script src="js/roomSeatCoordinates.js?v=1"></script>
-  <script src="js/roomTemplateSession.js?v=3"></script>
-  <script src="js/roomSeatEditor.js?v=5"></script>
-  <script src="js/roomModelUpload.js?v=1"></script>
-  <script src="js/roomEditor.js?v=9"></script>
+  <script src="js/roomObjectScale.js?v=1-screen"></script>
+  <script src="js/roomTemplateSession.js?v=7-avatar-scale"></script>
+  <script src="js/roomSeatEditor.js?v=6-screen"></script>
+  <script src="js/roomModelUpload.js?v=2"></script>
+  <script src="js/roomEnvironmentEditor.js?v=1"></script>
+  <script src="js/roomEditor.js?v=15-avatar-scale"></script>
 </body>
 </html>

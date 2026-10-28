@@ -22,7 +22,7 @@
     previewTarget=new THREE.Vector3((min.x+max.x)/2,(min.y+max.y)/2+.45,(min.z+max.z)/2);
     const radius=item ? 2.8 : Math.max(4,Math.hypot(max.x-min.x,max.z-min.z)*.8);
     const desired=previewTarget.clone().add(new THREE.Vector3(Math.sin(previewAngle)*radius,Math.min(3.5,radius*.5),Math.cos(previewAngle)*radius));
-    // Only the room shell bounds constrain this camera. Raycasting the entire
+    // Only the room boundary constrains this camera. Raycasting the entire
     // scene touches detailed/skinned GLBs and their BVHs before updating the UI.
     const world=window.gameWorld;
     if(world?.generatedBuildings){
@@ -30,6 +30,11 @@
       let nearest=previewTarget.distanceTo(desired);
       const ray=new THREE.Ray(previewTarget,direction);
       for(const entry of world.generatedBuildings.values()){
+        if(entry.data?.is_room_environment && window.RoomEnvironmentView){
+          const constrained=RoomEnvironmentView.constrain(previewTarget,desired,entry.data);
+          nearest=Math.min(nearest,previewTarget.distanceTo(constrained));
+          continue;
+        }
         if(!entry.data?.is_room_shell || !entry.model)continue;
         entry.model.updateWorldMatrix(true,true);
         entry.model.traverse(mesh=>{
@@ -62,7 +67,7 @@
   const mine = () => typeof GAME_STATE !== 'undefined' ? GAME_STATE.characterId : null;
   const button = (text, action, parent) => {
     const element = document.createElement('button'); element.type = 'button'; element.textContent = text;
-    element.style.cssText = 'padding:10px;border:1px solid #aaa;border-radius:6px;background:#26354a;color:white;cursor:pointer';
+    if(window.MeetingUI?.active)element.className='ui-button';else element.style.cssText = 'padding:10px;border:1px solid #aaa;border-radius:6px;background:#26354a;color:white;cursor:pointer';
     element.onclick = action; parent.append(element); return element;
   };
   function stopPending() { clearTimeout(timeout); pending = null; }
@@ -85,6 +90,7 @@
     data.group.position.set(assigned.position.x, assigned.position.y, assigned.position.z);
     data.group.quaternion.set(assigned.orientation.x, assigned.orientation.y, assigned.orientation.z, assigned.orientation.w);
     data.group.userData.roomSeat = assigned;
+    data.group.userData.roomAvatarScale = window.RoomAvatarScale?.resolve(room?.avatar_scale)??1;
   }
   function render() {
     if (!map) return;
@@ -103,8 +109,8 @@
       let entry=seatRows.get(item.id);
       if(!entry){
         const row=document.createElement('div');row.className='room-seat-row';row.dataset.seatId=item.id;
-        const inspect=button('',()=>selectForPreview(item.id),row);inspect.className='room-seat-inspect';
-        const take=button('',()=>request('ROOM_SEAT_SELECT',{seatId:item.id}),row);take.className='room-seat-take';
+        const inspect=button('',()=>selectForPreview(item.id),row);inspect.classList.add('room-seat-inspect');
+        const take=button('',()=>request('ROOM_SEAT_SELECT',{seatId:item.id}),row);take.classList.add('room-seat-take');
         entry={row,inspect,take};seatRows.set(item.id,entry);map.append(row);
       }
       const {row,inspect,take}=entry;
@@ -146,22 +152,26 @@
       #room-seat-picker button:disabled{opacity:.5;cursor:default}.room-seat-inspect{width:100%;text-align:left}.room-seat-take{margin-top:6px;width:100%}.room-seat-view-buttons{display:flex;gap:5px;flex-wrap:wrap;margin:8px 0}
       @media(max-width:700px){#room-seat-picker{top:auto;bottom:10px;left:10px;right:10px;width:auto;max-height:38dvh}}
     `;document.head.append(style);
-    panel=document.createElement('section');panel.id='room-seat-picker';panel.hidden=true;panel.setAttribute('aria-label',t('places','Места'));
-    const heading=document.createElement('h2');heading.textContent=t('places','Места');panel.append(heading);
-    const help=document.createElement('p');help.textContent=t('pickerHint','Выберите место в списке или по номеру в комнате. Осмотр не меняет вашу посадку.');panel.append(help);
+    panel=document.createElement('section');panel.id='room-seat-picker';if(window.MeetingUI?.active)panel.classList.add('meeting-ui');panel.hidden=true;panel.setAttribute('aria-label',t('places','Места'));
+    const heading=document.createElement('h2');heading.dataset.i18n='roomSeating.places';heading.textContent=t('places','Места');panel.append(heading);
+    const help=document.createElement('p');help.dataset.i18n='roomSeating.pickerHint';help.textContent=t('pickerHint','Выберите место в списке или по номеру в комнате. Осмотр не меняет вашу посадку.');panel.append(help);
     const views=document.createElement('div');views.className='room-seat-view-buttons';panel.append(views);
-    button(t('overview','Обзор комнаты'),()=>{selectedId=null;setView();render();},views);
-    button('↶',()=>{previewAngle-=Math.PI/4;setView(seats.find(s=>s.id===selectedId));},views).setAttribute('aria-label',t('viewLeft','Осмотреть слева'));
-    button('↷',()=>{previewAngle+=Math.PI/4;setView(seats.find(s=>s.id===selectedId));},views).setAttribute('aria-label',t('viewRight','Осмотреть справа'));
-    button(t('close','Закрыть'),()=>{closePicker();placesButton.focus();},views);
+    button(t('overview','Обзор комнаты'),()=>{selectedId=null;setView();render();},views).dataset.i18n='roomSeating.overview';
+    const left=button('↶',()=>{previewAngle-=Math.PI/4;setView(seats.find(s=>s.id===selectedId));},views);left.setAttribute('aria-label',t('viewLeft','Осмотреть слева'));left.dataset.seatAria='roomSeating.viewLeft';
+    const right=button('↷',()=>{previewAngle+=Math.PI/4;setView(seats.find(s=>s.id===selectedId));},views);right.setAttribute('aria-label',t('viewRight','Осмотреть справа'));right.dataset.seatAria='roomSeating.viewRight';
+    button(t('close','Закрыть'),()=>{closePicker();placesButton.focus();},views).dataset.i18n='roomSeating.close';
     notice=document.createElement('p');notice.setAttribute('role','status');panel.append(notice);
     map=document.createElement('div');map.id='room-seat-list';panel.append(map);document.body.append(panel);
     if(window.RoomSeatLabels)labels=new RoomSeatLabels(selectForPreview);
     document.addEventListener('keydown',event=>{if(event.key==='Escape'&&pickerOpen){closePicker();placesButton.focus();}});
-    overlay = document.createElement('div'); overlay.style.cssText = 'position:fixed;inset:0;z-index:30000;background:#171e29;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;color:white';
+    overlay = document.createElement('div');overlay.id='room-connection-overlay';if(window.MeetingUI?.active)overlay.className='meeting-ui'; overlay.style.cssText = 'position:fixed;inset:0;z-index:30000;background:#171e29;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;color:white';
     const status = document.createElement('p'); status.dataset.status = ''; status.setAttribute('role','status'); overlay.append(status);
-    button(t('retry', 'Повторить вход'), () => location.reload(), overlay);
-    button(location.pathname === '/play' ? (window.i18n?.t('roomsLobby.back') || 'В мои комнаты') : t('back', 'На основную карту'), leaveLocal, overlay); document.body.append(overlay);
+    button(t('retry', 'Повторить вход'), () => location.reload(), overlay).dataset.i18n='roomSeating.retry';
+    button(location.pathname === '/play' ? (window.i18n?.t('roomsLobby.back') || 'В мои комнаты') : t('back', 'На основную карту'), leaveLocal, overlay).dataset.i18n=location.pathname==='/play'?'roomsLobby.back':'roomSeating.back'; document.body.append(overlay);window.MeetingUI?.connectOverlay(overlay);
+    const translatePanel=()=>{if(!window.i18n?.t)return;panel.setAttribute('aria-label',t('places','Места'));
+      for(const element of panel.querySelectorAll('[data-i18n]'))element.textContent=window.i18n.t(element.dataset.i18n);
+      for(const element of panel.querySelectorAll('[data-seat-aria]'))element.setAttribute('aria-label',window.i18n.t(element.dataset.seatAria));render();
+    };window.i18n?.onLocaleChange?.(translatePanel);translatePanel();
   }
   window.RoomSeating = {
     active: false,
@@ -170,9 +180,13 @@
     sceneFailed() { if (!this.active) return; this.blocked('sceneError'); },
     blocked(reason) {
       if (!this.active) return;
+      if(window.MeetingUI?.active){
+        window.MeetingRoomPanel?.close(false);window.MeetingAudioSettings?.stopTest();
+        window.voiceChat?.cancelRoomAudio?.();window.MeetingRoster?.connection(reason==='waiting'?'connecting':'reconnecting');
+      }
       const text = { waiting: ['waiting','Назначаем место…'], full: ['full','Комната заполнена'], denied: ['denied','Вход в комнату недоступен'],
         replaced: ['replaced','Персонаж открыт в другой вкладке'], sceneError: ['sceneError','Не удалось загрузить помещение. Повторите вход.'], disconnected: ['disconnected','Соединение потеряно. Восстанавливаем вход…'] }[reason] || ['denied','Вход в комнату недоступен'];
-      overlay.querySelector('[data-status]').textContent = t(...text); overlay.style.display = 'flex'; closePicker();
+      overlay.querySelector('[data-status]').dataset.i18n='roomSeating.'+text[0];overlay.querySelector('[data-status]').textContent = t(...text); overlay.style.display = 'flex'; closePicker();
     },
     connecting() { if (!this.active) return; version = -1; stopPending(); this.blocked('waiting'); },
     disconnected() { if (!this.active) return; stopPending(); this.blocked(WSClient.sessionReplaced ? 'replaced' : 'disconnected'); },
@@ -195,12 +209,14 @@
         for (const p of payload.players || []) if (p.seat) apply(p.characterId, p.seat);
       } else if (type === 'PLAYER_JOINED' && payload.seat) apply(payload.characterId, payload.seat);
     },
+    removeParticipant(characterId) { looks.delete(characterId); },
     updateLocal(player, camera) {
       if (!seat) return;
       if (!pickerOpen && typeof MOUSE !== 'undefined' && MOUSE.isDragging) player.targetRotationY = MOUSE.targetRotationY;
       player.position.set(seat.position.x, seat.position.y, seat.position.z);
       apply(player.characterId, seat);
       if(pickerOpen && previewCamera && previewTarget){
+        if(player.worldObject)player.worldObject.visible=true;
         camera.position.copy(previewCamera);camera.lookAt(previewTarget);camera.updateMatrixWorld();return;
       }
       player.updateCamera(camera);

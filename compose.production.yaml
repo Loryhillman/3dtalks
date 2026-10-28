@@ -1,0 +1,22 @@
+# Small single-process deployment. TLS is terminated by the host reverse proxy.
+# docker compose -f compose.yaml -f compose.production.yaml up -d --build
+services:
+  app:
+    mem_limit: 512m
+    memswap_limit: 768m
+    pids_limit: 256
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  postgres:
+    mem_limit: 256m
+    memswap_limit: 512m
+    pids_limit: 128
+    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=60", "-c", "work_mem=2MB", "-c", "maintenance_work_mem=32MB"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

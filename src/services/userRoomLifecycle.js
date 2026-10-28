@@ -74,6 +74,8 @@ function createUserRoomLifecycle(pool, presence = () => require('../websocket/ws
               (SELECT character_id FROM room_seat_claims WHERE room_id=$1 AND expires_at > clock_timestamp())
             ON CONFLICT (room_id, character_id) DO UPDATE SET expires_at=EXCLUDED.expires_at`, [roomId, participants]);
         } else if (ending) {
+          if(room.presentation_initialized)await require('./roomPresentationStore').reset(client,roomId);
+          if(action==='delete'&&room.media_initialized)await require('./roomMedia').markRoomMediaDeleted(client,roomId);
           status = action === 'delete' ? 'archived' : 'closed'; allowRejoin = false;
           await client.query('DELETE FROM room_rejoin_grants WHERE room_id=$1', [roomId]);
           await client.query('DELETE FROM room_seat_claims WHERE room_id=$1', [roomId]);
@@ -86,6 +88,7 @@ function createUserRoomLifecycle(pool, presence = () => require('../websocket/ws
         await client.query(`INSERT INTO room_user_actions (room_id, user_id, action, revision, admin_user_id)
           VALUES ($1,$2,$3,$4,$5)`, [roomId, isAdmin ? null : userId, action, updated.revision, isAdmin ? adminId : null]);
         await client.query('COMMIT'); committed = true;
+        if(action==='delete'&&room.media_initialized)require('./roomMediaRuntime').service.abortRoom(roomId);
         const disconnected = ending ? presence().endRoom(roomId) : 0;
         if (action === 'open') presence().clearRoomReturnGrants(roomId);
         return { room: updated, disconnected };

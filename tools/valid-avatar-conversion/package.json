@@ -1,0 +1,13 @@
+{
+  "name": "3dtalks-valid-avatar-offline-conversion",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Offline authoring dependencies; not part of the application runtime",
+  "dependencies": {
+    "@gltf-transform/core": "4.2.1",
+    "@gltf-transform/extensions": "4.2.1",
+    "@gltf-transform/functions": "4.2.1",
+    "meshoptimizer": "1.1.1",
+    "sharp": "0.35.5"
+  }
+}

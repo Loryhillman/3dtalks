@@ -163,3 +163,7 @@ __pycache__/
 # Supported Compose entry points
 !/compose.yaml
 !/compose.dev.yaml
+!/compose.production.yaml
+
+!/compose.pptx.yaml
+**/__pycache__/

@@ -5,6 +5,7 @@ const context = { console, URL }; context.window = context;
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(require.resolve('../public/js/lib/three.min.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(require.resolve('../public/js/avatarRig.js'), 'utf8'), context);
+vm.runInContext(fs.readFileSync(require.resolve('../public/js/roomAvatarScale.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(require.resolve('../public/js/roomSeatAvatar.js'), 'utf8'), context);
 const T = context.THREE;
 // First frames and failed GLB downloads must render the procedural avatar.
@@ -48,6 +49,46 @@ const position = model.position.clone(), rotation = head.quaternion.clone();
 for (let i=0;i<100;i++) pose();
 assert.ok(model.position.distanceTo(position) < 1e-7, 'pose must not drift between frames');
 assert.ok(head.quaternion.angleTo(rotation) < 1e-7, 'head rotation must not accumulate');
+group.userData.roomAvatarScale=1.4;
+for(let i=0;i<100;i++)pose();
+assert.equal(group.scale.x,1.4);
+assert.ok(hips.getWorldPosition(new T.Vector3()).distanceTo(group.getWorldPosition(new T.Vector3()))<1e-7,'scale stays anchored to the seat');
+// A differently oriented bone must turn in the participant frame, not its local axes.
+const fullGroup = new T.Group(), fullModel = new T.Group(); fullGroup.add(fullModel);
+fullGroup.rotation.y = .7;
+fullGroup.userData.glbModel = fullModel;
+fullGroup.userData.accountAvatarConfig = { mode: 'full' };
+const fullHips = bone('Hips_01', fullModel, 0, 1);
+const fullHead = bone('Head_06', fullHips, 0, 1);
+fullHead.rotation.z = Math.PI / 2;
+for (const [side, suffix] of [['L', '063'], ['R', '067']]) {
+  const thigh = bone('Upper_Leg_'+side+'_'+suffix, fullHips, side === 'L' ? -.1 : .1, 0);
+  const calf = bone('Lower_Leg_'+side+'_064', thigh, 0, -.5);
+  bone('Foot_'+side+'_065', calf, 0, -.5);
+}
+let resets = 0;
+const mesh = new T.Group(); mesh.isSkinnedMesh = true;
+mesh.skeleton = { pose() { resets++; } }; fullModel.add(mesh);
+const label = new T.Group(); fullGroup.add(label); fullGroup.userData.nameSprite = label;
+fullGroup.updateWorldMatrix(true, true);
+const restWorld = fullHead.getWorldQuaternion(new T.Quaternion());
+context.RoomSeatAvatar.apply(fullGroup, { yaw: .5, pitch: .2 });
+assert.equal(fullGroup.userData.roomSeatRig.supported, true);
+assert.equal(resets, 0, 'authored transforms must survive multiple skins');
+const orientation = fullGroup.getWorldQuaternion(new T.Quaternion());
+const delta = orientation.clone().multiply(new T.Quaternion().setFromEuler(new T.Euler(.2, .5, 0)))
+  .multiply(orientation.clone().invert());
+assert.ok(fullHead.getWorldQuaternion(new T.Quaternion()).angleTo(restWorld.premultiply(delta)) < 1e-6);
+const fullPosition = fullModel.position.clone(), fullRotation = fullHead.quaternion.clone();
+for (let i = 0; i < 100; i++) context.RoomSeatAvatar.apply(fullGroup, { yaw: .5, pitch: .2 });
+assert.ok(fullModel.position.distanceTo(fullPosition) < 1e-7);
+assert.ok(fullHead.quaternion.angleTo(fullRotation) < 1e-6);
+assert.ok(Number.isFinite(label.position.y));
+fullGroup.userData.accountAvatarConfig = {mode:'builtin',builtinId:'valid-business-v1'};
+delete fullGroup.userData.roomSeatRig;
+context.RoomSeatAvatar.apply(fullGroup);
+assert.equal(fullGroup.userData.roomSeatRig.supported,true);
+assert.equal(resets,0,'built-in multiple-skin models also preserve authored transforms');
 group.userData.glbModel = new T.Group(); group.add(group.userData.glbModel);
 assert.equal(pose(), true);
 assert.equal(group.userData.glbModel.visible, false);

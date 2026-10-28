@@ -2,9 +2,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const { ensureRoomTemplates } = require('../src/services/roomTemplateSeed');
-const context = { console, URL }; context.window = context;
+const context = { console, URL, AbortController, fetch }; context.window = context;
 vm.createContext(context);
-for (const file of ['lib/three.min.js', 'geometryRenderer.js', 'world.js']) {
+for (const file of ['lib/three.min.js', 'geometryRenderer.js', 'roomScene.js', 'world.js']) {
   vm.runInContext(fs.readFileSync(require.resolve('../public/js/'+file), 'utf8'), context);
 }
 (async () => {
@@ -14,7 +14,7 @@ for (const file of ['lib/three.min.js', 'geometryRenderer.js', 'world.js']) {
     geometry_data: { components: item.components }, has_collision: true,
     position_x: item.position.x, position_y: item.position.y, position_z: item.position.z,
     rotation_y: item.rotation_y, scale_x: 1, scale_y: 1, scale_z: 1 }));
-  const world = { scene: new context.THREE.Scene(), loadedObjects: new Set(), generatedBuildings: new Map(), collisionObjects: [] };
+  const world = { scene: new context.THREE.Scene(), loadedObjects: new Set(), generatedBuildings: new Map(), collisionObjects: [], getRoomScene: context.World.prototype.getRoomScene };
   await context.World.prototype.loadRoomScene.call(world, objects);
   assert.equal(world.scene.children.length, 8);
   assert.equal(world.loadedObjects.size, 8);

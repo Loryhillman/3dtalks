@@ -9,6 +9,7 @@ const voiceRelay = require('./voiceRelay');
 const jwt = require('jsonwebtoken');
 const { MAIN_ROOM_ID } = require('../services/roomScope');
 const { runRoomOperation } = require('../services/roomOperationQueue');
+const { LIMITS: ROOM_SOCKET_LIMITS, protectRoomSocket } = require('./roomSocketPolicy');
 
 let wss = null;
 
@@ -26,6 +27,44 @@ const seatIdentities = new Map();
 const seatVersions = new Map();
 let seatsUsed = false;
 let seatService;
+let presentation;
+const getPresentation=()=>presentation||(presentation=require('../services/roomPresentationRuntime').service);
+function presentationIdentity(connectionId){
+  const player=playerPositions.get(connectionId),socket=activeConnections.get(connectionId);
+  if(process.env.APP_MODE!=='rooms'||!player?.seat||!seatIdentities.has(connectionId)||supersededConnections.has(connectionId)||
+    socket?.readyState!==WebSocket.OPEN||socket.isAlive===false||player.roomEpoch!==(roomEpochs.get(player.roomId)||0))return null;
+  return {userId:seatIdentities.get(connectionId),roomId:player.roomId,characterId:player.characterId};
+}
+async function presentationSync(connectionId,ws){
+  const data=await getPresentation().synchronize(connectionId);
+  if(ws.readyState!==WebSocket.OPEN)return;
+  ws.send(JSON.stringify({type:'ROOM_PRESENTATION_SESSION',payload:data.session}));
+  ws.send(JSON.stringify({type:'ROOM_PRESENTATION_STATE',payload:data.state}));
+  if(data.upgradeRequired&&ws.videoNoticeEpoch!==data.state.epoch){ws.videoNoticeEpoch=data.state.epoch;ws.send(JSON.stringify({type:'CHAT',payload:{sender:'3DTalks',message:'Обновите вкладку для просмотра видео / Refresh this tab to watch video / 请刷新页面以观看视频。'}}));}
+  if(typeof getPresentation().negotiate==='function')ws.send(JSON.stringify({type:'ROOM_PRESENTATION_AVAILABLE',payload:{protocolVersion:2}}));
+}
+function handlePresentation(connectionId,ws,type,body){
+  if(process.env.APP_MODE!=='rooms')return;
+  const result=payload=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'ROOM_PRESENTATION_RESULT',payload:{...payload,...(payload.state?{state:getPresentation().wireState(connectionId,payload.state)}:{})}}));};
+  const receivedAtMs=Date.now();
+  if((ws.presentationPending||0)>=2){result({requestId:body.requestId,success:false,code:'PRESENTATION_BUSY',status:429});return;}
+  ws.presentationPending=(ws.presentationPending||0)+1;
+  runRoomOperation(async()=>{
+    if(type==='ROOM_PRESENTATION_CAPABILITIES'){
+      const capabilities=await getPresentation().negotiate(connectionId,body);
+      if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'ROOM_PRESENTATION_CAPABILITIES_RESULT',payload:capabilities}));
+      await presentationSync(connectionId,ws);
+    }else if(type==='ROOM_PRESENTATION_CLOCK'){
+      const clock=getPresentation().clock(connectionId,body,receivedAtMs);
+      if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'ROOM_PRESENTATION_CLOCK_RESULT',payload:clock}));
+    }else if(type==='ROOM_PRESENTATION_GET_STATE'){
+      const protocol=require('../../public/js/roomPresentationProtocol');
+      if(!protocol.keys(body,['requestId'])||!protocol.uuid(body.requestId))throw Object.assign(new Error('INVALID_COMMAND'),{code:'INVALID_COMMAND',status:400});
+      await presentationSync(connectionId,ws);result({requestId:body.requestId,success:true});
+    }else result(await getPresentation().command(connectionId,body));
+  }).catch(error=>result({requestId:body.requestId,success:false,code:error.status?error.code:'PRESENTATION_ERROR',status:error.status||500,...(error.state?{state:error.state}:{})}))
+    .finally(()=>{ws.presentationPending--;});
+}
 function getSeatService() {
   if (!seatService) seatService = require('../services/roomSeats')
     .createRoomSeatService(require('../database/db').pool);
@@ -71,6 +110,7 @@ async function handleSeatCommand(connectionId, ws, type, payload) {
   let message;
   try {
     if (type === 'ROOM_LEAVE') {
+      presentation?.revoke(connectionId);
       await getSeatService().release({ ...seatIdentity(connectionId, player), leave: true });
       voiceRelay.handleDisconnect(connectionId);
       playerPositions.delete(connectionId);
@@ -190,9 +230,19 @@ function warnUnregistered(connectionId, type) {
 function setupWebSocketServer(httpServer) {
   try {
     // noServer 模式：upgrade 由 upgradeRouter 分发（/ws/agent→agent，其余→人类兜底）
-    wss = new WebSocket.Server({ noServer: true });
+    const roomsMode = process.env.APP_MODE === 'rooms';
+    wss = new WebSocket.Server({ noServer: true,
+      ...(roomsMode ? { maxPayload: ROOM_SOCKET_LIMITS.packetBytes } : {}) });
 
     wss.on('connection', (ws) => {
+      if (roomsMode && (wss.clients.size > ROOM_SOCKET_LIMITS.connections ||
+          activeConnections.size >= ROOM_SOCKET_LIMITS.connections ||
+          activeConnections.size - playerPositions.size >= ROOM_SOCKET_LIMITS.pendingConnections)) {
+        // Do not retain rejected sockets for another close-handshake timeout.
+        ws.on('error', () => {});
+        ws.terminate();
+        return;
+      }
       const connectionId = uuidv4();
       activeConnections.set(connectionId, ws);
 
@@ -202,16 +252,24 @@ function setupWebSocketServer(httpServer) {
 
       console.log(`Client connected: ${connectionId}`);
 
-      ws.on('message', (message) => {
+      const dispatch = data => {
         try {
-          const data = JSON.parse(message);
           handleMessage(connectionId, ws, data);
         } catch (error) {
           console.error('WebSocket message error:', error);
         }
-      });
+      };
+      if (roomsMode) {
+        protectRoomSocket(ws, { isJoined: () => playerPositions.has(connectionId), onMessage: dispatch });
+      } else {
+        ws.on('message', message => {
+          try { dispatch(JSON.parse(message)); }
+          catch (error) { console.error('WebSocket message error:', error); }
+        });
+      }
 
       ws.on('close', async () => {
+        presentation?.revoke(connectionId);
         // 保存用户最后位置（下线时停留在当前位置）
         const playerData = playerPositions.get(connectionId);
         if (playerData?.seat) {
@@ -323,6 +381,7 @@ function setupWebSocketServer(httpServer) {
           if (!(await getSeatService().renew(seatIdentity(cid, player)))) {
             voiceRelay.handleDisconnect(cid);
             playerPositions.delete(cid);
+            presentation?.revoke(cid);
             seatIdentities.delete(cid);
             socket.send(JSON.stringify({ type: 'ROOM_SEAT_EXPIRED', payload: {} }));
             socket.close(4003, 'Seat expired');
@@ -350,6 +409,12 @@ function handleMessage(connectionId, ws, data) {
   const { type, payload } = data;
 
   switch (type) {
+    case 'ROOM_PRESENTATION_CAPABILITIES':
+    case 'ROOM_PRESENTATION_CLOCK':
+    case 'ROOM_PRESENTATION_GET_STATE':
+    case 'ROOM_PRESENTATION_COMMAND':
+      handlePresentation(connectionId,ws,type,payload||{});
+      break;
     case 'ROOM_LOOK': {
       const player = playerPositions.get(connectionId);
       if (!player?.seat || !payload || !Number.isFinite(payload.yaw) || !Number.isFinite(payload.pitch)) break;
@@ -542,6 +607,7 @@ async function handlePlayerJoin(connectionId, ws, payload) {
   let verifiedCharacter = false;
   let seatAssignment = null;
   let seatUserId;
+  let hasPresentationScreen=false;
   if (process.env.ROOMS_ENABLED === 'true' && payload.roomSlug && payload.roomSlug !== 'main') {
     let decoded;
     try { decoded = jwt.verify(payload.token, process.env.JWT_SECRET); } catch (_) {}
@@ -557,11 +623,12 @@ async function handlePlayerJoin(connectionId, ws, payload) {
       }
     }
     const avatarUser = (await query('SELECT avatar_config FROM users WHERE id=$1', [decoded.userId])).rows[0];
-    avatarConfig = Object.keys(avatarUser?.avatar_config || {}).length ? avatarUser.avatar_config : { ...require('../services/userAvatars').DEFAULT };
+    avatarConfig = require('../services/avatarCatalog').resolveConfig(avatarUser?.avatar_config);
     glbUrl = animUrls = weaponConfig = boneMapConfig = weaponSocketConfig = calibrationConfig = null;
     isSelfContainedBundle = isGuest = false;
     const { rows } = await query(`
       SELECT r.id, r.capacity, r.spawn_position, r.status, r.allow_rejoin, r.seating_mode,
+        EXISTS(SELECT 1 FROM world_objects o WHERE o.room_id=r.id AND o.type='presentation_screen') AS has_presentation_screen,
         c.name AS character_name, c.last_room_id, c.last_position
       FROM rooms r JOIN characters c ON c.user_id = $2 AND c.id = $3
       WHERE r.slug = $1 AND r.status IN ('open', 'closed')
@@ -573,6 +640,7 @@ async function handlePlayerJoin(connectionId, ws, payload) {
       return;
     }
     roomId = rows[0].id;
+    hasPresentationScreen=rows[0].has_presentation_screen===true;
     verifiedCharacter = true;
     seatUserId = decoded.userId;
     const spawn = rows[0].spawn_position || { x: 0, y: 0, z: 0 };
@@ -624,6 +692,7 @@ async function handlePlayerJoin(connectionId, ws, payload) {
   if (supersededConnections.has(connectionId) || ws.readyState !== WebSocket.OPEN) return;
   const previous = playerPositions.get(connectionId);
   if (previous && previous.roomId !== roomId) {
+    presentation?.revoke(connectionId);
     voiceRelay.handleDisconnect(connectionId);
     broadcastToRoom(previous.roomId || MAIN_ROOM_ID, { type: 'PLAYER_LEFT', payload: {
       characterId: previous.characterId, characterName: previous.characterName
@@ -651,6 +720,7 @@ async function handlePlayerJoin(connectionId, ws, payload) {
         roomPosition = oldPlayer.position;
       }
       supersededConnections.add(cid);
+      presentation?.revoke(cid);
       const expiry = setTimeout(() => supersededConnections.delete(cid), 120000);
       if (expiry.unref) expiry.unref();
       playerPositions.delete(cid);
@@ -724,6 +794,11 @@ async function handlePlayerJoin(connectionId, ws, payload) {
       players: [...playerPositions.values()].filter(player => (player.roomId || MAIN_ROOM_ID) === roomId),
       weather: null, timestamp: new Date()
     } }));
+    if(hasPresentationScreen&&seatAssignment){
+      try{await presentationSync(connectionId,ws);}catch(error){
+        if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'ROOM_PRESENTATION_RESULT',payload:{success:false,code:'PRESENTATION_UNAVAILABLE'}}));
+      }
+    }
     return;
   }
 
@@ -866,7 +941,14 @@ function broadcastToRoom(roomId, message) {
     if (player.roomId !== roomId) return;
     const client = activeConnections.get(connectionId);
     if (client?.readyState === WebSocket.OPEN) {
-      client.send(data);
+      if(message.type==='ROOM_PRESENTATION_STATE'){
+        const state=getPresentation().wireState(connectionId,message.payload);
+        client.send(JSON.stringify({...message,payload:state}));
+        if(message.payload.asset?.kind==='video'&&state.asset===null&&client.videoNoticeEpoch!==message.payload.epoch){
+          client.videoNoticeEpoch=message.payload.epoch;
+          client.send(JSON.stringify({type:'CHAT',payload:{sender:'3DTalks',message:'Обновите вкладку, чтобы смотреть видео / Refresh this tab to watch the video.'}}));
+        }
+      }else client.send(data);
       count++;
     }
   });
@@ -887,6 +969,7 @@ function clearRoomReturnGrants(roomId) {
 function endRoom(roomId) {
   if (process.env.ROOMS_ENABLED !== 'true' || roomId === MAIN_ROOM_ID) return 0;
   invalidateRoomReturnAccess(roomId);
+  presentation?.revokeRoom(roomId);
   let count = 0;
   playerPositions.forEach((player, connectionId) => {
     if (player.roomId !== roomId) return;
@@ -1039,6 +1122,7 @@ async function handleRequestPortals(connectionId, ws) {
 // ==================== 传送门WebSocket处理结束 ====================
 
 module.exports = {
+  presentationIdentity,
   setupWebSocketServer,
   broadcastToAll,
   broadcastToRoom,

@@ -1,0 +1,25 @@
+const assert=require('node:assert/strict');
+const {store,inspectModel}=require('../src/services/roomEnvironmentImport');
+const {officeGlb,rewriteGlb}=require('./room-environment-fixtures');
+const {LIMITS}=require('../src/services/roomEnvironmentAsset');
+const file={path:'/tmp/isolated-office.glb',filename:'model-fixture.glb',originalname:'Office.glb',size:officeGlb().length};
+let removed=0,queries=[],bytes=officeGlb();
+const pool={async query(sql,args){queries.push({sql,args});return {rows:[{id:1,path:'/models/uploaded/model-fixture.glb',file_type:'glb'}]};}};
+const io={readFile:async()=>bytes,unlink:async()=>removed++,stat:async()=>({isFile:()=>true,size:bytes.length})};
+(async()=>{
+ const original=Buffer.from(bytes),result=await store(pool,file,{display_name:'My office'},io);
+ assert.equal(result.inspection.triangles,96);assert.equal(result.model.id,1);assert.equal(queries.length,1);
+ assert.equal(queries[0].args[4],'My office');assert.equal(removed,0);assert(bytes.equals(original),'import keeps the source bytes unchanged');
+ bytes=Buffer.from('not a glb');queries=[];
+ await assert.rejects(store(pool,file,{},io),e=>e.code==='INVALID_ENVIRONMENT_GLB');assert.equal(removed,1);assert.equal(queries.length,0);
+ bytes=rewriteGlb(officeGlb(),json=>{json.animations=[{}];});
+ await assert.rejects(store(pool,file,{},io),e=>e.code==='ENVIRONMENT_MUST_BE_STATIC');assert.equal(queries.length,0);
+ bytes=officeGlb();const badPool={query:async()=>{throw Error('DB failed');}};
+ await assert.rejects(store(badPool,file,{},io),/DB failed/);assert.equal(removed,3,'rejected files and failed insertions are removed');
+ queries=[];assert.equal((await inspectModel(pool,1,io)).inspection.triangles,96);
+ await assert.rejects(inspectModel(pool,0,io),e=>e.status===404);assert.equal(queries.length,1);
+ await assert.rejects(inspectModel(pool,1,{...io,stat:async()=>({isFile:()=>true,size:LIMITS.bytes+1}),readFile:()=>{throw Error('must not read');}}),e=>e.code==='ENVIRONMENT_FILE_TOO_LARGE');
+ await assert.rejects(inspectModel(pool,1,{...io,stat:async()=>{throw Object.assign(Error(),{code:'ENOENT'});}}),e=>e.status===404);
+ await assert.rejects(inspectModel({query:async()=>({rows:[{path:'/../secret.glb',file_type:'glb'}]})},1,io),e=>e.status===404);
+ console.log('Office import: source preservation, admission policy, bounded library inspection and failed-file cleanup OK (isolated files/DB)');
+})().catch(e=>{console.error(e);process.exitCode=1;});

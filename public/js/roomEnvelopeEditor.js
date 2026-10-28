@@ -45,7 +45,8 @@
   window.addEventListener('room-editor-loaded',event=>{
     room=event.detail.room;objects=event.detail.objects;object=objects.find(o=>o.is_room_shell);envelope=object?.room_envelope?copy(object.room_envelope):null;dirty=false;
     $('room-surface-list').replaceChildren();$('room-envelope-form').hidden=!envelope;
-    $('room-envelope-message').textContent=envelope?'':tr('unsupported','Это помещение не распознано как прямоугольное. Его геометрия сохранена без изменений.');
+    $('room-shell-hint').hidden=objects.some(o=>o.is_room_environment);
+    $('room-envelope-message').textContent=envelope||objects.some(o=>o.is_room_environment)?'':tr('unsupported','Это помещение не распознано как прямоугольное. Его геометрия сохранена без изменений.');
     if(!envelope)return;
     for(const key of RoomEnvelope.surfaces){const b=document.createElement('button');b.type='button';b.className='item';b.dataset.surface=key;b.textContent=tr(key,names[key]);b.onclick=()=>select(key);$('room-surface-list').append(b);}
     $('room-envelope-form').querySelectorAll('input,select,button').forEach(c=>c.disabled=room.status!=='draft');fields();warn();

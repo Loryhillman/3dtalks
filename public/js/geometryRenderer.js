@@ -231,6 +231,7 @@ class GeometryRenderer {
         materials = Array(6).fill(material);materials[surface.face]=face;
         const appearance=surface.appearance;
         if(appearance.mode!=='color' && /^\/uploads\/room-surfaces\/[a-f0-9]{64}\.webp$/.test(appearance.image || '')) {
+          face.userData.roomSurfaceTextureOwned = true;
           let disposed=false;
           face.addEventListener('dispose',()=>{disposed=true;face.map?.dispose();});
           const texture=new THREE.TextureLoader().load(appearance.image,loaded=>{

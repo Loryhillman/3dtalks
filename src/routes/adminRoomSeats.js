@@ -36,7 +36,7 @@ function registerRoomSeatRoutes(router, pool, logAdminAction) {
         return res.status(409).json({ error: 'ROOM_HAS_PARTICIPANTS' });
       }
       if (!editing) {
-        const objects = (await client.query('SELECT id FROM world_objects WHERE room_id=$1', [id])).rows;
+        const objects = (await client.query("SELECT id FROM world_objects WHERE room_id=$1 AND type <> 'presentation_screen'", [id])).rows;
         const ids = new Set(objects.map(o => o.id));
         const existing = new Set((await client.query('SELECT id FROM room_seats WHERE room_id=$1', [id])).rows.map(s => s.id));
         if (seats.some(s => (s.object_id !== null && !ids.has(s.object_id)) || (s.id && !existing.has(s.id)))) {

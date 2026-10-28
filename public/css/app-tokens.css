@@ -1,0 +1,100 @@
+/* Shared design tokens only: no layout, element styles or global :root theme.
+ * .app-ui is the existing web shell. .meeting-ui is reserved for individual
+ * HTML panels over the scene; never add .app-ui to the meeting page body.
+ * Import this file for panel tokens without importing app-ui.css or App Shell.
+ */
+.app-ui,
+.meeting-ui {
+  --primitive-white: #FFFFFF;
+  --primitive-slate-25: #F8FAFB;
+  --primitive-ink-900: #172638;
+  --primitive-slate-500: #8292A3;
+  --primitive-green-500: #00A878;
+  --primitive-green-700: #008C68;
+  --primitive-green-50: #E8F7F2;
+  --primitive-border: #E9EEF1;
+  --primitive-hover: #F2F6F5;
+  --primitive-red-500: #EF4444;
+  --primitive-amber-500: #F59E0B;
+  --primitive-blue-500: #3B82F6;
+
+  --color-app-bg: var(--primitive-slate-25);
+  --color-surface: var(--primitive-white);
+  --color-sidebar-bg: var(--primitive-white);
+  --color-header-bg: var(--primitive-white);
+  --color-text-primary: var(--primitive-ink-900);
+  --color-text-secondary: var(--color-text-muted);
+  --color-primary: var(--primitive-green-500);
+  --color-primary-foreground: var(--primitive-white);
+  --color-nav-active: var(--primitive-green-50);
+  --color-border: var(--primitive-border);
+  --color-hover: var(--primitive-hover);
+  --color-success: #22C55E;
+  --color-danger: var(--primitive-red-500);
+  --color-warning: var(--primitive-amber-500);
+  --color-info: var(--primitive-blue-500);
+  /* Text applications need more contrast than the reference swatches. */
+  --color-text-muted: #596B7D;
+  --color-action: #007D59;
+  --color-action-hover: #006B4C;
+  --color-action-pressed: #005A40;
+  --color-danger-action: #B42318;
+  --color-control-border: var(--primitive-slate-500);
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-modal: 16px;
+  --sidebar-expanded: 248px;
+  --sidebar-collapsed: 64px;
+  --header-height: 64px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --shadow-card: 0 2px 8px rgb(23 38 56 / 4%);
+
+  /* New semantic names alias existing values; legacy consumers remain compatible. */
+  --color-primary-brand: var(--color-primary);
+  --color-primary-action: var(--color-action);
+  --color-primary-action-text: var(--color-primary-foreground);
+  --color-primary-hover: var(--color-action-hover);
+  --color-primary-pressed: var(--color-action-pressed);
+  --color-selection-bg: var(--color-nav-active);
+  --color-selection-text: var(--color-action-pressed);
+  --color-border-subtle: var(--color-border);
+  --color-border-control: var(--color-control-border);
+  --color-focus-ring: var(--color-action);
+  --color-success-bg: var(--color-selection-bg);
+  --color-success-text: var(--color-action);
+  --color-danger-bg: #FFF1F0;
+  --color-danger-text: var(--color-danger-action);
+  --color-info-bg: #EDF4FF;
+  --color-info-text: #2459A6;
+  --color-warning-bg: #FFFBEB;
+  --color-warning-text: #854D0E;
+
+  --font-family-ui: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-size-page-title: 28px;
+  --font-size-section-title: 24px;
+  --font-size-card-title: 18px;
+  --font-size-body: 14px;
+  --font-size-form-control: 16px;
+  --font-size-meta: 12px;
+  /* Compatibility with the completed cabinet redesign; not a global type migration. */
+  --font-size-dialog-title: 22px;
+  --control-height: 40px;
+  --control-touch-size: 44px;
+  --space-12: 48px;
+  --shadow-dialog: 0 16px 64px rgb(23 38 56 / 18%);
+  --motion-instant: 100ms;
+  --motion-fast: 150ms;
+  --motion-normal: 200ms;
+  --motion-slow: 300ms;
+  --motion-surface: 180ms;
+  --motion-dialog: 180ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+}

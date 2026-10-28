@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "license": "MIT",
+  "preparedOn": "2026-10-27",
+  "source": {
+    "repository": "https://github.com/c-frame/valid-avatars-glb",
+    "commit": "c4719df7a2b60a96cc7f56d67e247674b68c4ea7",
+    "file": "avatars/Asian/Asian_M_1_Busi.glb",
+    "sha256": "6ddf21c0951b4b6c031ef885e6deaaaf9f91b3de339029a64072e86d26b5b14b",
+    "copyright": "Copyright (c) 2022 Tiffany Do"
+  },
+  "models": [
+    {
+      "id": "valid-business-v1",
+      "label": "Мужской персонаж — деловой костюм",
+      "labelKey": "avatar.builtinBusiness",
+      "file": "asian-business.glb",
+      "bytes": 6745816,
+      "sha256": "e8be321c6c0684299582547509ccb5975aaf5ca752b96fa6ef5281468c4a7aad",
+      "triangles": 58724,
+      "boneMap": {
+        "hips": "Hips",
+        "head": "Head",
+        "leftUpLeg": "LeftUpLeg",
+        "leftLeg": "LeftLeg",
+        "leftFoot": "LeftFoot",
+        "rightUpLeg": "RightUpLeg",
+        "rightLeg": "RightLeg",
+        "rightFoot": "RightFoot",
+        "leftArm": "LeftArm",
+        "leftForeArm": "LeftForeArm",
+        "leftHand": "LeftHand",
+        "rightArm": "RightArm",
+        "rightForeArm": "RightForeArm",
+        "rightHand": "RightHand"
+      },
+      "mouthTargets": [
+        "viseme_aa"
+      ],
+      "mouthMapping": {
+        "H_DDS_HighRes": "h_expressions.MouthOpen_h",
+        "h_TeethDown": "h_teeth.t_MouthOpen_h"
+      }
+    }
+  ]
+}

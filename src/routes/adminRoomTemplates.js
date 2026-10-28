@@ -7,6 +7,16 @@ function registerRoomTemplateRoutes(router, pool, logAdminAction) {
       res.status(201).json({success:true,image});
     }catch(e){res.status(e.status||500).json({success:false,error:e.status?e.message:'Не удалось сохранить изображение'});}
   }));
+  router.post('/models/:modelId/environment-inspection',async(req,res)=>{
+    try {
+      const result=await require('../services/roomEnvironmentImport').inspectModel(pool,Number(req.params.modelId));
+      res.json({success:true,...result});
+    }catch(error){
+      if(!error.status)console.error('[roomEnvironmentImport] Inspection failed:',error);
+      res.status(error.status||500).json({success:false,code:error.code||'ENVIRONMENT_IMPORT_FAILED',
+        errorKey:'roomEnvironmentErrors.'+(error.status?error.code:'ENVIRONMENT_IMPORT_FAILED')});
+    }
+  });
   const service = require('../services/roomTemplateEditor').createRoomTemplateEditor(pool);
   const handle = operation => async (req, res) => {
     try { res.json({ success: true, ...await operation(req) }); }

@@ -6,7 +6,16 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../database/db');
 const { authenticateAdminToken } = require('../middleware/adminAuth');
-const { resolveSky } = require('./sky');
+
+router.use((req, res, next) => {
+  const resource = req.path.toLowerCase().replace(/\/$/, '');
+  if (process.env.APP_MODE === 'rooms' && !['/language', '/seo'].includes(resource)) {
+    return res.status(404).json({ success: false, code: 'FEATURE_UNAVAILABLE' });
+  }
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  return authenticateAdminToken(req, res, next);
+});
+const resolveSky = config => require('./sky').resolveSky(config);
 let _getFederationSystem = null;
 let _getCentralConnector = null;
 // 延迟引入，避免循环依赖
@@ -457,7 +466,7 @@ router.get('/language', async (req, res) => {
 });
 
 // 保存系统语言设置（需要管理员权限）
-router.put('/language', authenticateAdminToken, async (req, res) => {
+router.put('/language', async (req, res) => {
   try {
     const { language } = req.body;
     
