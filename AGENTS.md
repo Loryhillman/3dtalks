@@ -739,3 +739,18 @@ VPS этим этапом не обновлялся; push/развёртыван
 rotation), размеры DTO и private Range проверены. Временные тестовые материалы
 удалены; Phone.mp4 не передавался. Ограничения видео прежние, PPTX выключен.
 Детали и совместимость отката — SERVER_DEPLOYMENT.md. Push не выполнялся.
+
+
+## Выпуск v1.1.0 — 28 октября 2026
+
+По прямому поручению пользователя подготовлены package/lock 1.1.0, release-ветка
+codex/release-1.1.0, тег v1.1.0 и интеграция в main с сохранением истории.
+Отдельный checkpoint/production-2026-10-28 указывает на runtime 7f8896e8.
+Состав/проверки/найденные ошибки — docs/releases/v1.1.0.md и RELEASES.md.
+Финальное ревью исправило повтор play после media error и late retry после
+выхода; lock очищен от уже удалённой AWS dependency без смены версий остальных
+пакетов; тест /proc привязан к конкретному worker PID. PostgreSQL 18 startup
+дважды и media gates, unit/lifecycle и Chromium GLB/audio/video прошли.
+Runtime на VPS по-прежнему 7f8896e8; финальные review fixes не разворачивались.
+PPTX на VPS выключен по RAM. Ветки LiveKit и старые checkpoint-теги не менять;
+не продолжать функциональные изменения автоматически после фиксации выпуска.
