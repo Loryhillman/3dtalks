@@ -38,7 +38,9 @@ let server,browser,release,releaseLibrary;
  const state=(id=asset,index=0)=>({roomId:room,epoch,revision:String(++revision),asset:id?{id,name:id===image?'Image.webp':id===asset?'Обзор проекта — план встречи и материалы.pdf':'Fixture.pdf',kind:id===image?'image':'pdf',pageCount:id===image?1:2}:null,pageIndex:index});
  const deliver=value=>page.evaluate(v=>RoomPresentation.message('ROOM_PRESENTATION_STATE',v),value);
  const pixel=()=>page.evaluate(()=>[...view.canvas.getContext('2d').getImageData(view.canvas.width/2,view.canvas.height/2,1,1).data].slice(0,3));
- const color=async rgb=>{await page.waitForFunction(rgb=>{const c=view.canvas,p=c.getContext('2d').getImageData(c.width/2,c.height/2,1,1).data;return rgb.every((v,i)=>Math.abs(p[i]-v)<15);},rgb);};
+ const color=async rgb=>{await page.waitForFunction(rgb=>{const c=view.canvas,p=c.getContext('2d').getImageData(c.width/2,c.height/2,1,1).data;return rgb.every((v,i)=>Math.abs(p[i]-v)<15);},rgb);
+  if(await page.locator('.presentation-slide-preview').isVisible())await page.waitForFunction(rgb=>{const c=document.querySelector('.presentation-slide-preview canvas');if(!c||c.hidden||!c.width)return false;const p=c.getContext('2d').getImageData(c.width/2,c.height/2,1,1).data;return rgb.every((v,i)=>Math.abs(p[i]-v)<15);},rgb);
+ };
  await page.evaluate(g=>{RoomPresentation.joined();RoomPresentation.message('ROOM_PRESENTATION_SESSION',g);},grant);
  let current=state(asset,1);await deliver(current);assert.equal(requests.length,0,'metadata before scene never fetches files');
  await page.evaluate(()=>RoomPresentation.attach(view));await color([0,0,255]);assert.equal(requests.filter(id=>id===asset).length,1);
@@ -51,6 +53,7 @@ let server,browser,release,releaseLibrary;
  assert.equal(await page.evaluate(()=>sent.length),count,'enlarging and zooming send no commands');
  await page.keyboard.press('Escape');
  await page.locator('#presentation-manage').click();await page.waitForFunction(()=>document.querySelector('dialog select').options.length===1);
+ await color([255,0,0]);assert.equal(requests.filter(id=>id===asset).length,1,'presenter preview reuses the already loaded screen frame');
  await page.getByRole('button',{name:'Next slide',exact:true}).click();
  const command=await page.evaluate(()=>sent.find(m=>m.type==='ROOM_PRESENTATION_COMMAND').payload);
  assert.equal(command.expectedRevision,current.revision);assert.deepEqual(command.command,{type:'page',pageIndex:1});assert.equal(command.expectedEpoch,epoch);
@@ -90,6 +93,12 @@ let server,browser,release,releaseLibrary;
  assert.equal(await commandsSent(),shortcutCount,'repeats, IME and modified shortcuts are ignored');
  await page.keyboard.press('Escape');await page.keyboard.press('ArrowLeft');assert.equal(await commandsSent(),shortcutCount,'closed panel has no global shortcuts');
  await deliver({...current,revision:'1',pageIndex:0});await deliver({...current,epoch:randomUUID(),revision:'999',pageIndex:0});assert.deepEqual(await pixel(),[0,0,255]);
+ // A pending material must not retain the previous slide in the presenter.
+ await page.locator('#presentation-manage').click();await page.waitForFunction(()=>document.querySelector('dialog')?.dataset.libraryState==='ready');
+ await deliver(state(slow));assert(await page.locator('.presentation-slide-preview canvas').isHidden(),'loading hides the previous confirmed frame');
+ await deliver(state(image));await color([0,255,0]);release?.();release=null;
+ await deliver(state(null));assert(await page.locator('.presentation-slide-preview').isHidden(),'stopping hides the presenter frame');
+ await page.keyboard.press('Escape');
  // Late PDF completion must not draw over the newly selected image or stop state.
  await deliver(state(slow));await page.waitForFunction(()=>document.querySelector('#presentation-status').textContent.includes('Fixture'));
  await new Promise(r=>setTimeout(r,30));await deliver(state(image));await color([0,255,0]);release?.();release=null;
@@ -119,9 +128,10 @@ let server,browser,release,releaseLibrary;
   for(const [width,height] of [[320,568],[375,812],[430,932],[768,1024],[1280,800],[1920,1080],[844,390]]){
    await page.setViewportSize({width,height});
    assert(await page.locator('dialog').evaluate(d=>d.scrollWidth<=d.clientWidth),'presenter has no horizontal overflow');
+   assert(await page.locator('.presentation-slide-preview canvas').evaluate(c=>{const b=c.getBoundingClientRect(),p=c.parentElement.getBoundingClientRect();return !c.hidden&&b.width>0&&b.height>0&&b.width<=p.width&&b.height<=p.height;}),'current slide fits its presenter frame');
    const b=await page.locator('dialog').boundingBox();assert(b.x>=0&&b.y>=0&&b.x+b.width<=width+1&&b.y+b.height<=height+1);
   }
-  await page.locator('.presentation-close').focus();await page.keyboard.press('Shift+Tab');assert(await page.locator('.presentation-body > .ui-button:visible').evaluate(n=>n===document.activeElement));
+  await page.locator('.presentation-close').focus();await page.keyboard.press('Shift+Tab');assert(await page.locator('.presentation-options > .ui-button:visible').evaluate(n=>n===document.activeElement));
   await page.keyboard.press('Tab');assert(await page.locator('.presentation-close').evaluate(n=>n===document.activeElement));
   if(locale==='ru-RU'){
    await page.setViewportSize({width:1280,height:800});await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:'/tmp/presentation-redesign-desktop.png'});

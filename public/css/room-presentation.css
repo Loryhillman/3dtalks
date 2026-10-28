@@ -57,3 +57,17 @@
 .presentation-video-commands input:focus-visible, .presentation-video-local input:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 
 .room-screen-preview .presentation-video-local { flex: none; box-sizing: border-box; padding: 8px 16px; }
+
+
+/* Reuses the confirmed screen frame; slide navigation stays beside its content. */
+.room-presentation-dialog .presentation-stage,
+.room-presentation-dialog .presentation-options { display: grid; gap: 16px; min-width: 0; align-content: start; }
+.room-presentation-dialog .presentation-slide-preview { display: flex; align-items: center; justify-content: center; min-height: 160px; height: min(42dvh, 420px); padding: 8px; background: var(--color-app-bg); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-control); }
+.room-presentation-dialog .presentation-slide-preview canvas { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; }
+@media (min-width: 900px) {
+  .room-presentation-dialog[data-slide-preview="true"] { width: min(1100px, calc(100vw - 48px)); }
+  .room-presentation-dialog[data-slide-preview="true"] .presentation-body { grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); align-items: start; }
+}
+@media (max-width: 899px) {
+  .room-presentation-dialog .presentation-slide-preview { height: clamp(120px, 28dvh, 300px); min-height: 120px; }
+}
