@@ -33,7 +33,7 @@
       button?.classList.toggle('voice-disabled', ['connecting', 'recovering'].includes(this.phase));
       if (button) {
         const label = button.querySelector('.sv-label');
-        if (label) label.textContent = t(this.error ? 'failed' : this.phase);
+        if (label) { label.removeAttribute('data-i18n'); label.textContent = t(this.error ? 'failed' : this.phase); }
         button.title = t(this.recording || this.wantRecording ? 'turnOff' : 'turnOn');
         button.setAttribute('aria-pressed', String(this.recording));
         button.setAttribute('aria-label', t(this.error || this.phase) + '. ' + button.title);
@@ -73,7 +73,7 @@
       this.requestId = null; clearTimeout(this.connectTimer);
       if (payload.error || !LK) { this.failedConnection(); return; }
       const ticket = this.generation;
-      const room = new LK.Room({ disconnectOnPageLeave: false,
+      const room = new LK.Room({ disconnectOnPageLeave: false, singlePeerConnection: false,
         reconnectPolicy: { nextRetryDelayInMs: () => null },
         publishDefaults: { audioPreset: LK.AudioPresets.speech, dtx: true, red: true } });
       this.room = room;
@@ -116,8 +116,10 @@
       }
     }
     async resumeAudio() {
+      try { if (!this.context) this.context = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) {}
       try {
-        await this.room?.startAudio(); await this.context?.resume();
+        // Invoke both while the user gesture is still active (including Safari).
+        await Promise.all([this.room?.startAudio(), this.context?.resume()]);
         this.playbackBlocked = !!this.room && !this.room.canPlaybackAudio;
       } catch (_) { this.playbackBlocked = true; }
       // LiveKit.startAudio unmutes attached elements as part of autoplay recovery.

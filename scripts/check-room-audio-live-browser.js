@@ -12,14 +12,16 @@ let stage = 'connect';
   const auth = JSON.parse(await fs.readFile(file, 'utf8'));
   const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || chromium.executablePath(),
     args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
-      '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
+      '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
+      ...(process.env.ROOM_AUDIO_AUTOPLAY_CHECK==='1'?[]:['--autoplay-policy=no-user-gesture-required'])] });
   const errors = [];
   const pages = []; let complete = false;
   const tokens = new WeakMap();
   try {
     async function enter(actor, room) {
-      const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, permissions: ['microphone'] });
-      await ctx.addInitScript(actor => {
+      const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 },
+        permissions: process.env.ROOM_AUDIO_AUTOPLAY_CHECK==='1'?[]:['microphone'] });
+      await ctx.addInitScript(({actor, autoplayCheck}) => {
         for (const key of ['token', 'userId', 'characterId']) localStorage.setItem(key, actor[key]);
         localStorage.setItem('locale', 'ru-RU');
         const get = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
@@ -27,8 +29,25 @@ let stage = 'connect';
         navigator.mediaDevices.getUserMedia = async (...args) => {
           const stream = await get(...args); window.audioTestTracks.push(...stream.getTracks()); return stream;
         };
-      }, actor);
+        if (autoplayCheck) {
+          const play = HTMLMediaElement.prototype.play;
+          window.audioAutoplayDenied = true;
+          HTMLMediaElement.prototype.play = function(...args) {
+            if (window.audioAutoplayDenied && this.tagName==='AUDIO' && this.srcObject) return Promise.reject(new DOMException('Autoplay denied for acceptance check','NotAllowedError'));
+            return play.apply(this,args);
+          };
+        }
+      }, {actor, autoplayCheck:process.env.ROOM_AUDIO_AUTOPLAY_CHECK==='1'});
       const page = await ctx.newPage(); page.setDefaultTimeout(45000);
+      if(process.env.ROOM_AUDIO_FORCE_RELAY==='1')await page.route('**/js/roomRealtimeAudio.js*',async route=>{
+        const response=await route.fetch();
+        const prefix=`window.LivekitClient = { ...window.LivekitClient, Room: class extends window.LivekitClient.Room {
+          constructor(options) { super(options); const connect=this.connect;
+            this.connect=(url,token,options)=>connect(url,token,{...options,rtcConfig:{iceTransportPolicy:'relay'}});
+          }
+        }};\n`;
+        await route.fulfill({status:response.status(),contentType:'application/javascript',body:prefix+await response.text()});
+      });
       pages.push(page);
       page.on('websocket', socket => socket.on('framereceived', event => {
         try { const m=JSON.parse(event.payload); if(m.type==='ROOM_AUDIO_SESSION'&&m.payload.token)tokens.set(page,m.payload.token); } catch (_) {}
@@ -38,6 +57,10 @@ let stage = 'connect';
       await page.waitForFunction(() => window.voiceChat?.isRealtime && voiceChat.phase === 'muted');
       await page.locator('#room-connection-overlay').waitFor({ state: 'hidden' });
       await page.evaluate(() => gameWorld.stopRendering()); // Bound software-rendering load; media remains real.
+      await page.evaluate(() => {
+        window.audioTestStops=[]; const stop=voiceChat.stopTalk.bind(voiceChat);
+        voiceChat.stopTalk=function(){audioTestStops.push(new Error().stack.split('\n').slice(2,5));return stop();};
+      });
       assert.equal(await page.evaluate(() => voiceChat.recording || voiceChat.wantRecording), false);
       assert.equal(await page.locator('script[src*="voiceChat.js"]').count(), 0);
       console.log('Admitted audio session with microphone off');
@@ -58,6 +81,15 @@ let stage = 'connect';
     await first.waitForFunction(() => voiceChat.recording);
     console.log('First microphone is publishing');
     await second.waitForFunction(() => voiceChat.remote.size === 1);
+    if (process.env.ROOM_AUDIO_AUTOPLAY_CHECK === '1') {
+      await second.waitForFunction(() => voiceChat.playbackBlocked);
+      await second.evaluate(() => { window.audioAutoplayDenied = false; });
+      await second.locator('#meeting-menu-toggle').click();
+      await second.locator('.meeting-audio-notice button').click();
+      await second.waitForFunction(() => !voiceChat.playbackBlocked && [...voiceChat.remote.values()].every(e=>!e.element.paused));
+      await second.locator('#meeting-menu-toggle').click();
+      console.log('Injected autoplay denial and explicit audio recovery through real media elements: OK');
+    }
     async function stats(page) {
       return page.evaluate(async () => {
         const track = [...voiceChat.remote.keys()][0];
@@ -73,15 +105,35 @@ let stage = 'connect';
     assert(after.bytes > before.bytes && after.energy > 0, 'Live RTP and audio energy must arrive while microphone stays on');
     assert(await first.evaluate(() => voiceChat.recording), 'Sender must not need to stop recording before audio arrives');
     assert.equal(await isolated.evaluate(() => voiceChat.remote.size), 0);
+    const animated = (page, id) => page.waitForFunction(id => {
+      MeetingMouthAnimation.update(gameWorld);
+      let amount=0;
+      gameWorld.players.get(id)?.group.userData.accountAvatarRoot?.traverse(mesh=>{
+        const index=mesh.morphTargetDictionary?.viseme_aa??mesh.morphTargetDictionary?.jawOpen;
+        if(Number.isInteger(index))amount=Math.max(amount,mesh.morphTargetInfluences[index]||0);
+      });
+      return amount>.01;
+    },id,{timeout:15000});
+    await animated(first,auth.actors[0].characterId); await animated(second,auth.actors[0].characterId);
+    console.log('Real local/remote avatar mouths follow live stream energy: OK');
     console.log('Live microphone RTP/energy before release and room isolation: OK');
-    await clickMic(second); await second.waitForFunction(() => voiceChat.recording);
+    if(process.env.ROOM_AUDIO_FORCE_RELAY==='1'){
+      assert.equal(after.candidateType,'relay');console.log('Forced authenticated TURN relay and received audio: OK');
+    }
+    await second.locator('#skill-voice-btn').press('Space'); await second.waitForFunction(() => voiceChat.recording);
     await first.waitForFunction(() => voiceChat.remote.size === 1);
     await first.waitForTimeout(1200); assert((await stats(first)).energy > 0, 'Simultaneous reverse audio');
+    const hold=Math.min(90,Math.max(0,Number(process.env.ROOM_AUDIO_HOLD_SECONDS)||0));
+    if(hold){
+      const initial=await stats(first);await first.waitForTimeout(hold*1000);
+      assert(await first.evaluate(()=>voiceChat.recording));assert(await second.evaluate(()=>voiceChat.recording));
+      assert((await stats(first)).bytes>initial.bytes);console.log('Continuous duplex speech survived '+hold+' seconds, including join-token expiry: OK');
+    }
     await second.evaluate(() => voiceChat.toggleMute());
     assert(await second.evaluate(() => [...voiceChat.remote.values()].every(e => e.element.muted)));
     assert(await second.evaluate(() => voiceChat.recording), 'Speaker mute must not stop microphone');
     await second.evaluate(() => voiceChat.toggleMute());
-    await clickMic(first); await first.waitForFunction(() => !voiceChat.recording && audioTestTracks.every(t => t.readyState === 'ended'));
+    await first.locator('#skill-voice-btn').press('Enter'); await first.waitForFunction(() => !voiceChat.recording && audioTestTracks.every(t => t.readyState === 'ended'));
     const oldIdentity = await first.evaluate(() => voiceChat.room.localParticipant.identity);
     const oldToken = tokens.get(first);
     await first.evaluate(() => WSClient.ws.close());
@@ -109,37 +161,6 @@ let stage = 'connect';
     assert(await first.evaluate(() => !voiceChat.wantRecording && !voiceChat.recording));
     await first.evaluate(() => { navigator.mediaDevices.getUserMedia = window.originalAudioCapture; });
     console.log('Permission denial remains retryable without live capture: OK');
-    if (process.env.ROOM_AUDIO_FORCE_RELAY === '1') {
-      stage = 'relay receiver reconnect';
-      await second.evaluate(() => {
-        const Peer = window.RTCPeerConnection;
-        window.RTCPeerConnection = class extends Peer {
-          constructor(config) { super({ ...config, iceTransportPolicy: 'relay' }); }
-          setConfiguration(config) { super.setConfiguration({ ...config, iceTransportPolicy: 'relay' }); }
-        };
-        voiceChat.connect();
-      });
-      await second.waitForFunction(() => voiceChat.phase === 'muted');
-      console.log('Forced relay session connected');
-      await clickMic(isolated); await isolated.waitForFunction(() => voiceChat.recording);
-      await clickMic(second); await second.waitForFunction(() => voiceChat.recording);
-      stage = 'relay publication';
-      await first.waitForFunction(() => voiceChat.remote.size === 1);
-      stage = 'relay subscriber reconnect';
-      // A subscriber relay candidate proves the receive path as well as publication.
-      await first.evaluate(() => {
-        const Peer = window.RTCPeerConnection;
-        window.RTCPeerConnection = class extends Peer {
-          constructor(config) { super({ ...config, iceTransportPolicy: 'relay' }); }
-          setConfiguration(config) { super.setConfiguration({ ...config, iceTransportPolicy: 'relay' }); }
-        };
-        voiceChat.connect();
-      });
-      await first.waitForFunction(() => voiceChat.phase === 'muted' && voiceChat.remote.size === 1);
-      await first.waitForTimeout(1500);
-      const relay = await stats(first); assert.equal(relay.candidateType, 'relay'); assert(relay.energy > 0);
-      console.log('Forced authenticated TURN relay and received audio: OK');
-    }
     const beforeExit = await second.evaluate(() => [...audioTestTracks].length);
     stage = 'teardown';
     assert(beforeExit > 0);
@@ -152,7 +173,7 @@ let stage = 'connect';
     if (!complete) for (const page of pages) {
       try { console.log('Audio diagnostic:', await page.evaluate(() => ({phase:voiceChat?.phase,error:voiceChat?.error,
         recording:voiceChat?.recording,want:voiceChat?.wantRecording,remote:voiceChat?.remote.size,
-        tracks:window.audioTestTracks?.map(t=>t.readyState)}))); } catch (_) {}
+        tracks:window.audioTestTracks?.map(t=>t.readyState),stops:window.audioTestStops}))); } catch (_) {}
     }
     await browser.close();
   }

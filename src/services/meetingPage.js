@@ -6,7 +6,7 @@ const source = path.resolve(__dirname, '../../public/index.html');
 // the server preserves parser execution order and the window load lifecycle.
 function renderMeetingPage(html) {
   if (process.env.ROOM_REALTIME_AUDIO_ENABLED === 'true') html = html.replace(/<script src="js\/voiceChat\.js[^"]*"><\/script>/,
-    '<script src="/vendor/livekit/livekit-client-2.23.0.js"></script><script src="/js/roomRealtimeAudio.js?v=1"></script>');
+    '<script src="/vendor/livekit/livekit-client-2.18.10.js"></script><script src="/js/roomRealtimeAudio.js?v=1"></script>');
   return html.replace(/<script\b[^>]*\bdata-world-only\b[^>]*>[\s\S]*?<\/script\s*>/gi, '');
 }
 let cached;

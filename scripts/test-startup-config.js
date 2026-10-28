@@ -6,6 +6,14 @@ const os=require('node:os');
 const {ConfigurationError,validateStartupConfiguration,adminConfigurationIssues,logStartupError}=require('../src/services/startupConfig');
 const valid={DB_PASSWORD:'Fixture-private-password',WORLD_URL:'http://localhost:3002',ADMIN_USERNAME:'admin',ADMIN_PASSWORD:'Fixture-admin-password',PORT:'3002',DB_PORT:'5432',TRUST_PROXY:'false',BIND_ADDRESS:'127.0.0.1'};
 validateStartupConfiguration(valid);
+const audio={ROOM_REALTIME_AUDIO_ENABLED:'true',LIVEKIT_URL:'wss://example.org/livekit',
+ LIVEKIT_INTERNAL_URL:'http://host.docker.internal:7880',LIVEKIT_API_KEY:'fixture',LIVEKIT_API_SECRET:'x'.repeat(64)};
+validateStartupConfiguration({...valid,...audio});
+for(const [key,value] of [['LIVEKIT_URL','https://wrong-protocol.invalid'],['LIVEKIT_INTERNAL_URL','http://user:PRIVATE_SECRET@example.org'],['LIVEKIT_API_SECRET','short']]){
+ let invalid;try{validateStartupConfiguration({...valid,...audio,[key]:value});}catch(error){invalid=error;}
+ assert(invalid instanceof ConfigurationError);assert(invalid.issues.some(issue=>issue.key===key));
+ const output=[];logStartupError(invalid,(...args)=>output.push(args.join(' ')));assert(!output.join('\n').includes('PRIVATE_SECRET'));
+}
 // Aggregate errors, so the operator can fix the configuration in one edit.
 let missing;
 try{validateStartupConfiguration({});}catch(error){missing=error;}

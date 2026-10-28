@@ -7,11 +7,17 @@ template hashes were unchanged. Rollback image: `3dtalks:before-compat-78eb7f9e`
 Realtime work starts independently in `codex/realtime-voice` from this merge.
 
 ## Architecture
-LiveKit SFU, audio only: server 1.13.11, client SDK 2.23.0, server SDK 2.19.2.
+LiveKit SFU, audio only: server 1.13.11, client SDK 2.18.10, server SDK 2.19.2.
 Bundle the client locally with esbuild and its licence. Keep existing Express,
 PostgreSQL and room WS for admission, chat, seats and presentations. No mesh,
 Redis, camera, recording or egress in this single-node trial. A six-person mesh
 needs fifteen peer links and complicates future server enforcement.
+
+Use `singlePeerConnection: false` with the pinned browser SDK. The newer
+single-connection configuration did not pass the relay-only acceptance scenario
+on this stack; the explicit dual-connection configuration passed it. Do not
+upgrade the SDK or switch topology without repeating direct and forced-relay
+publish/subscribe checks. Keep the documented UDP range for this tested setup.
 
 References: [deployment](https://docs.livekit.io/transport/self-hosting/deployment/),
 [ports](https://docs.livekit.io/transport/self-hosting/ports-firewall/),
@@ -54,7 +60,7 @@ Roster labels describe live media rather than recording a voice message.
 The trial VPS has approximately 1 GiB RAM: one capped audio SFU, existing app and
 PostgreSQL; measure actual consumption. Do not enable PPTX conversion or video
 conferencing. Signaling uses trusted HTTPS under `/livekit/`; API 7880 stays
-private. ICE UDP 7882, ICE TCP 7881 and authenticated embedded TURN UDP 443 provide
+private. ICE UDP 50000–50199, ICE TCP 7881 and authenticated embedded TURN UDP 443 provide
 NAT traversal and a TCP fallback. Corporate networks permitting only TCP 443 need
 TURN/TLS with a separate hostname/certificate or proxy arrangement; do not claim
 universal connectivity. Preserve existing HTTPS and explicit firewall rules.
@@ -67,6 +73,9 @@ and speaker mute, recovery without capture, late permission cancellation,
 autoplay recovery, mouth animation, room isolation and teardown. Force TURN relay
 in a bounded separate check. Run relevant room/presentation regressions.
 These checks do not establish physical microphone quality or every network.
+The relay acceptance check injects the SDK's supported `rtcConfig` relay policy;
+it does not replace native peer connections. Autoplay-denial coverage injects a
+rejected media-element play promise, then exercises the real enable-audio action.
 
 Commit reviewed stages and push the separate branch. Before deployment preserve
 image/ref/environment and normal data backup. Deploy SFU behind admission gate

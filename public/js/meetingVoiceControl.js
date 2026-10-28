@@ -33,6 +33,7 @@
       held = false; window.voiceChat?.stopTalk();
     }
     button.addEventListener('pointerdown', event => {
+      if(window.voiceChat?.isRealtime)return; // Native click also supports assistive technology.
       if (event.button !== 0) return;
       event.preventDefault(); event.stopPropagation();
       button.setPointerCapture(event.pointerId); start();
@@ -40,10 +41,16 @@
     for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) button.addEventListener(event, stop);
     button.addEventListener('keydown', event => {
       if (![' ', 'Enter'].includes(event.key)) return;
+      if(window.voiceChat?.isRealtime){event.stopPropagation();return;}
       event.preventDefault();event.stopPropagation(); if (!event.repeat) start();
     });
     button.addEventListener('keyup', event => {
+      if(window.voiceChat?.isRealtime){if([' ','Enter'].includes(event.key))event.stopPropagation();return;}
       if ([' ', 'Enter'].includes(event.key)) { event.preventDefault();event.stopPropagation(); stop(); }
+    });
+    button.addEventListener('click',event=>{
+      if(!window.voiceChat?.isRealtime)return;
+      event.preventDefault();event.stopPropagation();start();
     });
     button.addEventListener('blur', stop);
     window.addEventListener('blur', stop);

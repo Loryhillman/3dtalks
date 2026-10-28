@@ -645,7 +645,7 @@ Self-hosting additionally requires `compose.audio.yaml`, a private
 `.local-state/livekit.yaml` based on `deploy/livekit.example.yaml`, matching random
 credentials in `.env`, and the Nginx admission configuration in
 `deploy/nginx-livekit.conf.example`. Never expose port 7880 publicly or bypass its
-RTC admission gate. Open UDP 443/7882 and TCP 7881. TURN/TLS for networks permitting
+RTC admission gate. Open UDP 443/50000–50199 and TCP 7881. TURN/TLS for networks permitting
 only TCP 443 needs additional deployment work. Local WSL TURN testing needs the
 current WSL interface IP and an exact restricted-peer exception for that IP;
 never copy a broad private-network allowlist into production.
