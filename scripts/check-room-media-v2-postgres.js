@@ -6,7 +6,7 @@ async function main(){
  const config={connectionString:process.env.ROOM_TEST_DATABASE_URL,statement_timeout:15000},admin=new Pool(config);
  const schema='media_v2_'+randomUUID().replaceAll('-','');await admin.query('CREATE SCHEMA '+schema);
  const pool=new Pool({...config,options:'-c search_path='+schema+',pg_catalog'});
- const migration=await fs.readFile(path.join(__dirname,'../database/migrations/add_room_media_v2.sql'),'utf8');
+ const migration=(await Promise.all(['add_room_media_v2.sql','add_room_video_portrait.sql'].map(name=>fs.readFile(path.join(__dirname,'../database/migrations',name),'utf8')))).join('\n');
  const apply=async()=>{const c=await pool.connect();try{await c.query('BEGIN');await c.query(migration);await c.query('COMMIT');}catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}};
  try{
   await pool.query(`CREATE TABLE users(id uuid PRIMARY KEY);CREATE TABLE admin_users(id int PRIMARY KEY);
@@ -39,6 +39,9 @@ async function main(){
    VALUES($1,$2,$3,$4,'video','Fixture.mp4',41943040,83886080,$5,'checking',now())`,[video,room,owner,randomUUID(),randomUUID()]);
   await invalid(`UPDATE room_media_assets SET state='ready',byte_size=10,reserved_bytes=10,checksum=repeat('0',64),mime='video/mp4' WHERE id='${video}'`);
   await pool.query(`UPDATE room_media_assets SET state='ready',byte_size=41943040,reserved_bytes=41943040,checksum=repeat('0',64),mime='video/mp4',video_duration_ms=600000,video_width=1920,video_height=1080,video_fps=30,video_codec='h264',video_pixel_format='yuv420p',video_audio_codec='aac' WHERE id=$1`,[video]);
+  await pool.query('UPDATE room_media_assets SET video_width=1080,video_height=1920 WHERE id=$1',[video]);await apply();await apply();
+  assert.equal((await pool.query('SELECT video_height FROM room_media_assets WHERE id=$1',[video])).rows[0].video_height,1920);
+  await pool.query('UPDATE room_media_assets SET video_width=1920,video_height=1080 WHERE id=$1',[video]);
   for(const patch of ["video_duration_ms=600001","video_width=1921","video_height=1081","video_fps='NaN'","video_fps=30.1","video_codec='hevc'","video_pixel_format='yuv444p'","video_audio_codec='opus'","video_width=NULL","page_count=1","mime='application/pdf'","declared_bytes=41943041","reserved_bytes=83886081","byte_size=41943041,reserved_bytes=41943041"]){await invalid(`UPDATE room_media_assets SET ${patch} WHERE id='${video}'`);}
   await invalid(`UPDATE room_presentation_state SET playback_status='playing' WHERE room_id='${room}'`);
   await invalid(`UPDATE room_presentation_state SET playback_anchor_at=now() WHERE room_id='${room}'`);
@@ -48,7 +51,7 @@ async function main(){
   await invalid(`UPDATE room_presentation_state SET asset_id=NULL WHERE room_id='${room}'`);
   await pool.query("UPDATE room_presentation_state SET asset_id=NULL,playback_status='paused',playback_position_ms=0,playback_anchor_at=NULL WHERE room_id=$1",[room]);
   await pool.query('UPDATE room_media_assets SET source_format=$2 WHERE id=$1',[pdf,'pptx']);
-  const service=require('../src/services/roomMedia').createRoomMediaService(pool,{processor:{available:()=>true,close(){}}});
+  const service=require('../src/services/roomMedia').createRoomMediaService(pool,{processor:{available:()=>true,close(){}},features:()=>require('../public/js/roomMediaContract').features()});
   try{for(const kind of ['video','pptx'])await assert.rejects(service.reserve(owner,room,{requestId:randomUUID(),kind,name:'Unsupported',bytes:10}),e=>e.code===(kind==='video'?'VIDEO_UNAVAILABLE':'INVALID_UPLOAD'));}finally{await service.close();}
   await apply();
   console.log('PostgreSQL V2: repeated migration preserved V1 assets/rooms/state/receipts; SQL rejected invalid video metadata/ready states/timeline; upload remained fail-closed.');

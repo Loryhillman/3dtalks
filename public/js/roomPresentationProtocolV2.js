@@ -21,7 +21,7 @@
     const a=v.asset,p=v.playback;
     return uuid(v.roomId)&&uuid(v.epoch)&&revision(v.revision)&&v.pageIndex===0&&
       keys(a,['id','name','kind','durationMs','width','height'])&&uuid(a.id)&&typeof a.name==='string'&&a.name.length<=120&&a.kind==='video'&&
-      bounded(a.durationMs,1,video.durationMs)&&bounded(a.width,1,video.width)&&bounded(a.height,1,video.height)&&
+      bounded(a.durationMs,1,video.durationMs)&&Media.videoDimensions(a.width,a.height)&&
       keys(p,['status','positionMs','anchorServerTimeMs'])&&bounded(p.positionMs,0,a.durationMs)&&
       (p.status==='paused'&&p.anchorServerTimeMs===null||p.status==='playing'&&timestamp(p.anchorServerTimeMs)&&p.positionMs<a.durationMs);
   }

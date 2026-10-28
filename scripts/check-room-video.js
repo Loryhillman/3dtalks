@@ -9,7 +9,7 @@ async function main(){
  let service,server,browser,enabled=false,clock=Date.now();
  try{
   await pool.query(`CREATE TABLE users(id uuid PRIMARY KEY);CREATE TABLE admin_users(id int PRIMARY KEY);CREATE TABLE characters(id uuid PRIMARY KEY);CREATE TABLE geometry_buildings(id serial PRIMARY KEY,user_id integer NOT NULL);CREATE TABLE world_objects(id serial PRIMARY KEY,type text,position_x float,position_z float,created_at timestamptz);`);
-  for(const name of ['add_rooms.sql','add_room_rejoin_grants.sql','add_room_seats.sql','add_user_rooms.sql','add_room_media.sql','add_room_presentation.sql','add_room_media_v2.sql'])await pool.query(await fs.readFile(path.join(__dirname,'../database/migrations',name),'utf8'));
+  for(const name of ['add_rooms.sql','add_room_rejoin_grants.sql','add_room_seats.sql','add_user_rooms.sql','add_room_media.sql','add_room_presentation.sql','add_room_media_v2.sql','add_room_video_portrait.sql'])await pool.query(await fs.readFile(path.join(__dirname,'../database/migrations',name),'utf8'));
   const owner=randomUUID(),other=randomUUID(),room=randomUUID(),foreign=randomUUID();
   await pool.query('INSERT INTO users VALUES($1),($2)',[owner,other]);
   for(const [id,user] of [[room,owner],[foreign,other]])await pool.query("INSERT INTO rooms(id,slug,name,owner_user_id,status) VALUES($1::uuid,$1::text,'Fixture',$2,'open')",[id,user]);
@@ -63,7 +63,7 @@ async function main(){
   assert.equal((await request(content,{actor:null,cookie:fresh})).status,403);
   await pool.query('UPDATE room_media_assets SET lease_until=now() WHERE id=$1',[id]);await service.cleanup();assert.equal(Number((await pool.query('SELECT reserved_bytes FROM room_media_assets WHERE id=$1',[id])).rows[0].reserved_bytes),0);
   // Invalid real codec never becomes ready and releases charge after cleanup.
-  const bad=await fs.readFile(video(directory,{codec:'mpeg4'}));const badReserve=await request('/uploads',{method:'POST',body:{...reservation,requestId:randomUUID(),bytes:bad.length}});const badId=(await badReserve.json()).upload.id;const badForm=new FormData();badForm.append('file',new Blob([bad]),'looks-valid.mp4');const invalid=await request('/uploads/'+badId+'/file',{method:'POST',body:badForm});assert.equal(invalid.status,422);assert.equal((await invalid.json()).code,'UNSUPPORTED_VIDEO');
+  const bad=await fs.readFile(video(directory,{codec:'mpeg4'}));const badReserve=await request('/uploads',{method:'POST',body:{...reservation,requestId:randomUUID(),bytes:bad.length}});const badId=(await badReserve.json()).upload.id;const badForm=new FormData();badForm.append('file',new Blob([bad]),'looks-valid.mp4');const invalid=await request('/uploads/'+badId+'/file',{method:'POST',body:badForm});assert.equal(invalid.status,422);assert.equal((await invalid.json()).code,'VIDEO_CODEC_UNSUPPORTED');
   const disabled=await request('/uploads',{method:'POST',body:{...reservation,requestId:randomUUID()}});const disabledId=(await disabled.json()).upload.id;enabled=false;
   const disabledForm=new FormData();disabledForm.append('file',new Blob([bytes]),'Clip.mp4');
   assert.equal((await request('/uploads/'+disabledId+'/file',{method:'POST',body:disabledForm})).status,503);

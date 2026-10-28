@@ -9,7 +9,7 @@ async function main(){
  try{
   for(let n=0;n<100&&!importer.available();n++)await new Promise(r=>setTimeout(r,100));assert(importer.available(),'isolated converter heartbeat');
   await pool.query('CREATE TABLE users(id uuid PRIMARY KEY,room_character_id uuid,avatar_config jsonb);CREATE TABLE admin_users(id int PRIMARY KEY);CREATE TABLE characters(id uuid PRIMARY KEY,user_id uuid,name text,last_position jsonb,last_online timestamptz);CREATE TABLE geometry_buildings(id serial PRIMARY KEY,user_id integer NOT NULL);CREATE TABLE world_objects(id serial PRIMARY KEY,type text,position_x float,position_z float,created_at timestamptz);');
-  for(const migration of ['add_rooms.sql','add_room_rejoin_grants.sql','add_room_seats.sql','add_user_rooms.sql','add_room_media.sql','add_room_presentation.sql','add_room_media_v2.sql'])await pool.query(await fs.readFile(path.join(__dirname,'../database/migrations',migration),'utf8'));
+  for(const migration of ['add_rooms.sql','add_room_rejoin_grants.sql','add_room_seats.sql','add_user_rooms.sql','add_room_media.sql','add_room_presentation.sql','add_room_media_v2.sql','add_room_video_portrait.sql'])await pool.query(await fs.readFile(path.join(__dirname,'../database/migrations',migration),'utf8'));
   const owner=randomUUID(),other=randomUUID(),room=randomUUID();for(const id of [owner,other])await pool.query('INSERT INTO users(id) VALUES($1)',[id]);
   await pool.query("INSERT INTO rooms(id,slug,name,owner_user_id,status,seating_mode) VALUES($1,$2,'PPTX fixture',$3,'open','seated')",[room,room,owner]);
   service=require('../src/services/roomMedia').createRoomMediaService(pool,{directory:dir,pptx:importer,features:()=>({videoUpload:false,videoPlayback:false,pptxImport:enabled})});

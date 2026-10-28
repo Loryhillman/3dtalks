@@ -11,7 +11,7 @@ const slides={roomId,epoch,revision:'9',asset:{id,name:'Slides',kind:'pdf',pageC
 assert(Legacy.state(slides));assert(V2.state({...slides,protocolVersion:2,playback:null}));
 assert(!V2.state({...slides,protocolVersion:2,playback:{status:'playing',positionMs:0,anchorServerTimeMs:1}}));
 const state={protocolVersion:2,roomId,epoch,revision:'10',asset:{id,name:'Video',kind:'video',durationMs:10000,width:1920,height:1080},pageIndex:0,playback:{status:'playing',positionMs:500,anchorServerTimeMs:1700000000000}};
-assert(V2.state(state));assert(!Legacy.state(state));
+assert(V2.state(state));assert(V2.state({...state,asset:{...state.asset,width:1080,height:1920}}));assert(!V2.state({...state,asset:{...state.asset,width:1081,height:1920}}));assert(!Legacy.state(state));
 assert(Legacy.state(V2.legacyState(state)));assert.equal(V2.legacyState(state).asset,null);
 assert.deepEqual(V2.legacyState({...slides,protocolVersion:2,playback:null}),slides);
 assert.equal(V2.legacyState({...state,pageIndex:1}),null);
@@ -28,7 +28,7 @@ assert(V2.clockResponse({protocolVersion:2,nonce:id,receivedAtMs:10,sentAtMs:11}
 for(const patch of [{sentAtMs:9},{receivedAtMs:NaN},{sentAtMs:8640000000000001},{nonce:'bad'},{roomId}])assert(!V2.clockResponse({protocolVersion:2,nonce:id,receivedAtMs:10,sentAtMs:11,...patch}));
 assert.deepEqual(Media.importLimits,{video:{bytes:20*1024**2,durationMs:180000},pptx:{bytes:5*1024**2,pages:20}});
 // Released 10-minute assets remain valid for playback despite stricter import caps.
-const metadata={durationMs:600000,width:1920,height:1080,fps:30,codec:'h264',pixelFormat:'yuv420p',audioCodec:'aac'};assert(Media.videoMetadata(metadata));assert(Media.videoMetadata({...metadata,audioCodec:null}));
+const metadata={durationMs:600000,width:1920,height:1080,fps:30,codec:'h264',pixelFormat:'yuv420p',audioCodec:'aac'};assert(Media.videoMetadata(metadata));assert(Media.videoMetadata({...metadata,width:1080,height:1920}));assert(Media.videoMetadata({...metadata,audioCodec:null}));
 for(const patch of [{durationMs:600001},{width:1921},{height:1081},{fps:30.01},{fps:NaN},{fps:Infinity},{codec:'hevc'},{pixelFormat:'yuv444p'},{audioCodec:'opus'},{audioCodec:undefined},{path:'../secret'}])assert(!Media.videoMetadata({...metadata,...patch}));
 assert.deepEqual(Media.features(),{videoUpload:false,videoPlayback:false,pptxImport:false});
 assert.equal(Media.features({ROOM_VIDEO_PLAYBACK_ENABLED:'true'}).videoPlayback,false);

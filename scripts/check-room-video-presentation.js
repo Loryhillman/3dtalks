@@ -14,7 +14,7 @@ async function main(){
    CREATE TABLE admin_users(id int PRIMARY KEY);CREATE TABLE characters(id uuid PRIMARY KEY,user_id uuid,name text,last_position jsonb,last_online timestamptz);
    CREATE TABLE geometry_buildings(id serial PRIMARY KEY,user_id integer NOT NULL);
    CREATE TABLE world_objects(id serial PRIMARY KEY,type text,position_x float,position_y float,position_z float,created_at timestamptz);`);
-  for(const name of ['add_rooms.sql','add_room_rejoin_grants.sql','add_room_seats.sql','add_user_rooms.sql','add_room_media.sql','add_room_presentation.sql','add_room_presentation.sql','add_room_media_v2.sql','add_room_media_v2.sql'])
+  for(const name of ['add_rooms.sql','add_room_rejoin_grants.sql','add_room_seats.sql','add_user_rooms.sql','add_room_media.sql','add_room_presentation.sql','add_room_presentation.sql','add_room_media_v2.sql','add_room_video_portrait.sql','add_room_media_v2.sql','add_room_video_portrait.sql'])
    await pool.query(await fs.readFile(path.join(__dirname,'../database/migrations',name),'utf8'));
   const rooms=[randomUUID(),randomUUID()],users=Array.from({length:7},()=>({id:randomUUID(),character:randomUUID()}));
   for(const u of users){await pool.query('INSERT INTO users VALUES($1,$2,NULL)',[u.id,u.character]);await pool.query('INSERT INTO characters(id,user_id,name) VALUES($1,$2,$3)',[u.character,u.id,'Fixture']);}

@@ -61,4 +61,4 @@ process.once('disconnect',()=>{
 });
 const finish=message=>process.send(message,()=>process.exit(0));
 inspect(kind,input,output).then(result=>finish({result}),error=>finish({error:
-  ['FILE_TOO_LARGE','ENCRYPTED_PDF','TOO_MANY_PAGES','PROCESSOR_UNAVAILABLE','UNSUPPORTED_VIDEO','INVALID_VIDEO','VIDEO_LIMIT_EXCEEDED'].includes(error.code)?error.code:kind==='video'?'INVALID_VIDEO':kind==='pdf'?'INVALID_PDF':'INVALID_IMAGE'}));
+  ['FILE_TOO_LARGE','ENCRYPTED_PDF','TOO_MANY_PAGES','PROCESSOR_UNAVAILABLE','UNSUPPORTED_VIDEO','INVALID_VIDEO','VIDEO_LIMIT_EXCEEDED','VIDEO_TRACKS_UNSUPPORTED','VIDEO_CODEC_UNSUPPORTED','VIDEO_AUDIO_UNSUPPORTED','VIDEO_FPS_UNSUPPORTED','VIDEO_ROTATION_UNSUPPORTED','VIDEO_DIMENSIONS_UNSUPPORTED'].includes(error.code)?error.code:kind==='video'?'INVALID_VIDEO':kind==='pdf'?'INVALID_PDF':'INVALID_IMAGE'}));
