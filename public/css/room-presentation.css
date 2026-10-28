@@ -49,8 +49,9 @@
 
 .presentation-video-commands { display: grid; gap: 12px; }
 .presentation-video-commands input, .presentation-video-local input { min-width: 0; width: 100%; min-height: 44px; accent-color: var(--color-primary-action); }
-.presentation-video-local { display: grid; gap: 8px; width: 100%; }
-.presentation-video-local label { display: grid; grid-template-columns: auto minmax(0,1fr); align-items: center; gap: 8px; }
+.presentation-video-local { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; width: auto; max-width: 100%; min-width: 0; }
+.presentation-video-local label { display: grid; grid-template-columns: auto minmax(72px,120px); align-items: center; gap: 8px; max-width: 100%; }
+.presentation-video-local output { font-size: var(--font-size-meta); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .presentation-video-local span { font-size: var(--font-size-meta); color: var(--color-text-muted); }
 .presentation-video-local [hidden], .presentation-video-commands[hidden] { display: none !important; }
 

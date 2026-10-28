@@ -754,3 +754,27 @@ codex/release-1.1.0, тег v1.1.0 и интеграция в main с сохра
 Runtime на VPS по-прежнему 7f8896e8; финальные review fixes не разворачивались.
 PPTX на VPS выключен по RAM. Ветки LiveKit и старые checkpoint-теги не менять;
 не продолжать функциональные изменения автоматически после фиксации выпуска.
+
+
+## Компактный frontend переговорной
+
+По новому поручению создана codex/meeting-ui-refinement от тега v1.1.0.
+Выполнено: центральная двухколоночная сетка мест вместо угловой панели,
+компактная верхняя карточка с раскрываемым меню, нижний dock микрофона/чата,
+сохранение черновика и unread counter, Enter/Escape/IME/focus, компактный local
+video volume и заметка blocked/Retry на свёрнутом меню. Выбор мест временно
+сворачивает остальные панели; открытие чата/меню завершает осмотр мест.
+
+Оболочкой владеет MeetingUI, RoomSeating сохраняет серверный pending/занятость
+и явное подтверждение пересадки. Не дублировать mic/chat handlers и не вводить
+новые API ради видимости панелей. Observer menu attention освобождается на stop.
+Сохранены scoped design tokens и 44px hit areas; editor/legacy UI не оформлять
+этими стилями. SQL, runtime dependencies, Three.js и Compose не изменялись.
+
+PASS: HUD (3 языка/9 размеров, keyboard viewport, частичный text zoom, unread,
+IME, drafts, mic/roster), полный /play --builtin-v3 --human-avatars --video,
+материалы/presentation, seat picker occupancy/race и video lifecycle.
+Просмотрены скриншоты. Подробности и ручная приёмка —
+docs/design-system/meeting-ui-refinement.md. Доступно в локальном dev после
+Ctrl+Shift+R; VPS/push/merge этой задачей не выполнялись. Остановиться для
+пользовательской проверки, дальнейшие изменения не расширять автоматически.
