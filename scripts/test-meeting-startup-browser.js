@@ -124,6 +124,7 @@ let browser;
  assert(cameraCheck.distance<.02,JSON.stringify(cameraCheck));assert.equal(cameraCheck.peer,true);assert.deepEqual(cameraCheck.seat,seatBeforeCamera);
  await page.evaluate(()=>RoomSeating.message('ROOM_SEATS_STATE',{roomId:'a1000000-0000-4000-8000-000000000001',version:1,seats:[{id:'one',label:'1',occupancy:'active',character_id:'me',position:{x:0,y:1,z:0},...window.fixtureSeats?.[0]}]}));
  await page.locator('#room-places-toggle').click();await page.waitForFunction(()=>!document.getElementById('room-seat-picker').hidden&&player.worldObject.visible);
+ if(process.env.MEETING_UI_SCREENSHOTS==='1'){await page.waitForTimeout(120);await page.screenshot({path:'/tmp/meeting-seats-live-refinement.png'});}
  await page.keyboard.press('Escape');await page.waitForFunction(()=>!player.worldObject.visible);
  await page.locator('#meeting-camera-toggle').click();await page.waitForFunction(()=>GAME_STATE.cameraMode==='third-person'&&player.worldObject.visible);
  assert.deepEqual(await page.evaluate(()=>player.position.toArray()),seatBeforeCamera);
