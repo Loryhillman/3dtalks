@@ -11,6 +11,14 @@
   локализация и cleanup pending. QA — ../../MEETING_MINOR_UPDATES.md.
   Контрольные теги и WebRTC-ветка не менялись.
 
+## [1.7.0] — 2026-10-28
+### Added
+- Experimental: gated PPTX upload в существующей RoomMaterials, понятное
+  предупреждение о конвертации/ограничениях/временной квоте, PDF from PPTX
+  в строке файла и автоматический прежний PDF preview; RU/EN/zh-CN.
+- Прежние tokens/layout/buttons/dialog/pager сохранены. Конвертер и gate —
+  ROOM_MEDIA_V2_PLAN.md, раздел 13. VPS/публичное включение не выполнялись.
+
 ## [1.6.0] — 2026-10-27
 ### Added
 - Согласованное расширение существующих RoomPresentation/RoomMaterials:

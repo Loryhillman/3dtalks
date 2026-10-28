@@ -1,7 +1,7 @@
 /** Real client modules/PDF worker/canvas; owner HTTP data are isolated fixtures. */
 const assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path'),{randomUUID}=require('node:crypto');
 const express=require('express'),multer=require('multer'),sharp=require('sharp'),{chromium}=require('playwright');
-const {pdf}=require('./room-media-fixtures');let browser,server,release,releaseUpload;
+const {pdf}=require('./room-media-fixtures');const pptxMode=process.argv.includes('--pptx');let browser,server,release,releaseUpload;
 (async()=>{try{
  const image=await sharp({create:{width:80,height:60,channels:3,background:'#00ff00'}}).webp().toBuffer();
  const roomId=randomUUID(),pdfId=randomUUID(),imageId=randomUUID(),slowId=randomUUID();
@@ -13,9 +13,10 @@ const {pdf}=require('./room-media-fixtures');let browser,server,release,releaseU
  app.get('/api/config/language',(_q,s)=>s.json({language:'en-US'}));
  app.use(prefix,(q,s,next)=>{if(q.headers.authorization!=='Bearer fixture')return s.sendStatus(401);assert(!q.url.includes('token='));next();});
  let holdUpload=false,denyList=false,failList=false,activeDelete=false,deleteFailure=false,deleteBodies=[];
+ app.get(prefix+'/capabilities',(_q,s)=>pptxMode?s.json({features:{videoUpload:false,videoPlayback:false,pptxImport:true}}):s.status(404).json({code:'UNAVAILABLE'}));
  app.get(prefix,(_q,s)=>denyList?s.sendStatus(401):failList?s.status(503).json({code:'FAILED'}):s.json({materials:[...materials.values()],quota:{bytes:1000,count:materials.size,byteLimit:100*1024**2,countLimit:20}}));
- app.post(prefix+'/uploads',(q,s)=>{const id=randomUUID(),asset={id,name:q.body.name,kind:q.body.kind,state:'reserved',pageCount:2};materials.set(id,asset);s.json({upload:asset});});
- app.post(prefix+'/uploads/:id/file',multer({storage:multer.memoryStorage()}).single('file'),async(q,s)=>{const asset=materials.get(q.params.id);if(holdUpload)await new Promise(r=>releaseUpload=r);if(asset.state==='cancelled'||s.destroyed)return s.end();asset.state='ready';assert(q.file.buffer.equals(pdf({script:true})));s.json({material:asset});});
+ app.post(prefix+'/uploads',(q,s)=>{const id=randomUUID(),asset={id,name:q.body.name,kind:q.body.kind,...(q.body.sourceFormat?{sourceFormat:q.body.sourceFormat}:{}),state:'reserved',pageCount:2};materials.set(id,asset);s.json({upload:asset});});
+ app.post(prefix+'/uploads/:id/file',multer({storage:multer.memoryStorage()}).single('file'),async(q,s)=>{const asset=materials.get(q.params.id);if(holdUpload)await new Promise(r=>releaseUpload=r);if(asset.state==='cancelled'||s.destroyed)return s.end();asset.state='ready';if(asset.sourceFormat==='pptx')assert(q.file.buffer.equals(await fs.readFile(path.join(__dirname,'fixtures/room-pptx/valid.pptx'))));else assert(q.file.buffer.equals(pdf({script:true})));s.json({material:asset});});
  app.delete(prefix+'/uploads/:id',(q,s)=>{const asset=materials.get(q.params.id);asset.state='cancelled';s.json({upload:asset});});
  app.delete(prefix+'/:id',(q,s)=>{
   deleteBodies.push(q.body);
@@ -28,7 +29,7 @@ const {pdf}=require('./room-media-fixtures');let browser,server,release,releaseU
   const asset=materials.get(q.params.id);if(!asset)return s.sendStatus(404);
   if(asset.id===slowId)await new Promise(r=>release=r);
   if(s.destroyed)return;
-  s.set('Cache-Control','private, no-store').type(asset.kind==='pdf'?'application/pdf':'image/webp').send(asset.kind==='pdf'?pdf({script:true}):image);
+  s.set('Cache-Control','private, no-store').type(asset.kind==='pdf'?'application/pdf':'image/webp').send(asset.kind==='pdf'?(asset.sourceFormat==='pptx'&&process.env.ROOM_PPTX_TEST_PDF?await fs.readFile(process.env.ROOM_PPTX_TEST_PDF):pdf({script:true})):image);
  });
  app.get('/fixture',(q,s)=>s.send(`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">${q.query.meeting?'':'<link rel="stylesheet" href="/css/app-ui.css">'}<link rel="stylesheet" href="/css/room-materials.css"><body class="${q.query.meeting?'meeting-session':'app-ui'}"><button id="open">Materials</button><script src="/i18n/i18n.js"></script><script src="/js/roomMediaRenderer.js"></script><script src="/js/roomMaterials.js"></script><script>i18n.init().then(()=>{document.getElementById('open').onclick=()=>RoomMaterials.open({id:'${roomId}',name:'Переговорная для встреч команды'});window.ready=true;});</script></body>`));
  app.use(express.static(path.resolve(__dirname,'../public')));
@@ -133,6 +134,18 @@ const {pdf}=require('./room-media-fixtures');let browser,server,release,releaseU
  assert.equal(await page.locator('#materials-list').getAttribute('aria-busy'),'false');
  assert(!(await page.locator('#materials-list').textContent()).includes('Loading'));
  failList=false;materials.clear();await page.getByRole('button',{name:'Refresh',exact:true}).click();await page.getByText('No materials yet.',{exact:true}).waitFor();
+ if(pptxMode){
+  assert((await page.locator('#material-file').getAttribute('accept')).includes('.pptx'));
+  assert((await page.locator('#material-pptx-notice').textContent()).includes('PDF'));
+  await page.locator('#material-file').setInputFiles({name:'Slides.pptx',mimeType:'application/vnd.openxmlformats-officedocument.presentationml.presentation',buffer:await fs.readFile(path.join(__dirname,'fixtures/room-pptx/valid.pptx'))});
+  await page.waitForFunction(()=>[...document.querySelectorAll('.material-row')].some(r=>r.textContent.includes('PPTX → PDF'))&&!document.querySelector('.material-preview canvas').hidden);
+  assert.equal(await page.locator('.material-page-count').textContent(),'1 / 2');assert((await page.locator('.material-state').textContent()).includes('PDF from PPTX'));
+  assert(await page.locator('dialog').evaluate(d=>d.scrollWidth<=d.clientWidth));
+  await page.evaluate(()=>{for(const style of document.querySelectorAll('style'))if(style.textContent.includes('.room-materials{font-size:28px}'))style.remove();});
+  await page.setViewportSize({width:390,height:844});await page.locator('.material-preview canvas').scrollIntoViewIfNeeded();await page.screenshot({path:'/tmp/3dtalks-pptx-library-mobile.png'});
+  await page.setViewportSize({width:1280,height:900});await page.screenshot({path:'/tmp/3dtalks-pptx-preview-desktop.png'});
+  console.log('PPTX browser: capabilities/accept, localized loss notice, source metadata, converted PDF badge and automatic real-PDF preview passed (fixture HTTP).');
+ }
  denyList=true;await page.getByRole('button',{name:'Refresh',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('dialog'));denyList=false;
  await page.locator('#open').click();await page.evaluate(()=>localStorage.removeItem('token'));await page.waitForFunction(()=>!document.querySelector('dialog'));
  assert.deepEqual(errors,[]);assert(requests.every(url=>url.startsWith(base)||url.startsWith('blob:')));

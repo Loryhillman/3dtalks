@@ -671,3 +671,16 @@ fail-closed. Повторяемые сценарии/точные границы
 Флаги false; рабочий локальный сервис/БД и VPS не менялись; push не выполнялся.
 Не объявлять проверенной ёмкость VPS/шесть полных GLB-клиентов/Safari.
 PPTX ещё не реализован; этап 5 и выпуск согласуются отдельно.
+
+
+По следующему согласию выполнен этап 5 ROOM_MEDIA_V2_PLAN.md (раздел 13):
+PPTX как kind=pdf/source_format=pptx в прежней медиатеке; изолированный
+LibreOffice7.4.7 Debian-patched worker, bounded ZIP preflight/spool/ack/cleanup,
+проверка существующим PDF worker, auto preview и RU/EN/zh-CN. Флаг false,
+worker только в дополнительном compose.pptx.yaml/profile pptx. Схема V2 уже
+содержит нужное source_format, новой миграции нет. Пройдены PostgreSQL18/
+Node20 Alpine/реальный nonroot/no-network/read-only converter, негативные
+OOXML/отмена/квоты и Chromium с настоящим результатом конвертации. Рабочий
+локальный Compose/БД и VPS не менялись, push не выполнялся. На 1ГБ VPS не
+включать: app512+DB256+converter384+spool128 не помещаются даже без ОС.
+Этап 6/нагрузка/реальные decks/worker OOM-restart и выпуск согласуются отдельно.

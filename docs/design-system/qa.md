@@ -60,3 +60,15 @@ SQL/JWT/WS и HTTPS/Secure-cookie проверены отдельным инте
 PASS: прежние presentation/materials 3 языка/7 viewport/focus/zoom.
 Статус Experimental сохраняется: реальные мобильные/Safari/полный WCAG-аудит
 не выполнены. Точные условия и ограничения — ROOM_MEDIA_V2_PLAN.md, раздел 12.
+
+
+### Импорт PPTX 1.7.0 Experimental, 28 октября 2026
+
+PASS: прежняя RoomMaterials, gated accept/capabilities, conversion/quota notice,
+PDF from PPTX во всех viewport, auto preview настоящего результата LibreOffice
+через реальный PDF.js canvas. Сохранены прежние 3 языка/7 viewport/200% text,
+focus/Escape/cancel/offline/выход. Просмотрены mobile/desktop screenshots.
+HTTP библиотеки в Chromium — fixture; настоящий PostgreSQL/JWT/Multer/worker/
+PDF pipeline проверен отдельным Docker integration. Не присваивать Stable:
+реальные пользовательские decks/устройства/полный accessibility-аудит и
+нагрузка на VPS остаются этапом 6. Детали — ROOM_MEDIA_V2_PLAN.md, раздел 13.

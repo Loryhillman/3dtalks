@@ -7,7 +7,7 @@ const {runRoomOperation}=require('./roomOperationQueue');
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const fail=(code,status=409)=>{throw Object.assign(new Error(code),{code,status});};
 const dto=a=>({id:a.id,name:a.display_name,kind:a.kind,state:a.state,bytes:Number(a.byte_size||a.declared_bytes),
-  pageCount:a.page_count,errorCode:a.error_code,createdAt:a.created_at,...(a.kind==='video'?{
+  ...(a.source_format?{sourceFormat:a.source_format}:{}),pageCount:a.page_count,errorCode:a.error_code,createdAt:a.created_at,...(a.kind==='video'?{
     video:{durationMs:a.video_duration_ms,width:a.video_width,height:a.video_height,fps:a.video_fps===null?null:Number(a.video_fps)}}:{})});
 // Called after owner -> advisory -> room locks, also by room deletion.
 async function markRoomMediaDeleted(client,roomId){
@@ -15,7 +15,7 @@ async function markRoomMediaDeleted(client,roomId){
   await client.query("UPDATE room_media_assets SET state='deleting',updated_at=now() WHERE room_id=$1",[roomId]);
 }
 function createRoomMediaService(pool,{directory=path.resolve(__dirname,'../../uploads/room-media'),processor=createRoomMediaProcessor(),
-  features=()=>MediaContract.features(process.env),videoGrantsOptions={},
+  features=()=>MediaContract.features(process.env),videoGrantsOptions={},pptx=require('./roomPptxImport').createRoomPptxImport(),
   presentationChanged=(roomId,state,previous)=>require('./roomPresentationRuntime').service.changed(roomId,state,previous)}={}){
   const videoGrants=require('./roomVideoGrants').createRoomVideoGrants(async actor=>{
     if(!features().videoUpload)fail('VIDEO_UNAVAILABLE',503);
@@ -51,17 +51,21 @@ function createRoomMediaService(pool,{directory=path.resolve(__dirname,'../../up
     if(!row)fail('MATERIAL_NOT_FOUND',404);return row;
   }
   async function reserve(userId,roomId,body){
-    if(!body||Object.keys(body).some(k=>!['requestId','kind','name','bytes'].includes(k))||!UUID.test(body.requestId||'')||
+    if(!body||Object.keys(body).some(k=>!['requestId','kind','name','bytes','sourceFormat'].includes(k))||!UUID.test(body.requestId||'')||
       !['pdf','image','video'].includes(body.kind)||typeof body.name!=='string'||!body.name.trim()||body.name.trim().length>120||/[\x00-\x1f\x7f]/.test(body.name)||!Number.isSafeInteger(body.bytes)||body.bytes<1)fail('INVALID_UPLOAD',400);
+    if(body.sourceFormat!==undefined&&(body.sourceFormat!=='pptx'||body.kind!=='pdf'))fail('INVALID_UPLOAD',400);
+    const imported=body.sourceFormat==='pptx';
+    if(imported&&!features().pptxImport)fail('PPTX_UNAVAILABLE',503);
     if(body.kind==='video'&&!features().videoUpload)fail('VIDEO_UNAVAILABLE',503);
     if(body.bytes>(body.kind==='video'?MediaContract.video.bytes:body.kind==='pdf'?limits.pdfBytes:limits.imageBytes))fail('FILE_TOO_LARGE',413);
-    const charge=body.bytes+(body.kind==='image'?limits.imageBytes:0);
+    const charge=imported?2*body.bytes+2*MediaContract.pptx.outputBytes:body.bytes+(body.kind==='image'?limits.imageBytes:0);
     return transaction(userId,roomId,async client=>{
       const prior=(await client.query('SELECT * FROM room_media_assets WHERE owner_user_id=$1 AND request_id=$2',[userId,body.requestId])).rows[0];
       if(prior){
-        if(prior.room_id!==roomId||prior.kind!==body.kind||prior.display_name!==body.name.trim()||Number(prior.declared_bytes)!==body.bytes)fail('REQUEST_ID_REUSED');
+        if(prior.room_id!==roomId||prior.kind!==body.kind||prior.display_name!==body.name.trim()||Number(prior.declared_bytes)!==body.bytes||(prior.source_format||null)!==(body.sourceFormat||null))fail('REQUEST_ID_REUSED');
         return {upload:dto(prior),reused:true};
       }
+      if(imported&&!pptx.available())fail('PPTX_UNAVAILABLE',503);
       const usage=(await client.query(`SELECT COALESCE(sum(reserved_bytes),0)::bigint AS bytes,
         count(*) FILTER(WHERE reserved_bytes>0)::int AS count,
         count(*) FILTER(WHERE state IN ('reserved','uploading','checking'))::int AS active,
@@ -76,9 +80,9 @@ function createRoomMediaService(pool,{directory=path.resolve(__dirname,'../../up
       await folder();const disk=await fs.statfs(directory);
       if(disk.bavail*disk.bsize<charge+limits.diskMargin)fail('MEDIA_STORAGE_FULL',503);
       const row=(await client.query(`INSERT INTO room_media_assets
-        (id,room_id,owner_user_id,request_id,kind,display_name,declared_bytes,reserved_bytes,storage_key,state,lease_until)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'reserved',now()+$10*interval '1 millisecond') RETURNING *`,
-        [randomUUID(),roomId,userId,body.requestId,body.kind,body.name.trim(),body.bytes,charge,randomUUID(),limits.reserveMs])).rows[0];
+        (id,room_id,owner_user_id,request_id,kind,display_name,declared_bytes,reserved_bytes,storage_key,state,lease_until,source_format)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'reserved',now()+$10*interval '1 millisecond',$11) RETURNING *`,
+        [randomUUID(),roomId,userId,body.requestId,body.kind,body.name.trim(),body.bytes,charge,randomUUID(),limits.reserveMs,body.sourceFormat||null])).rows[0];
       await client.query('UPDATE rooms SET media_initialized=true WHERE id=$1',[roomId]);return {upload:dto(row),reused:false};
     });
   }
@@ -96,6 +100,7 @@ function createRoomMediaService(pool,{directory=path.resolve(__dirname,'../../up
     try{
       const row=await transaction(userId,roomId,async client=>{
         const a=await asset(client,userId,roomId,id);
+        if(a.source_format==='pptx'&&(!features().pptxImport||!pptx.available()))fail('PPTX_UNAVAILABLE',503);
         if(a.kind==='video'&&!features().videoUpload)fail('VIDEO_UNAVAILABLE',503);
         if(a.state!=='reserved'||new Date(a.lease_until)<=new Date())fail('UPLOAD_EXPIRED');
         if(!processor.available())fail('PROCESSOR_BUSY',503);
@@ -118,15 +123,22 @@ function createRoomMediaService(pool,{directory=path.resolve(__dirname,'../../up
       const a=await asset(client,userId,roomId,row.id);if(a.state!=='uploading')fail('UPLOAD_CANCELLED');
       await client.query("UPDATE room_media_assets SET state='checking',updated_at=now() WHERE id=$1",[row.id]);
     });
-    const result=await processor.run(row.kind,paths.input,paths.output,controller.signal);
+    const imported=row.source_format==='pptx';
+    if(imported){
+      if(!features().pptxImport)fail('PPTX_UNAVAILABLE',503);
+      await pptx.run(paths.input,paths.output,row.storage_key,controller.signal);
+    }
+    const result=await processor.run(row.kind,imported?paths.output:paths.input,paths.output,controller.signal);
     if(controller.signal.aborted)fail('UPLOAD_CANCELLED');
     if(row.kind==='video'&&!features().videoUpload)fail('VIDEO_UNAVAILABLE',503);
+    if(imported&&!features().pptxImport)fail('PPTX_UNAVAILABLE',503);
     const video=row.kind==='video';
     if(!Number.isSafeInteger(result.bytes)||result.bytes<1||result.bytes>Number(row.reserved_bytes)||!/^[a-f0-9]{64}$/.test(result.checksum||'')||
       (video?result.bytes!==stat.size||result.pageCount!==null||result.mime!=='video/mp4'||!MediaContract.videoMetadata(result.video):
         !Number.isInteger(result.pageCount)||result.pageCount<1||result.pageCount>limits.pages||result.mime!==(row.kind==='pdf'?'application/pdf':'image/webp')))fail('PROCESSOR_FAILED',422);
-    await fs.rename(row.kind==='image'?paths.output:paths.input,paths.final);
-    if(row.kind==='image')await fs.unlink(paths.input);
+    if(imported&&result.bytes>MediaContract.pptx.outputBytes)fail('FILE_TOO_LARGE',413);
+    await fs.rename(row.kind==='image'||imported?paths.output:paths.input,paths.final);
+    if(row.kind==='image'||imported)await fs.unlink(paths.input);
     const ready=await transaction(userId,roomId,async client=>{
       const a=await asset(client,userId,roomId,row.id);if(a.state!=='checking'||controller.signal.aborted)fail('UPLOAD_CANCELLED');
       return (await client.query(`UPDATE room_media_assets SET state='ready',reserved_bytes=$2,byte_size=$2,page_count=$3,
@@ -195,6 +207,7 @@ function createRoomMediaService(pool,{directory=path.resolve(__dirname,'../../up
         },{deleted:true});
         if(!claimed)continue;
         try{
+          if(a.source_format==='pptx'&&!a.byte_size&&!await pptx.discard(a.storage_key))continue;
           for(const name of Object.values(files(a)))await fs.unlink(name).catch(e=>{if(e.code!=='ENOENT')throw e;});
           await transaction(a.owner_user_id,a.room_id,async client=>{
             await client.query("UPDATE room_media_assets SET reserved_bytes=0 WHERE id=$1 AND state IN ('failed','cancelled','deleting')",[a.id]);
@@ -204,7 +217,7 @@ function createRoomMediaService(pool,{directory=path.resolve(__dirname,'../../up
       }
     }finally{ticking=false;}
   }
-  return {capabilities:owned((userId,roomId)=>transaction(userId,roomId,async()=>features())),reserve:owned(reserve),list:owned(list),get:identified(get),begin:identified(begin),complete:owned(complete),
+  return {capabilities:owned((userId,roomId)=>transaction(userId,roomId,async()=>({...features(),pptxImport:features().pptxImport&&pptx.available()}))),reserve:owned(reserve),list:owned(list),get:identified(get),begin:identified(begin),complete:owned(complete),
     failed:identified(failed),cancel:identified(cancel),remove:identified((...args)=>runRoomOperation(()=>remove(...args))),content:identified(content),cleanup,
     async issueVideoGrant(userId,roomId,assetId){return videoGrants.issue({userId:canonical(userId),roomId:canonical(roomId),assetId:canonical(assetId)});},
     async readVideoGrant(token,roomId,assetId){return videoGrants.read(token,{roomId:canonical(roomId),assetId:canonical(assetId)});},
@@ -219,7 +232,7 @@ function createRoomMediaService(pool,{directory=path.resolve(__dirname,'../../up
       for(const download of downloads.values())if(download.roomId.toLowerCase()===roomId.toLowerCase())download.controller.abort();
     },
     async start(){await folder();await cleanup();janitor=setInterval(()=>cleanup().catch(e=>console.warn('[roomMedia] cleanup error',{code:e.code||'DATABASE_ERROR'})),30000);janitor.unref();},
-    close(){stopped=true;videoGrants.close();clearInterval(janitor);for(const controller of transfers.values())controller.abort();for(const d of downloads.values())d.controller.abort();processor.close();}
+    close(){stopped=true;videoGrants.close();clearInterval(janitor);for(const controller of transfers.values())controller.abort();for(const d of downloads.values())d.controller.abort();processor.close();pptx.close();}
   };
 }
 module.exports={createRoomMediaService,markRoomMediaDeleted};

@@ -31,7 +31,7 @@
     const label=node('label','material-upload');
     const formats=node('span','material-upload-format',t('formats'));formats.id='material-formats';
     label.append(node('span','material-upload-action','＋ '+t('upload')),formats,input);
-    let transfer,videoUpload=false,previewVideo=null;
+    let transfer,videoUpload=false,pptxImport=false,previewVideo=null;
     const stop=button('cancelUpload',async()=>{transfer?.abort();await cancelUpload();});stop.hidden=true;
     const quota=node('div','material-quota');quota.hidden=true;
     const quotaValues=node('span','material-quota-values'),meter=node('meter');meter.min=0;meter.max=1;meter.value=0;meter.setAttribute('aria-label',t('storage'));
@@ -87,8 +87,8 @@
       if(busy||index<0||index>=renderer.pageCount)return;
       await act(async()=>{await renderer.page(index);page=index;syncPager();});
     }
-    async function preview(asset){
-      if(busy)return;
+    async function preview(asset,{completedUpload=false}={}){
+      if(busy&&!completedUpload)return;
       previewVideo?.dispose();previewVideo=null;
       const epoch=++previewEpoch;selected=asset;previewLoading=true;canvas.hidden=true;pager.hidden=true;
       previewName.textContent=asset.name;canvas.setAttribute('aria-label',t('preview')+' — '+asset.name);placeholder.hidden=false;placeholder.textContent=t('loading');setStatus();
@@ -114,8 +114,8 @@
       list.replaceChildren();
       for(const asset of data.materials){
         const row=node('div','material-row');row.dataset.assetId=asset.id;row.classList.toggle('is-selected',selected?.id===asset.id);row.setAttribute('role','group');row.setAttribute('aria-label',asset.name);
-        const kind=node('span','material-kind',asset.kind==='pdf'?'PDF':asset.kind==='video'?'MP4':'IMG');kind.setAttribute('aria-hidden','true');
-        const details=node('span','material-details');details.append(node('span','material-name',asset.name),node('span','material-state material-state--'+asset.state,t(asset.state)));
+        const kind=node('span','material-kind',asset.sourceFormat==='pptx'?'PPTX → PDF':asset.kind==='pdf'?'PDF':asset.kind==='video'?'MP4':'IMG');kind.setAttribute('aria-hidden','true');
+        const details=node('span','material-details');details.append(node('span','material-name',asset.name),node('span','material-state material-state--'+asset.state,t(asset.state)+(asset.sourceFormat==='pptx'&&asset.state==='ready'?' · '+t('convertedPdf'):'')));
         const actions=node('span','material-actions');
         if(asset.state==='ready')actions.append(button('preview',()=>preview(asset)));
         if(['ready','failed','cancelled'].includes(asset.state))actions.append(button('remove',()=>act(async()=>{
@@ -145,14 +145,15 @@
     }
     input.onchange=()=>act(async()=>{
       const file=input.files[0];if(!file)return;input.value='';
-      const kind=/\.pdf$/i.test(file.name)?'pdf':/\.mp4$/i.test(file.name)?'video':'image',limit=(kind==='video'?40:kind==='pdf'?20:8)*1024**2;
+      const imported=/\.pptx$/i.test(file.name),kind=imported||/\.pdf$/i.test(file.name)?'pdf':/\.mp4$/i.test(file.name)?'video':'image',limit=(kind==='video'?40:kind==='pdf'?20:8)*1024**2;
+      if(imported&&!pptxImport)throw Object.assign(Error('PPTX_UNAVAILABLE'),{code:'PPTX_UNAVAILABLE'});
       if(kind==='video'&&!videoUpload)throw Object.assign(Error('VIDEO_UNAVAILABLE'),{code:'VIDEO_UNAVAILABLE'});
       if(!file.size||file.size>limit)throw Object.assign(new Error('FILE_TOO_LARGE'),{code:'FILE_TOO_LARGE'});
-      const data=await request('/uploads',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:requestId(),kind,name:file.name.slice(0,120),bytes:file.size})});
+      const data=await request('/uploads',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:requestId(),kind,...(imported?{sourceFormat:'pptx'}:{}),name:file.name.slice(0,120),bytes:file.size})});
       transfer=new AbortController();
-      uploadId=data.upload.id;stop.hidden=false;setStatus(t('uploading')+' '+file.name);
+      uploadId=data.upload.id;stop.hidden=false;setStatus(t(imported?'convertingPptx':'uploading')+' '+file.name);
       const body=new FormData();body.append('file',file);
-      try{await request('/uploads/'+uploadId+'/file',{method:'POST',body,signal:transfer.signal});uploadId=null;}
+      try{const result=await request('/uploads/'+uploadId+'/file',{method:'POST',body,signal:transfer.signal});uploadId=null;if(imported&&dialog.open)await preview(result.material,{completedUpload:true});}
       catch(e){await cancelUpload();throw e;}
       finally{input.value='';if(dialog.open)await refresh();}
     });
@@ -179,7 +180,8 @@
     },{once:true});
     dialog.showModal();await act(async()=>{try{
       try{const caps=await request('/capabilities');videoUpload=caps.features?.videoUpload===true&&!!window.RoomVideoPlayback;
-        if(videoUpload){input.accept+=',.mp4';formats.textContent=t('formatsVideo');}}catch(e){if(!dialog.open)return;}
+        if(videoUpload){input.accept+=',.mp4';formats.textContent=t('formatsVideo');}
+        pptxImport=caps.features?.pptxImport===true;if(pptxImport){input.accept+=',.pptx';formats.textContent+=' · PPTX ≤ 20 MiB';const hint=node('p','material-private-hint',t('pptxNotice'));hint.id='material-pptx-notice';input.setAttribute('aria-describedby','material-formats material-pptx-notice');label.after(hint);}}catch(e){if(!dialog.open)return;}
       await refresh();}catch(e){if(!list.querySelector('.material-row'))list.replaceChildren(node('p','material-empty',t('failed')));throw e;}finally{list.setAttribute('aria-busy','false');}});
   }
   window.RoomMaterials={open,close};

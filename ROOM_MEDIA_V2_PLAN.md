@@ -1,6 +1,6 @@
 # Материалы переговорной v2: видео и импорт PPTX
 
-Статус: этапы 1–4 реализованы, 27 октября 2026; локальные release-проверки видео пройдены. Включение и развёртывание отдельно; PPTX ещё не реализован.
+Статус: этапы 1–5 реализованы, 28 октября 2026. Видео и PPTX выключены флагами; этап 6 (нагрузка/выпуск PPTX) ещё не выполнен.
 База: eb45deb3 и последующие записи о развёртывании. V1 остаётся действующей.
 Задача: расширить существующие материалы/общий экран, не возвращая зависимости
 глобального мира и не создавая вторую медиатеку. План требует согласования
@@ -613,3 +613,140 @@ Safari/реальные мобильные устройства/плохой Wi-
 полный accessibility-аудит и ресурсы рабочего VPS не подтверждены.
 PPTX не реализован: следующий отдельный согласуемый этап 5 — защищённый
 OOXML import/converter. Прежние PDF/изображения сохраняются.
+
+
+## 13. Этап 5: PPTX → PDF (28 октября 2026)
+
+### Контракт и повторное использование
+
+`reserve` принимает прежний kind=pdf и дополнительный sourceFormat=pptx.
+В SQL сохраняются kind=pdf/source_format=pptx: новые тип показа, медиатека и
+PDF viewer не создаются. Используется уже выпущенная add_room_media_v2.sql,
+новой миграции нет. Прежние запросы PDF/image/video не меняются.
+DTO библиотеки содержит sourceFormat только для импорта. RequestId сверяет
+также исходный формат, исключая повтор того же ID как обычного PDF.
+
+До 20 МиБ входа, 100 слайдов, 20 МиБ подготовленного PDF. Один importer
+одновременно на процесс; общие ограничения transfers/SQL owner/server quotas
+сохраняются. Во время импорта резервируется 2×вход + 2×максимальный PDF,
+то есть до 80 МиБ прежней квоты владельца 100 МиБ. Это покрывает исходник
+приложения, spool-копию и две PDF-копии при переносе результата. Размер
+процессных данных/профиля дополнительно ограничен tmpfs/памятью контейнера.
+После физической очистки spool/исходника и PDF-проверки charge становится
+размером готового PDF. При ошибке/отмене charge сохраняется до cleanup.
+
+### Конвертер и границы изоляции
+
+`workers/pptx/Dockerfile`: Debian bookworm-slim закреплён digest,
+libreoffice-impress 4:7.4.7-1+deb12u14 (реальный пакет Debian security updates),
+Python stdlib; Liberation/DejaVu/Noto CJK. Отдельный `compose.pptx.yaml`,
+profile pptx. По умолчанию основного Compose конвертер не запускается.
+Профиль не включает флаг автоматически и не применяется к production.
+
+Контейнер: UID/GID1000, network=none, read-only root, cap_drop ALL,
+no-new-privileges, 384 МиБ без swap, 0.75 CPU, 64 pids, /tmp tmpfs128 МиБ.
+Общий spool — отдельный tmpfs128 МиБ UID1000/mode0700; в нём только задания,
+без БД/секретов/Docker socket/исходников приложения. Worker сериализует
+обработку flock; дочерний job получает уникальный профиль и process group.
+Общий deadline120 секунд включает preflight и LibreOffice; родитель
+проверяет cancel/deadline и убивает группу до публикации terminal ack.
+После успеха/ошибки/отмены профиль удаляется, дочерние процессы не остаются.
+Это контейнерная изоляция одного доверенного конвертера, не отдельная VM на
+документ и не доказательство защиты от всех неизвестных уязвимостей LibreOffice.
+Масштабирование нескольких приложений/общая удалённая очередь сюда не входит.
+
+`roomPptxImport` не запускает Docker/офисные процессы. Он атомарно публикует
+manifest с UUID/deadline, использует только фиксированные локальные имена,
+ограниченные JSON/файлы и O_NOFOLLOW. Readiness — свежий heartbeat worker;
+одного флага без worker недостаточно для capabilities/reserve/begin.
+Cancel/timeout оставляют spool и charge, пока нет terminal ack. Janitor
+сначала получает подтверждение/удаляет spool, затем удаляет файлы и освобождает
+квоту. При потерянном worker вернуть его, чтобы он завершил/отклонил старые
+задания; не удалять spool/charge вручную. После рестарта приложения потерянный
+upload не возобновляется: lease/cleanup завершат его как failed. Mount нужно
+сохранить до очистки незавершённых импортов, даже если флаг выключен.
+Готовые PDF читаются и удаляются без работающего конвертера.
+
+### Проверка OOXML и результата
+
+До LibreOffice ZIP читается без извлечения пользовательских путей: максимум
+4096 записей, 200 МиБ фактического распакованного потока, 8 МиБ на XML,
+compression ratio200; проверяются CRC, пути/дубликаты/шифрование/методы/symlink,
+content types/корень presentation/число slide IDs/parts и наличие внутренних
+relationship targets в самом архиве. DTD/entities (в том
+числе UTF16/32), VBA/ActiveX/OLE/встроенные документы/видео/аудио и внешние
+загружаемые ресурсы отвергаются. Некоторые сложные валидные PPTX поэтому не
+поддерживаются: предлагается вручную сохранить PDF. PPT/PPTM/парольные файлы
+не поддерживаются; разрешён обычный transitional PPTX.
+
+Безопасные HTTP/HTTPS/mailto гиперссылки допускаются как данные. В LibreOffice
+7.4 PDFViewSelection=3 не удаляет все URI-аннотации: исходящий PDF может их
+содержать. Приложение, как и для обычных PDF, рисует только canvas через
+закреплённый PDF.js без annotation/link layer и не выполняет переходов/действий.
+Тест с реальной URL-аннотацией не обращается к внешнему адресу. Не называть
+подготовленный файл универсально «очищенным PDF» для произвольного PDF-reader.
+
+В свежем профиле до загрузки файла задан MacroSecurityLevel=3 с пустыми
+trusted locations ([официальная справка](https://help.libreoffice.org/latest/en-GB/text/shared/optionen/macrosecurity_sl.html)),
+Java отключена настройкой. Это дополнительная мера к
+preflight/network isolation, не их замена. Вывод — impress_pdf_Export,
+без notes pages/transition effects/form fields; hidden slides включены.
+Результат повторно проходит существующий supervised PDF.js worker: header,
+нешифрованный PDF/число страниц/размеры/checksum/лимиты. После этого исходник
+удаляется и материал атомарно переходит в ready; исходный PPTX не выдаётся.
+
+### Интерфейс
+
+Когда флаг и worker доступны, RoomMaterials добавляет .pptx/20 МиБ, предупреждение
+о потере анимаций/отличиях шрифтов/неподдерживаемых объектах и временной квоте.
+После загрузки автоматически выбирается PDF-preview; ready-строка сообщает
+«PDF из PPTX», в том числе на мобильном, где прежний type badge скрыт.
+Общий показ владелец запускает прежней командой вручную. Дополнительный
+серверный preview-ack между вкладками не вводился. Использованы прежние tokens,
+Dialog/buttons/status/pager/cleanup; RU/EN/zh-CN. Расширение Experimental 1.7.0.
+
+### Проверки и следующий gate
+
+PASS: Python preflight fixtures — корректная кириллица/2 slides, external file
+resource, macro marker, traversal/backslash/symlink/duplicate/CRC, ZIP bomb,
+DTD и 101 slides. `test-room-pptx-spool.js`: bounded copy, no-follow output,
+нет worker/terminal cleanup, timeout с удержанием spool, recovery и cancel ack.
+
+PASS `check-room-pptx-docker.cjs`: настоящий PostgreSQL18/JWT/HTTP/Multer,
+app Node20 Alpine и отдельный LibreOffice при указанных ограничениях. Проверены
+флаги/ownership/replay, реальный PDF с 2 страницами и кириллицей, private content,
+удаление исходника/spool, квоты при успехе/ошибках, негативные PPTX, отмена после
+старта worker и отсутствие потомков/профилей, чтение/удаление при выключенном
+флаге. Прежние media/V2-schema и presentation SQL/HTTP/WS прошли. Простая
+фикстура: app peak около75 МиБ, converter peak около167 МиБ по cgroup. Это
+не замер тяжёлой презентации/100 слайдов/совместной нагрузки и не бюджет VPS.
+
+PASS Chromium --pptx: настоящий результат LibreOffice подан тестовым HTTP,
+автоматический PDF preview, badge/notice/доступность; прежние 3 языка/7 размеров,
+200% text/reflow, cancel/offline/focus/logout. Скриншоты mobile/desktop просмотрены.
+Полная /play с GLB/6 avatars/голосом/камерой/выходом прошла отдельно; видео/общий
+PDF не изменялись. Временные контейнеры/тома/БД удалены, рабочий Compose/БД/VPS
+не менялись, push не выполнялся.
+
+Воспроизведение (только изолированные тесты):
+```sh
+python3 scripts/room-pptx-fixtures.py scripts/fixtures/room-pptx
+python3 workers/pptx/test_validate.py
+node scripts/test-room-pptx-spool.js
+docker build -f workers/pptx/Dockerfile -t 3dtalks:pptx-worker .
+docker build -t 3dtalks:pptx-gate-app .
+node scripts/check-room-pptx-docker.cjs
+node scripts/test-room-materials-browser.js --pptx
+```
+
+Опциональный ROOM_PPTX_TEST_ARTIFACT=/absolute/temp/file.pdf сохраняет
+синтетический результат теста; ROOM_PPTX_TEST_PDF подаёт его browser fixture.
+Это не экспорт пользовательского материала.
+
+Этап 6 остаётся отдельным: тяжёлые/реальные decks, timeout/OOM/restart worker,
+совместная нагрузка с активной комнатой/загрузкой, общий RAM/tmpfs/disk budget,
+шрифты/сложные объекты и ручная приёмка. Бюджет app512+DB256+worker384+spool128
+уже больше1ГБ без ОС: на нынешнем VPS PPTX включать нельзя. Нужны измерения и
+отдельное решение об увеличении RAM/размещении worker; внешний сторонний
+конвертер не используется. Флаг false, основная локальная установка не
+перезапускалась. Push/развёртывание/включение — только отдельным поручением.

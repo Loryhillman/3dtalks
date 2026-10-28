@@ -164,3 +164,6 @@ __pycache__/
 !/compose.yaml
 !/compose.dev.yaml
 !/compose.production.yaml
+
+!/compose.pptx.yaml
+**/__pycache__/
