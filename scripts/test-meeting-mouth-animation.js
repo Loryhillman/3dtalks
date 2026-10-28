@@ -47,3 +47,16 @@ mouth.clear(); assert.equal(a.mesh.morphTargetInfluences[0], 0);
 mouth.start('a', {}, clock, 1.1, envelope); world.players.set('a', avatar()); mouth.update(world);
 assert.equal(world.players.get('a').mesh.morphTargetInfluences[0], 0, 'rejoined identity must not inherit old playback');
 console.log('Meeting mouth animation passed: bounds, per-speaker audio clocks, silence/suspension/hidden, delayed GLB, overlap, removal/rejoin and reset');
+// Streaming analysis shares calibration but owns/disposes only its graph nodes.
+world.players.set('a', a); let enabled = true, disconnected = 0, amplitude = .1;
+const streamClock = {state:'running',currentTime:0,
+ createMediaStreamSource:()=>({connect(){},disconnect(){disconnected++;}}),
+ createAnalyser:()=>({fftSize:1024,getFloatTimeDomainData(samples){samples.fill(amplitude);},disconnect(){disconnected++;}})};
+const live = {}; mouth.clear();mouth.stream(live,'a',streamClock,{},()=>enabled);
+streamClock.currentTime=.1;mouth.update(world);assert(a.mesh.morphTargetInfluences[0]>.1);
+const liveNormal=a.mesh.morphTargetInfluences[0];a.group.userData.accountAvatarConfig={mouthGain:2};mouth.update(world);
+assert(a.mesh.morphTargetInfluences[0]>=liveNormal);
+enabled=false;mouth.update(world);assert.equal(a.mesh.morphTargetInfluences[0],0);
+enabled=true;amplitude=0;streamClock.currentTime=.2;mouth.update(world);assert.equal(a.mesh.morphTargetInfluences[0],0);
+mouth.end(live);assert.equal(disconnected,2);mouth.clear();assert.equal(disconnected,2);
+console.log('Streaming mouths: actual sample energy, calibrated strength, mute/silence and graph cleanup OK');

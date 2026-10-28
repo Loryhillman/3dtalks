@@ -28,11 +28,18 @@ const seatVersions = new Map();
 let seatsUsed = false;
 let seatService;
 let presentation;
+let audio;
+const getAudio = () => audio || (audio = require('../services/roomAudioRuntime').initialize(cid => {
+  // Awaiting a heartbeat pong is not yet a dead connection. The heartbeat
+  // terminates a genuinely unresponsive socket on its next pass.
+  const p = presentationIdentity(cid, true);
+  return p ? { ...p, epoch: roomEpochs.get(p.roomId) || 0 } : null;
+}));
 const getPresentation=()=>presentation||(presentation=require('../services/roomPresentationRuntime').service);
-function presentationIdentity(connectionId){
+function presentationIdentity(connectionId, awaitingPongAllowed=false){
   const player=playerPositions.get(connectionId),socket=activeConnections.get(connectionId);
   if(process.env.APP_MODE!=='rooms'||!player?.seat||!seatIdentities.has(connectionId)||supersededConnections.has(connectionId)||
-    socket?.readyState!==WebSocket.OPEN||socket.isAlive===false||player.roomEpoch!==(roomEpochs.get(player.roomId)||0))return null;
+    socket?.readyState!==WebSocket.OPEN||(!awaitingPongAllowed&&socket.isAlive===false)||player.roomEpoch!==(roomEpochs.get(player.roomId)||0))return null;
   return {userId:seatIdentities.get(connectionId),roomId:player.roomId,characterId:player.characterId};
 }
 async function presentationSync(connectionId,ws){
@@ -110,7 +117,7 @@ async function handleSeatCommand(connectionId, ws, type, payload) {
   let message;
   try {
     if (type === 'ROOM_LEAVE') {
-      presentation?.revoke(connectionId);
+      presentation?.revoke(connectionId); audio?.revoke(connectionId);
       await getSeatService().release({ ...seatIdentity(connectionId, player), leave: true });
       voiceRelay.handleDisconnect(connectionId);
       playerPositions.delete(connectionId);
@@ -231,6 +238,7 @@ function setupWebSocketServer(httpServer) {
   try {
     // noServer 模式：upgrade 由 upgradeRouter 分发（/ws/agent→agent，其余→人类兜底）
     const roomsMode = process.env.APP_MODE === 'rooms';
+    if (roomsMode) getAudio();
     wss = new WebSocket.Server({ noServer: true,
       ...(roomsMode ? { maxPayload: ROOM_SOCKET_LIMITS.packetBytes } : {}) });
 
@@ -269,7 +277,7 @@ function setupWebSocketServer(httpServer) {
       }
 
       ws.on('close', async () => {
-        presentation?.revoke(connectionId);
+        presentation?.revoke(connectionId); audio?.revoke(connectionId);
         // 保存用户最后位置（下线时停留在当前位置）
         const playerData = playerPositions.get(connectionId);
         if (playerData?.seat) {
@@ -381,7 +389,7 @@ function setupWebSocketServer(httpServer) {
           if (!(await getSeatService().renew(seatIdentity(cid, player)))) {
             voiceRelay.handleDisconnect(cid);
             playerPositions.delete(cid);
-            presentation?.revoke(cid);
+            presentation?.revoke(cid); audio?.revoke(cid);
             seatIdentities.delete(cid);
             socket.send(JSON.stringify({ type: 'ROOM_SEAT_EXPIRED', payload: {} }));
             socket.close(4003, 'Seat expired');
@@ -396,7 +404,7 @@ function setupWebSocketServer(httpServer) {
         .finally(() => { seatTickPending = false; });
     }, 20000);
     if (seatTimer.unref) seatTimer.unref();
-    wss.on('close', () => { clearInterval(hbTimer); clearInterval(grantTimer); clearInterval(seatTimer); });
+    wss.on('close', () => { audio?.stop(); clearInterval(hbTimer); clearInterval(grantTimer); clearInterval(seatTimer); });
 
     console.log(`WebSocket server attached to HTTP server (shared port)`);
   } catch (error) {
@@ -415,6 +423,16 @@ function handleMessage(connectionId, ws, data) {
     case 'ROOM_PRESENTATION_COMMAND':
       handlePresentation(connectionId,ws,type,payload||{});
       break;
+    case 'ROOM_AUDIO_CONNECT': {
+      if (process.env.APP_MODE !== 'rooms' || ws.audioPending || typeof payload?.requestId !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(payload.requestId)) break;
+      ws.audioPending = true;
+      getAudio().grant(connectionId).then(grant => {
+        if (presentationIdentity(connectionId, true)) ws.send(JSON.stringify({type:'ROOM_AUDIO_SESSION',payload:{...grant,requestId:payload.requestId}}));
+      }).catch(() => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type:'ROOM_AUDIO_SESSION',payload:{requestId:payload.requestId,error:'AUDIO_UNAVAILABLE'}}));
+      }).finally(() => { ws.audioPending = false; });
+      break;
+    }
     case 'ROOM_LOOK': {
       const player = playerPositions.get(connectionId);
       if (!player?.seat || !payload || !Number.isFinite(payload.yaw) || !Number.isFinite(payload.pitch)) break;
@@ -466,18 +484,22 @@ function handleMessage(connectionId, ws, data) {
       break;
 
     case 'VOICE_START':
+      if (process.env.APP_MODE === 'rooms' && getAudio().enabled) break;
       voiceRelay.handleVoiceStart(connectionId, ws);
       break;
 
     case 'VOICE_PROBE':
+      if (process.env.APP_MODE === 'rooms' && getAudio().enabled) break;
       voiceRelay.handleVoiceProbe(connectionId, ws);
       break;
 
     case 'VOICE_END':
+      if (process.env.APP_MODE === 'rooms' && getAudio().enabled) break;
       voiceRelay.handleVoiceEnd(connectionId, ws);
       break;
 
     case 'VOICE_MESSAGE':
+      if (process.env.APP_MODE === 'rooms' && getAudio().enabled) break;
       voiceRelay.handleVoiceMessage(connectionId, ws, payload);
       break;
 
@@ -691,8 +713,8 @@ async function handlePlayerJoin(connectionId, ws, payload) {
   // The browser may have closed while authorization/database work was pending.
   if (supersededConnections.has(connectionId) || ws.readyState !== WebSocket.OPEN) return;
   const previous = playerPositions.get(connectionId);
-  if (previous && previous.roomId !== roomId) {
-    presentation?.revoke(connectionId);
+  if (previous && (previous.roomId !== roomId || previous.characterId !== characterId || seatIdentities.get(connectionId) !== seatUserId)) {
+    presentation?.revoke(connectionId); audio?.revoke(connectionId);
     voiceRelay.handleDisconnect(connectionId);
     broadcastToRoom(previous.roomId || MAIN_ROOM_ID, { type: 'PLAYER_LEFT', payload: {
       characterId: previous.characterId, characterName: previous.characterName
@@ -720,7 +742,7 @@ async function handlePlayerJoin(connectionId, ws, payload) {
         roomPosition = oldPlayer.position;
       }
       supersededConnections.add(cid);
-      presentation?.revoke(cid);
+      presentation?.revoke(cid); audio?.revoke(cid);
       const expiry = setTimeout(() => supersededConnections.delete(cid), 120000);
       if (expiry.unref) expiry.unref();
       playerPositions.delete(cid);
@@ -794,6 +816,7 @@ async function handlePlayerJoin(connectionId, ws, payload) {
       players: [...playerPositions.values()].filter(player => (player.roomId || MAIN_ROOM_ID) === roomId),
       weather: null, timestamp: new Date()
     } }));
+    if (process.env.APP_MODE === 'rooms') ws.send(JSON.stringify({type:'ROOM_AUDIO_CONFIG',payload:{mode:getAudio().enabled?'realtime':'clips'}}));
     if(hasPresentationScreen&&seatAssignment){
       try{await presentationSync(connectionId,ws);}catch(error){
         if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'ROOM_PRESENTATION_RESULT',payload:{success:false,code:'PRESENTATION_UNAVAILABLE'}}));
@@ -970,6 +993,7 @@ function endRoom(roomId) {
   if (process.env.ROOMS_ENABLED !== 'true' || roomId === MAIN_ROOM_ID) return 0;
   invalidateRoomReturnAccess(roomId);
   presentation?.revokeRoom(roomId);
+  for (const [cid, p] of playerPositions) if (p.roomId === roomId) audio?.revoke(cid);
   let count = 0;
   playerPositions.forEach((player, connectionId) => {
     if (player.roomId !== roomId) return;

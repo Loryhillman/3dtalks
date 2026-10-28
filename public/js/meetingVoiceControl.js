@@ -11,6 +11,7 @@
     const muted=document.createElement('span');muted.className='sv-muted';muted.hidden=true;button.append(icon, label,muted); document.body.append(button);
     function translate() {
       if(disposed)return;
+      if(window.voiceChat?.isRealtime){window.voiceChat.render();return;}
       label.dataset.i18n=button.classList.contains('voice-disabled')?'meetingUi.voiceUnavailable':button.classList.contains('listening')?'meetingUi.recording':'meetingUi.microphone';label.textContent=window.i18n.t(label.dataset.i18n);
       muted.textContent=window.i18n.t('meetingUi.playbackMuted');muted.hidden=!button.classList.contains('voice-muted');
       button.title = window.i18n.t('meetingUi.holdToTalk');
@@ -20,12 +21,14 @@
     let held = false,disposed=false;
     function start() {
       if (disposed||held) return;
+      if(window.voiceChat?.isRealtime){if(window.voiceChat.recording||window.voiceChat.wantRecording)window.voiceChat.stopTalk();else void window.voiceChat.startTalk();return;}
       held = true;
       Promise.resolve(window.voiceChat?.startTalk()).catch(error => {
         held = false; console.warn('[Voice] Recording failed:', error.message);
       });
     }
     function stop() {
+      if(window.voiceChat?.isRealtime)return;
       if (!held) return;
       held = false; window.voiceChat?.stopTalk();
     }

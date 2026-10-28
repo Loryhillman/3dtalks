@@ -5368,7 +5368,6 @@
     "closeMenu": "收起",
     "openChat": "聊天",
     "closeChat": "收起聊天",
-
     "cameraFirstPerson": "第一人称视角",
     "cameraOverview": "全景视角",
     "communication": "聊天和麦克风",
@@ -5755,7 +5754,6 @@
     "PPTX_LIMIT_EXCEEDED": "PPTX 超出处理限制。请另存为 PDF。",
     "PPTX_CONVERSION_FAILED": "无法转换 PPTX。请尝试另存为 PDF。",
     "PPTX_TIMEOUT": "PPTX 转换超时。请上传 PDF。",
-
     "formatsPptx": "PPTX 最大 5 MiB / 20 页（临时限制）",
     "VIDEO_TRACKS_UNSUPPORTED": "支持一个视频轨、最多一个音轨和一张封面。请移除其他轨道或导出普通 MP4。",
     "VIDEO_CODEC_UNSUPPORTED": "请使用 H.264（8 位 yuv420p）MP4。暂不支持 HEVC/H.265、HDR 及其他编码。",
@@ -5903,5 +5901,31 @@
     "inviteCopied": "链接已复制。",
     "inviteReady": "将链接发送给你想邀请的人。",
     "inviteUnavailable": "无法生成此房间的邀请链接。"
+  },
+  "realtimeAudio": {
+    "connecting": "正在连接音频",
+    "muted": "麦克风已关闭",
+    "requesting": "请求麦克风权限…",
+    "publishing": "麦克风已开启",
+    "recovering": "正在恢复音频",
+    "failed": "音频不可用",
+    "stopped": "音频已停止",
+    "turnOn": "点击开启麦克风",
+    "turnOff": "点击关闭麦克风",
+    "unavailable": "无法连接音频",
+    "unsupported": "不支持麦克风",
+    "permissionDenied": "麦克风权限被拒绝",
+    "permissionTimeout": "麦克风权限请求超时",
+    "noDevice": "未找到麦克风",
+    "deviceBusy": "麦克风正忙",
+    "deviceGone": "麦克风已断开，请在声音设置中选择设备",
+    "publishFailed": "无法开启麦克风",
+    "autoplay": "浏览器阻止了参与者音频",
+    "enableAudio": "开启参与者音频",
+    "retry": "重新连接",
+    "speaking": "正在讲话",
+    "micOn": "麦克风已开启",
+    "micOff": "麦克风已关闭",
+    "hint": "实时通话：点击麦克风开启，再次点击关闭。重新连接后保持关闭。更换设备前请先关闭麦克风。"
   }
 }

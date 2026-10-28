@@ -25,6 +25,7 @@ trap resume EXIT
 docker pause "$app" >/dev/null
 paused=true
 cp .env "$temporary/environment.env"
+if [[ -f .local-state/livekit.yaml ]]; then cp .local-state/livekit.yaml "$temporary/livekit.yaml"; fi
 git rev-parse HEAD > "$temporary/revision.txt"
 printf '%s\n' "$image" > "$temporary/image.txt"
 "${compose[@]}" exec -T postgres pg_dump -U postgres -d virtual_world -Fc > "$temporary/database.dump"
@@ -36,7 +37,8 @@ test -s "$temporary/database.dump"
 gzip -t "$temporary/files.tar.gz"
 docker unpause "$app" >/dev/null
 paused=false
-(cd "$temporary" && sha256sum database.dump files.tar.gz > SHA256SUMS)
+(cd "$temporary" && sha256sum database.dump files.tar.gz environment.env > SHA256SUMS
+ if [[ -f livekit.yaml ]]; then sha256sum livekit.yaml >> SHA256SUMS; fi)
 mv "$temporary" "$complete"
 printf '%s\n' "$complete" > "$backup_root/latest"
 # Retain seven completed copies owned by this script. Never prune incomplete copies

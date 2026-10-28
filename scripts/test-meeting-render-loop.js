@@ -20,14 +20,15 @@ const camera = new THREE.PerspectiveCamera();
 participant.update(16,camera);
 assert.deepEqual(Array.from(participant.position.toArray()),[2,1,3]);
 assert.equal('combatState' in participant,false);assert.equal('velocity' in participant,false);
-// Legacy and meeting controllers must use the same orbit and first-person camera.
+// Orbit is shared; first-person meetings follow seated hips/head, not standing feet.
 const legacy = Object.create(context.Player.prototype);
 legacy.position=participant.position.clone();legacy.worldObject=new THREE.Group();
 for(const mode of ['third-person','first-person']){
  context.GAME_STATE.cameraMode=mode;
  const legacyCamera=new THREE.PerspectiveCamera(),meetingCamera=new THREE.PerspectiveCamera();
  legacy.updateCamera(legacyCamera);participant.updateCamera(meetingCamera);
- assert.deepEqual(legacyCamera.position.toArray(),meetingCamera.position.toArray());
+ if(mode==='third-person')assert.deepEqual(legacyCamera.position.toArray(),meetingCamera.position.toArray());
+ else assert.deepEqual(Array.from(meetingCamera.position.toArray()),[2,1.85,3]);
  assert.deepEqual(legacyCamera.quaternion.toArray(),meetingCamera.quaternion.toArray());
  assert.equal(legacy.worldObject.visible,participant.worldObject.visible);
 }

@@ -27,6 +27,18 @@ function adminConfigurationIssues(env) {
 
 function validateStartupConfiguration(env) {
   const issues = [];
+  if (env.ROOM_REALTIME_AUDIO_ENABLED === 'true') {
+    for (const key of ['LIVEKIT_URL', 'LIVEKIT_INTERNAL_URL']) {
+      try {
+        const url = new URL(env[key]);
+        const allowed = key === 'LIVEKIT_URL' ? ['ws:', 'wss:'] : ['http:', 'https:'];
+        if (!allowed.includes(url.protocol) || url.username || url.password || url.search || url.hash) throw Error();
+      } catch (_) { issues.push({ key, message: 'Configure a valid LiveKit endpoint without credentials or query parameters.' }); }
+    }
+    if (!env.LIVEKIT_API_KEY || !env.LIVEKIT_API_SECRET || env.LIVEKIT_API_SECRET.length < 32) {
+      issues.push({ key: 'LIVEKIT_API_SECRET', message: 'Configure a dedicated LiveKit API key and a random secret of at least 32 characters.' });
+    }
+  }
   for (const key of ['DB_PASSWORD', 'WORLD_URL', 'ADMIN_USERNAME', 'ADMIN_PASSWORD']) {
     if (!env[key]?.trim()) issues.push({ key, message: 'Required; fill this setting in .env.' });
   }

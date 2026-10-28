@@ -32,6 +32,7 @@
             this.connected = true;
             this.reconnectAttempts = 0;
             window.RoomPresentation?.disconnected();
+            window.voiceChat?.cancelRoomAudio?.();
             window.RoomSeating?.connecting();
             this.flushMessageQueue();
             resolve();
@@ -55,6 +56,7 @@
             if (!opened) reject(new Error('WebSocket closed before connection completed'));
             if (socket !== this.ws) return;
             window.RoomPresentation?.disconnected();
+            window.voiceChat?.cancelRoomAudio?.();
             this.connected = false;
             if (event.code === 4002) this.sessionReplaced = true;
             if (!this.roomEnded) window.RoomSeating?.disconnected();
