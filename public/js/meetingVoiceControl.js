@@ -1,4 +1,4 @@
-/** Push-to-talk control for meetings, independent of the RPG skill HUD. */
+/** Native microphone toggle for live audio; hold-to-talk for legacy clips. */
 (() => {
   if (!window.MeetingUI?.active) return;
   function mount() {

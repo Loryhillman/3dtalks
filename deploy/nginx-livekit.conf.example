@@ -2,6 +2,8 @@
 # No public LiveKit management, WHIP, metrics or profiling endpoints.
 location = /_room_audio_admission {
     internal;
+    access_log off;
+    error_log /var/log/nginx/livekit-error.log crit;
     proxy_pass http://127.0.0.1:3002/api/room-audio/admission;
     proxy_pass_request_body off;
     proxy_set_header Content-Length "";
@@ -22,4 +24,8 @@ location ~ ^/livekit/(rtc|rtc/validate|rtc/v1|rtc/v1/validate)$ {
     proxy_read_timeout 75s;
     proxy_send_timeout 75s;
 }
-location /livekit/ { return 404; }
+location /livekit/ {
+    access_log off;
+    error_log /var/log/nginx/livekit-error.log crit;
+    return 404;
+}

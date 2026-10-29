@@ -34,9 +34,11 @@
       if (button) {
         const label = button.querySelector('.sv-label');
         if (label) { label.removeAttribute('data-i18n'); label.textContent = t(this.error ? 'failed' : this.phase); }
+        const speakers = button.querySelector('.sv-muted');
+        if (speakers) { speakers.hidden = !this.muted; speakers.textContent = window.i18n?.t('meetingUi.playbackMuted') || ''; }
         button.title = t(this.recording || this.wantRecording ? 'turnOff' : 'turnOn');
         button.setAttribute('aria-pressed', String(this.recording));
-        button.setAttribute('aria-label', t(this.error || this.phase) + '. ' + button.title);
+        button.setAttribute('aria-label', t(this.error || this.phase) + '. ' + (this.muted ? speakers?.textContent + '. ' : '') + button.title);
         button.setAttribute('aria-disabled', 'false'); // An error always remains explicitly retryable.
       }
       if (!this.notice && document.getElementById('meeting-menu')) {
@@ -49,7 +51,7 @@
       if (this.notice) {
         this.notice.hidden = !this.error && !this.playbackBlocked;
         this.status.textContent = t(this.playbackBlocked ? 'autoplay' : this.error || this.phase);
-        this.retry.textContent = t(this.playbackBlocked ? 'enableAudio' : 'retry');
+        this.retry.textContent = t(this.playbackBlocked ? 'enableAudio' : this.room && this.phase === 'muted' ? 'retryMicrophone' : 'retry');
       }
       window.MeetingAudioSettings?.refresh();
     }
@@ -212,6 +214,7 @@
     unmonitor(track) { window.MeetingMouthAnimation?.end(track); }
     toggleMute() {
       this.muted = !this.muted;
+      if (this.muted) this.playbackBlocked = false;
       try { localStorage.setItem('voiceChatMuted', this.muted ? '1' : '0'); } catch (_) {}
       for (const entry of this.remote.values()) entry.element.muted = this.muted;
       if (!this.muted) void this.resumeAudio();

@@ -9,7 +9,7 @@ rtc:
   node_ip: REPLACE_WITH_SERVER_IP
 turn:
   enabled: true
-  udp_port: 443
+  udp_port: 3478
 room:
   max_participants: 6
   empty_timeout: 60

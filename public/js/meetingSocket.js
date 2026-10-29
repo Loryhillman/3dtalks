@@ -1,4 +1,4 @@
-/** Meeting protocol: seats, account avatars, room chat and recorded voice. */
+/** Meeting protocol: seats, account avatars, room chat and room audio admission. */
 (() => {
   if (location.pathname !== '/play') return;
   const seatMessages = new Set(['ROOM_SEAT_ASSIGNED', 'ROOM_SEATS_STATE', 'ROOM_SEAT_CHANGED',

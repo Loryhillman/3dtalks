@@ -60,10 +60,11 @@ Roster labels describe live media rather than recording a voice message.
 The trial VPS has approximately 1 GiB RAM: one capped audio SFU, existing app and
 PostgreSQL; measure actual consumption. Do not enable PPTX conversion or video
 conferencing. Signaling uses trusted HTTPS under `/livekit/`; API 7880 stays
-private. ICE UDP 50000–50199, ICE TCP 7881 and authenticated embedded TURN UDP 443 provide
-NAT traversal and a TCP fallback. Corporate networks permitting only TCP 443 need
+private. ICE UDP 50000–50199, ICE TCP 7881 and authenticated embedded TURN UDP 3478 provide
+NAT traversal; ICE TCP is a separate direct fallback. Corporate networks permitting only TCP 443 need
 TURN/TLS with a separate hostname/certificate or proxy arrangement; do not claim
-universal connectivity. Preserve existing HTTPS and explicit firewall rules.
+universal connectivity. Forced relay on UDP 443 failed from the acceptance network;
+UDP 3478 passed on the same VPS and clients. Preserve existing HTTPS and explicit firewall rules.
 
 ## Verification and rollout
 Check admission denial, room/identity/source grants, replay after lost admission,

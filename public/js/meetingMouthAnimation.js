@@ -1,4 +1,4 @@
-// Only audible room playback drives remote mouths. No microphone, timers or network state.
+// Audio energy drives room mouths; capture/playback lifetimes belong to audio sessions.
 (() => {
   const tracks = new Map(), bindings = new Map();
   function reset(binding) {

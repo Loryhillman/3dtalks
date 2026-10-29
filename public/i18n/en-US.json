@@ -5972,6 +5972,7 @@
     "speaking": "Speaking",
     "micOn": "Microphone on",
     "micOff": "Microphone off",
-    "hint": "Live conversation: click the microphone once to turn it on, and again to turn it off. It stays off after reconnecting. Turn it off before changing devices."
+    "hint": "Live conversation: click the microphone once to turn it on, and again to turn it off. It stays off after reconnecting. Turn it off before changing devices.",
+    "retryMicrophone": "Retry microphone"
   }
 }
