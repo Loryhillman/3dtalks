@@ -120,3 +120,7 @@
   .meeting-session #room-seat-list { gap: 4px; }
   .meeting-session #room-seat-picker > p[data-i18n] { display: none; }
 }
+/* Exceptional audio actions stay inside the existing compact room menu. */
+.meeting-audio-notice { grid-column: 1 / -1; min-width: 0; }
+.meeting-audio-notice p { margin: 4px 0 8px; font-size: 13px; overflow-wrap: anywhere; }
+.meeting-audio-notice[hidden] { display: none; }

@@ -1,4 +1,4 @@
-/** Meeting protocol: seats, account avatars, room chat and recorded voice. */
+/** Meeting protocol: seats, account avatars, room chat and room audio admission. */
 (() => {
   if (location.pathname !== '/play') return;
   const seatMessages = new Set(['ROOM_SEAT_ASSIGNED', 'ROOM_SEATS_STATE', 'ROOM_SEAT_CHANGED',
@@ -31,6 +31,8 @@
     static handleMessage(data) {
       if (!record(data) || typeof data.type !== 'string') return;
       const { type, payload } = data;
+      if (type === 'ROOM_AUDIO_CONFIG') { window.voiceChat?.configure?.(payload); return; }
+      if (type === 'ROOM_AUDIO_SESSION') { window.voiceChat?.session?.(payload); return; }
       if(['ROOM_PRESENTATION_SESSION','ROOM_PRESENTATION_STATE','ROOM_PRESENTATION_RESULT','ROOM_PRESENTATION_AVAILABLE','ROOM_PRESENTATION_CAPABILITIES_RESULT','ROOM_PRESENTATION_CLOCK_RESULT'].includes(type)){
         if(record(payload))window.RoomPresentation?.message(type,payload);return;
       }

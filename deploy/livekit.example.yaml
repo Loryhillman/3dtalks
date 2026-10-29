@@ -1,0 +1,30 @@
+# Copy to .local-state/livekit.yaml, chmod 600; generate credentials outside Git.
+port: 7880
+bind_addresses: [127.0.0.1, 172.17.0.1]
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 50199
+  use_external_ip: false
+  node_ip: REPLACE_WITH_SERVER_IP
+turn:
+  enabled: true
+  udp_port: 3478
+room:
+  max_participants: 6
+  empty_timeout: 60
+  departure_timeout: 10
+  enabled_codecs:
+    - mime: audio/opus
+keys:
+  REPLACE_WITH_API_KEY: REPLACE_WITH_RANDOM_32_BYTE_SECRET
+logging:
+  level: warn
+limit:
+  num_tracks: 96
+  bytes_per_sec: 2000000
+  subscription_limit_audio: 6
+  signal_message_size_limit: 65536
+  max_api_request_body_size: 65536
+  max_metadata_size: 1024
+  max_attributes_size: 1024

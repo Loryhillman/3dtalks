@@ -167,3 +167,6 @@ __pycache__/
 
 !/compose.pptx.yaml
 **/__pycache__/
+
+/.local-state/
+!/compose.audio.yaml

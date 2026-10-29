@@ -7,7 +7,7 @@ RUN apk add --no-cache tini curl ffmpeg
 
 # 复制依赖文件并安装
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 
 # 复制全部应用代码和静态资源（包括 uploads）
 COPY src/ ./src/

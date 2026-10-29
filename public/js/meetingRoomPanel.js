@@ -79,8 +79,8 @@
         const row=node('li','meeting-member'),identity=node('div','meeting-member-identity');
         identity.append(node('strong','meeting-member-name',member.name||t('unnamed')));
         if(member.self)identity.append(node('span','meeting-member-self',t('you')));
-        const voice=node('span','meeting-member-audio',t(state.connection!=='connected'?'unknown':member.playing?'playing':member.recording?(member.self?'youRecording':'recording'):'present'));
-        row.classList.toggle('is-active',state.connection==='connected'&&(member.recording||member.playing));row.append(identity,voice);return row;
+        const voice=node('span','meeting-member-audio',member.audio?window.i18n.t('realtimeAudio.'+(member.audio.speaking?'speaking':member.audio.microphone?'micOn':'micOff')):t(state.connection!=='connected'?'unknown':member.playing?'playing':member.recording?(member.self?'youRecording':'recording'):'present'));
+        row.classList.toggle('is-active',state.connection==='connected'&&(member.recording||member.playing||member.audio?.speaking));row.append(identity,voice);return row;
       }));
     }
     const off=window.MeetingRoster.subscribe(render);s.cleanup=off;s.refresh=()=>render(window.MeetingRoster.getState());
@@ -100,7 +100,7 @@
     let devices=[],deviceError=false,previousPhase;
     function render(state){
       if(s.finished)return;
-      s.translate();text(hint,t('clipHint'));text(labelText,t('microphone'));text(checkText,t('hearParticipants'));
+      s.translate();text(hint,window.voiceChat?.isRealtime?window.i18n.t('realtimeAudio.hint'):t('clipHint'));text(labelText,t('microphone'));text(checkText,t('hearParticipants'));
       meter.setAttribute('aria-label',t('level'));meter.value=state.level;meter.hidden=state.phase!=='testing';
       check.checked=!window.voiceChat?.muted;
       select.disabled=state.busy||['requesting','testing'].includes(state.phase);

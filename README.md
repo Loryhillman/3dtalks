@@ -632,3 +632,27 @@ Escape закрывает его, сохраняя черновик. Закры�
 Решения, QA и ручная приёмка:
 [meeting-ui-refinement.md](docs/design-system/meeting-ui-refinement.md).
 Эта ветка пока не разворачивалась на VPS и не объединялась с main.
+# Live microphone audio (separate realtime branch)
+
+See [ROOM_REALTIME_AUDIO.md](ROOM_REALTIME_AUDIO.md) for admission, lifecycle,
+network requirements and rollout limits. With realtime enabled, click the
+microphone once to speak and once to stop. Sound is sent immediately while
+speaking. Entry/reconnection always starts with the microphone off. Incoming
+sound remains a separate setting. Turn off the microphone before changing its
+device or running the local test. The room menu exposes connection/autoplay retry.
+
+Self-hosting additionally requires `compose.audio.yaml`, a private
+`.local-state/livekit.yaml` based on `deploy/livekit.example.yaml`, matching random
+credentials in `.env`, and the Nginx admission configuration in
+`deploy/nginx-livekit.conf.example`. Never expose port 7880 publicly or bypass its
+RTC admission gate. Open UDP 443/50000–50199 and TCP 7881. TURN/TLS for networks permitting
+only TCP 443 needs additional deployment work. Local WSL TURN testing needs the
+current WSL interface IP and an exact restricted-peer exception for that IP;
+never copy a broad private-network allowlist into production.
+
+Checks: `node scripts/test-room-audio.js`, `node scripts/test-meeting-mouth-animation.js`
+and opt-in `scripts/check-room-audio-live-browser.js` with explicit
+`ROOM_AUDIO_LIVE_URL` / `ROOM_AUDIO_AUTH_FILE` and disposable test rooms/accounts.
+`ROOM_AUDIO_FORCE_RELAY=1` additionally forces native browser ICE relay policy.
+No SDP, tokens or candidate addresses are printed. The synthetic microphone check
+proves live transport; physical microphones/headphones still need a human check.

@@ -1,0 +1,31 @@
+# Include inside the existing HTTPS server. Requires http_auth_request_module.
+# No public LiveKit management, WHIP, metrics or profiling endpoints.
+location = /_room_audio_admission {
+    internal;
+    access_log off;
+    error_log /var/log/nginx/livekit-error.log crit;
+    proxy_pass http://127.0.0.1:3002/api/room-audio/admission;
+    proxy_pass_request_body off;
+    proxy_set_header Content-Length "";
+    proxy_set_header X-Audio-Token $room_audio_token;
+    proxy_set_header Authorization $http_authorization;
+}
+location ~ ^/livekit/(rtc|rtc/validate|rtc/v1|rtc/v1/validate)$ {
+    set $room_audio_token $arg_access_token;
+    auth_request /_room_audio_admission;
+    access_log off;
+    error_log /var/log/nginx/livekit-error.log crit;
+    rewrite ^/livekit/(.*)$ /$1 break;
+    proxy_pass http://127.0.0.1:7880;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_read_timeout 75s;
+    proxy_send_timeout 75s;
+}
+location /livekit/ {
+    access_log off;
+    error_log /var/log/nginx/livekit-error.log crit;
+    return 404;
+}

@@ -47,6 +47,11 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   exposedHeaders: ['X-Renewed-Token']
 }));
+app.get('/api/room-audio/admission', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const bearer = req.headers['x-audio-token'] || (req.headers.authorization || '').replace(/^Bearer /i, '');
+  res.sendStatus(require('./services/roomAudioRuntime').authorize(bearer) ? 204 : 403);
+});
 app.use(express.json());
 // 启用Gzip压缩 - 关键优化！5.8MB PNG可压缩到几百KB
 app.use(compression({

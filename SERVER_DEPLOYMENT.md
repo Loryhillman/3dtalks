@@ -561,3 +561,56 @@ nginx -t и backup timer прошли. GitHub push не выполнялся.
 старый runtime отклоняет их размеры при повторной миграции/чтении; не выполнять
 автоматический откат схемы или восстановление базы поверх новых данных.
 Сам откат не выполнялся.
+
+
+### Live microphone trial — 29 October 2026
+
+Frontend PR #1 was merged into main as `78eb7f9e` and deployed. Realtime audio
+was developed and deployed separately in `codex/realtime-voice`; main remains
+the stable frontend checkpoint. Runtime release: `c9ea02ff`, image
+`3dtalks:audio-c9ea02ff` (`0de8b476cd2f`). No database migration was required
+for live audio. Existing video upload/playback remain enabled; PPTX conversion
+remains disabled on this small VPS.
+
+The existing HTTPS endpoint is https://13.143.143.45/. Nginx exposes only admitted
+LiveKit signaling under `/livekit/`, with query logging disabled. Private API
+7880 is accessible only from the app network/loopback. Media: UDP 50000–50199,
+TCP 7881, authenticated embedded TURN UDP 3478. UDP 443 did not establish the
+forced-relay session from the acceptance network; standard 3478 did. TCP-443-only
+networks still require a separate TURN/TLS arrangement. See ROOM_REALTIME_AUDIO.md
+and the pinned compose.audio.yaml / deployment examples.
+
+PASS on real VPS HTTPS, application admission, WebSocket and LiveKit with three
+synthetic-microphone Chromium accounts in two disposable rooms: continuous
+RTP/energy before releasing microphone, duplex speech, actual local/remote GLB
+mouth morphs, isolation, independent speaker mute, keyboard toggles, WebSocket
+recovery with microphone off, rejected stale token, late capture cancellation,
+permission denial/retry and exit cleanup. Forced TURN relay was verified from
+selected ICE statistics and received audio; duplex transmission remained active
+for another 65 seconds, past the initial join token's expiry. No browser errors.
+Autoplay-denial/recovery was exercised locally by injecting a rejected play
+promise; native mobile autoplay and real physical microphones need human review.
+
+Relevant admission/configuration/mouth unit checks and Chromium HUD/presentation
+regressions passed. Final patch changes labels and proxy logging only; it was
+installed after live acceptance. Final HTTPS readiness, nginx -t, healthy
+containers and backup timer passed. All six local/VPS test accounts and four
+rooms were removed using validated fixture identities in transactions. Room,
+world object, seat and template hashes on VPS match the pre-audio snapshot.
+Idle usage after deployment: app ~43 MiB, SFU ~44 MiB, PostgreSQL ~36 MiB;
+these observations are not a six-person capacity or load guarantee.
+
+Pre-audio backup: `/opt/3dtalks-backups/3dtalks-20261028T153729Z`, including
+previous environment and NGINX-before.conf. Stable rollback image:
+`3dtalks:before-audio-8b8965a1`; stable Git checkpoint:
+`checkpoint/meeting-ui-before-realtime` (`78eb7f9e`). To roll back, restore that
+checkout/environment/Nginx configuration, validate and reload Nginx, tag the
+stable image as 3dtalks:local, recreate only app with base+production Compose,
+and stop only the LiveKit service. Never restore the database automatically.
+The daily backup helper now preserves the private host LiveKit configuration.
+
+User check: refresh the page, enter the same room from two accounts/devices,
+use headphones, allow microphone permission and click microphone once to turn
+it on and again to turn it off. Speech is live, with no recording/release delay.
+Microphone stays off after entry or reconnect. Opening Sound allows choosing an
+input while the microphone is off; muting received sound does not stop capture.

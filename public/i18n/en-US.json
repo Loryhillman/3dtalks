@@ -5380,7 +5380,6 @@
     "closeMenu": "Collapse",
     "openChat": "Chat",
     "closeChat": "Hide chat",
-
     "cameraFirstPerson": "First-person view",
     "cameraOverview": "Overview",
     "communication": "Chat and microphone",
@@ -5801,7 +5800,6 @@
     "PPTX_LIMIT_EXCEEDED": "This PPTX exceeds processing limits. Save it as a PDF.",
     "PPTX_CONVERSION_FAILED": "Could not convert the PPTX. Try saving it as a PDF.",
     "PPTX_TIMEOUT": "PPTX conversion took too long. Upload a PDF instead.",
-
     "formatsPptx": "PPTX up to 5 MiB / 20 slides (temporary limit)",
     "VIDEO_TRACKS_UNSUPPORTED": "Use one video track, at most one audio track and one cover image. Remove additional tracks or export a regular MP4.",
     "VIDEO_CODEC_UNSUPPORTED": "Use MP4 with H.264 video (8-bit yuv420p). HEVC/H.265, HDR and other codecs are not supported yet.",
@@ -5949,5 +5947,32 @@
     "inviteCopied": "Link copied.",
     "inviteReady": "Send the link to the person you want to invite.",
     "inviteUnavailable": "Could not create an invitation link for this room."
+  },
+  "realtimeAudio": {
+    "connecting": "Connecting audio",
+    "muted": "Mic off",
+    "requesting": "Microphone access…",
+    "publishing": "Mic on",
+    "recovering": "Recovering audio",
+    "failed": "Audio unavailable",
+    "stopped": "Audio stopped",
+    "turnOn": "Click to turn on your microphone",
+    "turnOff": "Click to turn off your microphone",
+    "unavailable": "Could not connect audio",
+    "unsupported": "Microphone is not supported",
+    "permissionDenied": "Microphone permission denied",
+    "permissionTimeout": "Microphone permission timed out",
+    "noDevice": "No microphone found",
+    "deviceBusy": "Microphone is busy",
+    "deviceGone": "Microphone disconnected. Select a device in sound settings",
+    "publishFailed": "Could not enable microphone",
+    "autoplay": "Browser blocked participant audio",
+    "enableAudio": "Enable participant audio",
+    "retry": "Retry connection",
+    "speaking": "Speaking",
+    "micOn": "Microphone on",
+    "micOff": "Microphone off",
+    "hint": "Live conversation: click the microphone once to turn it on, and again to turn it off. It stays off after reconnecting. Turn it off before changing devices.",
+    "retryMicrophone": "Retry microphone"
   }
 }

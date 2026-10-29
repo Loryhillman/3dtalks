@@ -12,7 +12,7 @@ const LIMITS = Object.freeze({
 });
 const TYPES = new Set([
   'PLAYER_JOIN', 'PING', 'POSITION_UPDATE', 'ROOM_LOOK', 'ROOM_SEAT_SELECT',
-  'ROOM_LEAVE', 'CHAT', 'VOICE_START', 'VOICE_END', 'VOICE_PROBE', 'VOICE_MESSAGE',
+  'ROOM_AUDIO_CONNECT', 'ROOM_LEAVE', 'CHAT', 'VOICE_START', 'VOICE_END', 'VOICE_PROBE', 'VOICE_MESSAGE',
   'ROOM_PRESENTATION_GET_STATE', 'ROOM_PRESENTATION_COMMAND', 'ROOM_PRESENTATION_CAPABILITIES', 'ROOM_PRESENTATION_CLOCK'
 ]);
 const RATES = {
@@ -57,7 +57,7 @@ function createIngress(now = () => performance.now()) {
     // Removed RPG commands cannot invoke the old handlers in rooms mode.
     if (!TYPES.has(data.type) || (!joined && !['PLAYER_JOIN', 'PING'].includes(data.type))) return {};
     let bucket;
-    if (data.type === 'PLAYER_JOIN') bucket = 'join';
+    if (data.type === 'PLAYER_JOIN' || data.type === 'ROOM_AUDIO_CONNECT') bucket = 'join';
     else if(data.type==='ROOM_PRESENTATION_CLOCK')bucket='presentationClock';
     else if(data.type.startsWith('ROOM_PRESENTATION_'))bucket='presentation';
     else if (data.type === 'CHAT') bucket = 'chat';

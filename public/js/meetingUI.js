@@ -12,7 +12,7 @@
     if (stopped) return;
     if (menuToggle) {
       // Keep blocked autoplay/retry discoverable while the controls are folded.
-      const attention = menu.querySelector('.presentation-video-local button:not([hidden])');
+      const attention = menu.querySelector('.presentation-video-local button:not([hidden]), .meeting-audio-notice:not([hidden]) button');
       const caption = tr(menu.hidden ? 'openMenu' : 'closeMenu', menu.hidden ? 'Menu' : 'Close menu');
       const text = caption + (menu.hidden && attention ? ' · !' : '');
       if (menuToggle.textContent !== text) menuToggle.textContent = text;

@@ -1,6 +1,7 @@
 /** Server-derived meeting roster. Independent of avatars, DOM and transport. */
 (() => {
   if(!window.MeetingUI?.active)return;
+  const live=new Map();
   const members=new Map(), recordings=new Map(), playback=new Map(), listeners=new Set();
   let roomId=null, connection='connecting', stopped=false;
   const valid=p=>p&&typeof p.characterId==='string'&&p.characterId.length>0&&p.characterId.length<=128&&
@@ -9,11 +10,12 @@
     const self=window.GAME_STATE?.characterId;
     return Object.freeze({roomId,connection,members:Object.freeze([...members.values()].map(p=>Object.freeze({
       id:p.characterId,name:p.characterName,self:p.characterId===self,
-      recording:recordings.has(p.characterId),playing:!!playback.get(p.characterId)?.size
+      audio:live.get(p.characterId)||null,recording:recordings.has(p.characterId),playing:!!playback.get(p.characterId)?.size
     })).sort((a,b)=>Number(b.self)-Number(a.self)||a.name.localeCompare(b.name)||a.id.localeCompare(b.id)))});
   }
   function emit(){const value=snapshot();for(const fn of listeners)fn(value);}
   function clearActivity(id){
+    if(id===undefined)live.clear();else live.delete(id);
     if(id!==undefined){clearTimeout(recordings.get(id));recordings.delete(id);playback.delete(id);return;}
     for(const timer of recordings.values())clearTimeout(timer);
     recordings.clear();playback.clear();
@@ -32,6 +34,13 @@
     joined(p){if(stopped||!valid(p)||!members.has(p.characterId)&&members.size>=6)return;members.set(p.characterId,{characterId:p.characterId,characterName:p.characterName});emit();},
     left(id){if(stopped)return;clearActivity(id);members.delete(id);emit();},
     connection(value){if(stopped||!['connecting','reconnecting'].includes(value))return;connection=value==='connecting'&&members.size?'reconnecting':value;clearActivity();emit();},
+    liveAudio(id, value){
+      if(stopped||connection!=='connected'||!members.has(id))return;
+      const previous=live.get(id);
+      if(previous?.microphone===value.microphone&&previous?.speaking===value.speaking)return;
+      live.set(id,{microphone:!!value.microphone,speaking:!!value.speaking});emit();
+    },
+    clearLiveAudio(){if(live.size){live.clear();emit();}},
     recording(id,on){
       if(stopped||connection!=='connected'||!members.has(id)||typeof on!=='boolean')return;
       clearTimeout(recordings.get(id));recordings.delete(id);
