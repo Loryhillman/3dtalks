@@ -778,3 +778,25 @@ IME, drafts, mic/roster), полный /play --builtin-v3 --human-avatars --vide
 docs/design-system/meeting-ui-refinement.md. Доступно в локальном dev после
 Ctrl+Shift+R; VPS/push/merge этой задачей не выполнялись. Остановиться для
 пользовательской проверки, дальнейшие изменения не расширять автоматически.
+
+
+## Live microphone checkpoint — 29 October 2026
+
+By explicit user request the compact frontend was merged through PR #1 into main
+as 78eb7f9e and deployed. checkpoint/meeting-ui-before-realtime preserves it.
+Live audio is separate in codex/realtime-voice and deployed as c9ea02ff; do not
+merge it into main automatically before the user's physical-microphone review.
+Implementation and boundaries: ROOM_REALTIME_AUDIO.md. Uses pinned LiveKit SFU,
+server admission bound to the active seated WS/epoch, microphone-only grants,
+revocation/reconciliation and Nginx admission on each signaling connection.
+Legacy recorded clips are excluded when real-time mode is enabled. Keep the
+explicit tested client SDK and dual peer connections; repeat relay tests before
+changing them. TURN UDP 3478 and ICE media range 50000–50199 passed on VPS.
+Do not silently promise support for networks allowing only TCP 443.
+
+Live HTTPS synthetic audio acceptance passed direct and forced authenticated
+relay, duplex beyond initial token expiry, actual mouth animation, isolation,
+muting, reconnect without capture, permission races and teardown. Test resources
+were removed; pre/post room/object/seat/template hashes match. Details, measured
+idle memory and rollback are in SERVER_DEPLOYMENT.md. Physical microphones and
+mobile/native autoplay remain human acceptance. No load test is implied.
